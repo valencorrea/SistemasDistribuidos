@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  middleware:
+    build:
+      context: .
+      dockerfile: docker/middleware.Dockerfile
+    ports:
+      - "5000:5000"
+    networks:
+      - movie_network
+    volumes:
+      - ./data:/app/data
+
+  movie_filter_post2000:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    environment:
+      - FILTER_TYPE=post_2000
+      - MIDDLEWARE_HOST=middleware
+    depends_on:
+      - middleware
+    networks:
+      - movie_network
+    deploy:
+      replicas: 3
+
+  movie_filter_argentina_spain:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    environment:
+      - FILTER_TYPE=argentina_spain
+      - MIDDLEWARE_HOST=middleware
+    depends_on:
+      - middleware
+    networks:
+      - movie_network
+    deploy:
+      replicas: 3
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: docker/aggregator.Dockerfile
+    environment:
+      - MIDDLEWARE_HOST=middleware
+    depends_on:
+      - middleware
+    networks:
+      - movie_network
+    volumes:
+      - ./results:/app/results
+
+networks:
+  movie_network:
+    driver: bridge 
