@@ -1,3 +1,4 @@
 FROM python:3.9-slim
-COPY producer/producer.py /root/producer.py
+COPY producer.py /root/producer.py
+RUN pip install pika
 CMD ["python", "/root/producer.py"]
