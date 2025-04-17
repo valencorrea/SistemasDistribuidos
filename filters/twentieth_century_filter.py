@@ -1,6 +1,6 @@
 import time
 
-from consumer.consumer import Consumer
+from middleware.consumer.consumer import Consumer
 
 class TwentiethCenturyFilter:
     def __init__(self, queue_name='cola'):

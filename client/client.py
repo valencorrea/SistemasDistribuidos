@@ -1,6 +1,6 @@
 import time
 
-from producer.producer import Producer
+from middleware.producer.producer import Producer
 
 class Client:
     def __init__(self):

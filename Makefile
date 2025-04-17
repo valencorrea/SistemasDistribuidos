@@ -16,8 +16,8 @@ build: deps
 .PHONY: build
 
 docker-image:
-	docker build -f ./consumer/consumer.dockerfile --no-cache -t "consumer:latest" ./consumer
-	docker build -f ./producer/producer.dockerfile --no-cache -t "producer:latest" ./producer
+	docker build -f ./middleware/consumer/consumer.dockerfile --no-cache -t "consumer:latest" ./middleware/consumer
+	docker build -f ./middleware/producer/producer.dockerfile --no-cache -t "producer:latest" ./middleware/producer
 
 	docker build -f ./rabbitmq/rabbitmq.dockerfile --no-cache -t "rabbitmq:latest" ./rabbitmq
 
