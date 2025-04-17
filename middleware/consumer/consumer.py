@@ -76,45 +76,60 @@ class Consumer:
                 return False
         return False
 
-    def start(self):
-        while not self._closing:
+    def dequeue(self, timeout: int = 1) -> Any:
+        """
+        Obtiene un mensaje de la cola de forma síncrona.
+
+        Args:
+            timeout: Tiempo máximo de espera en segundos para recibir un mensaje
+
+        Returns:
+            El mensaje procesado por message_factory o None si no hay mensajes
+        """
+        if not self._connection or self._connection.is_closed:
+            if not self.connect():
+                return None
+
+        try:
+            method_frame, properties, body = self._channel.basic_get(
+                queue=f'{self._queue_name}_{self._consumer_id}',
+                auto_ack=True
+            )
+
+            if method_frame:
+                try:
+                    processed_message = self._message_factory(body)
+
+                    if isinstance(processed_message, dict) and self._handle_shutdown_message(processed_message):
+                        logger.info(f" [x] Consumidor {self._consumer_id} recibió mensaje de shutdown")
+                        return None
+
+                    logger.info(f" [x] Consumidor {self._consumer_id} recibió: {processed_message}")
+                    return processed_message
+                except Exception as e:
+                    logger.error(f"Error procesando mensaje: {e}")
+                    return None
+            return None
+
+        except Exception as e:
+            logger.error(f"Error al obtener mensaje: {e}")
+            return None
+
+    def close(self):
+        """
+        Cierra la conexión con RabbitMQ de forma ordenada.
+        """
+        logger.info('Iniciando cierre del consumidor...')
+        self._closing = True
+
+        if self._connection and not self._connection.is_closed:
             try:
-                if not self.connect():
-                    continue
-
-                def callback(ch, method, properties, body):
-                    if self._closing:
-                        return
-                    try:
-                        processed_message = self._message_factory(body)
-
-                        if isinstance(processed_message, dict) and self._handle_shutdown_message(processed_message):
-                            return
-
-                        logger.info(f" [x] Consumidor {self._consumer_id} recibio: {processed_message}")
-                    except Exception as e:
-                        logger.error(f"Error procesando mensaje: {e}")
-
-                self._channel.basic_consume(
-                    queue=f'{self._queue_name}_{self._consumer_id}',
-                    on_message_callback=callback,
-                    auto_ack=True
-                )
-
-                logger.info(f' [*] Consumidor {self._consumer_id} esperando mensajes. Para salir presione CTRL+C')
-                self._channel.start_consuming()
-            except pika.exceptions.AMQPConnectionError:
-                logger.error("Conexion perdida, intentando reconectar...")
-                continue
-            except KeyboardInterrupt:
-                logger.info('Interrumpido por el usuario')
-                break
+                self._connection.close()
+                logger.info('Conexión cerrada exitosamente')
             except Exception as e:
-                logger.error(f"Error inesperado: {e}")
-                break
-            finally:
-                if self._connection and not self._connection.is_closed:
-                    self._connection.close()
+                logger.error(f"Error al cerrar la conexión: {e}")
+        else:
+            logger.info('No había conexión activa para cerrar')
 
 
 if __name__ == '__main__':
@@ -126,4 +141,14 @@ if __name__ == '__main__':
         queue_name='hello',
         message_factory=json_message_factory
     )
-    consumer.start()
+
+    try:
+        while True:
+            message = consumer.dequeue()
+            if message:
+                print(f"Mensaje recibido: {message}")
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info('Interrumpido por el usuario')
+    finally:
+        consumer.close()

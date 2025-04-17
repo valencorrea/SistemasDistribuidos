@@ -26,7 +26,12 @@ class TwentiethCenturyFilter:
     def start(self):
         try:
             print("[CONSUMER_CLIENT] Iniciando consumo de mensajes...")
-            self.consumer.start()
+            self.consumer.connect()
+
+            while True:
+                self.consumer.dequeue()
+                time.sleep(1)
+
         except KeyboardInterrupt:
             print("[CONSUMER_CLIENT] Interrumpido por el usuario")
             #self.close()
