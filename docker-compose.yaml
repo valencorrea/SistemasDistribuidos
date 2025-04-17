@@ -34,3 +34,15 @@ services:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
+    
+  consumer-copy:
+    build:
+      context: ./consumer
+      dockerfile: consumer.dockerfile
+    restart: on-failure
+    depends_on:
+      - rabbitmq
+    links: 
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
