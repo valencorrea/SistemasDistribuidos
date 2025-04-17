@@ -23,3 +23,14 @@ services:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
+
+  filter:
+    build:
+      context: .
+      dockerfile: filters/filter.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
