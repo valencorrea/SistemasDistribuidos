@@ -1,4 +1,5 @@
 import time
+import json
 
 from middleware.consumer.consumer import Consumer
 from utils.parsers.movie_parser import convert_data
@@ -6,28 +7,21 @@ from utils.parsers.movie_parser import convert_data
 
 class TwentiethCenturyFilter:
     def __init__(self, queue_name='cola'):
+        self.movies_filtered = []
         self.consumer = Consumer(
             queue_name=queue_name,
             message_factory=self.handle_message
         )
 
     def handle_message(self, message_bytes: bytes):
-        import json
         batch = json.loads(message_bytes.decode())
-
-        print(f"[CONSUMER_CLIENT] Mensaje recibido: {batch}")
-
-
         movies = convert_data(batch)
-        print(f"[CONSUMER_CLIENT] Mensaje recibido: {movies}")
 
         filtered_movies = apply_filter(movies)
-
         for movie in filtered_movies:
-            print(f"[CONSUMER_CLIENT] 🎬 Pasa el filtro: {movie.title} ({movie.release_date})")
+            self.movies_filtered.append(movie)
 
-        return filtered_movies
-
+        return movies
 
     def start(self):
         try:
