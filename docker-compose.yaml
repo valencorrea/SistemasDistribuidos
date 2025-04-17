@@ -10,39 +10,27 @@ services:
         interval: 10s
         timeout: 5s
         retries: 10
+    volumes:
+      - ./rabbitmq/config.ini:/config.ini
 
-  producer:
+  client:
     build:
-      context: ./producer
-      dockerfile: producer.dockerfile
-    restart: on-failure
+      context: .
+      dockerfile: client/client.dockerfile
     depends_on:
       - rabbitmq
-    links: 
+    links:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
 
-  consumer:
+  filter:
     build:
-      context: ./consumer
-      dockerfile: consumer.dockerfile
-    restart: on-failure
+      context: .
+      dockerfile: filters/filter.dockerfile
     depends_on:
       - rabbitmq
-    links: 
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
-    
-  consumer-copy:
-    build:
-      context: ./consumer
-      dockerfile: consumer.dockerfile
-    restart: on-failure
-    depends_on:
-      - rabbitmq
-    links: 
+    links:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1

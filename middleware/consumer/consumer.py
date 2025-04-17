@@ -48,26 +48,26 @@ class Consumer:
                         socket_timeout=30
                     ))
                 self._channel = self._connection.channel()
-                
+
                 # Declarar el exchange de tipo fanout
                 self._channel.exchange_declare(
                     exchange='fanout_exchange',
                     exchange_type='fanout',
                     durable=True
                 )
-                
+
                 # Crear una cola exclusiva para este consumidor
                 result = self._channel.queue_declare(
                     queue=f'{self._queue_name}_{self._consumer_id}',
                     exclusive=True
                 )
-                
+
                 # Vincular la cola al exchange
                 self._channel.queue_bind(
                     exchange='fanout_exchange',
                     queue=result.method.queue
                 )
-                
+
                 self._producer_active = True
                 logger.info(f"Conexion establecida exitosamente con RabbitMQ. ID del consumidor: {self._consumer_id}")
                 return True
@@ -79,10 +79,10 @@ class Consumer:
     def dequeue(self, timeout: int = 1) -> Any:
         """
         Obtiene un mensaje de la cola de forma síncrona.
-        
+
         Args:
             timeout: Tiempo máximo de espera en segundos para recibir un mensaje
-            
+
         Returns:
             El mensaje procesado por message_factory o None si no hay mensajes
         """
@@ -95,22 +95,22 @@ class Consumer:
                 queue=f'{self._queue_name}_{self._consumer_id}',
                 auto_ack=True
             )
-            
+
             if method_frame:
                 try:
                     processed_message = self._message_factory(body)
-                    
+
                     if isinstance(processed_message, dict) and self._handle_shutdown_message(processed_message):
                         logger.info(f" [x] Consumidor {self._consumer_id} recibió mensaje de shutdown")
                         return None
-                        
+
                     logger.info(f" [x] Consumidor {self._consumer_id} recibió: {processed_message}")
                     return processed_message
                 except Exception as e:
                     logger.error(f"Error procesando mensaje: {e}")
                     return None
             return None
-            
+
         except Exception as e:
             logger.error(f"Error al obtener mensaje: {e}")
             return None
@@ -121,7 +121,7 @@ class Consumer:
         """
         logger.info('Iniciando cierre del consumidor...')
         self._closing = True
-        
+
         if self._connection and not self._connection.is_closed:
             try:
                 self._connection.close()
@@ -130,6 +130,7 @@ class Consumer:
                 logger.error(f"Error al cerrar la conexión: {e}")
         else:
             logger.info('No había conexión activa para cerrar')
+
 
 if __name__ == '__main__':
     def json_message_factory(message: bytes) -> dict:
@@ -140,7 +141,7 @@ if __name__ == '__main__':
         queue_name='hello',
         message_factory=json_message_factory
     )
-    
+
     try:
         while True:
             message = consumer.dequeue()
