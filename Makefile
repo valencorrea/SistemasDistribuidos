@@ -18,7 +18,11 @@ build: deps
 docker-image:
 	docker build -f ./consumer/consumer.dockerfile --no-cache -t "consumer:latest" ./consumer
 	docker build -f ./producer/producer.dockerfile --no-cache -t "producer:latest" ./producer
+
 	docker build -f ./rabbitmq/rabbitmq.dockerfile --no-cache -t "rabbitmq:latest" ./rabbitmq
+
+	docker build -f ./client/client.dockerfile --no-cache -t "client:latest" .
+
 	# Execute this command from time to time to clean up intermediate stages generated
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you
 	# want to avoid rebuilding client image every time the docker-compose-up command

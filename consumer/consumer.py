@@ -48,26 +48,26 @@ class Consumer:
                         socket_timeout=30
                     ))
                 self._channel = self._connection.channel()
-                
+
                 # Declarar el exchange de tipo fanout
                 self._channel.exchange_declare(
                     exchange='fanout_exchange',
                     exchange_type='fanout',
                     durable=True
                 )
-                
+
                 # Crear una cola exclusiva para este consumidor
                 result = self._channel.queue_declare(
                     queue=f'{self._queue_name}_{self._consumer_id}',
                     exclusive=True
                 )
-                
+
                 # Vincular la cola al exchange
                 self._channel.queue_bind(
                     exchange='fanout_exchange',
                     queue=result.method.queue
                 )
-                
+
                 self._producer_active = True
                 logger.info(f"Conexion establecida exitosamente con RabbitMQ. ID del consumidor: {self._consumer_id}")
                 return True
@@ -81,16 +81,16 @@ class Consumer:
             try:
                 if not self.connect():
                     continue
-                
+
                 def callback(ch, method, properties, body):
                     if self._closing:
                         return
                     try:
                         processed_message = self._message_factory(body)
-                        
+
                         if isinstance(processed_message, dict) and self._handle_shutdown_message(processed_message):
                             return
-                            
+
                         logger.info(f" [x] Consumidor {self._consumer_id} recibio: {processed_message}")
                     except Exception as e:
                         logger.error(f"Error procesando mensaje: {e}")
@@ -115,6 +115,7 @@ class Consumer:
             finally:
                 if self._connection and not self._connection.is_closed:
                     self._connection.close()
+
 
 if __name__ == '__main__':
     def json_message_factory(message: bytes) -> dict:
