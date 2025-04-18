@@ -15,3 +15,10 @@ class Movie:
         except Exception as e:
             print(f"[MOVIE] Error parseando fecha '{self.release_date}' en {self.title}: {e}")
             return False
+
+    def to_dict(self):
+        return {
+            "title": self.title,
+            "production_countries": self.production_countries,
+            "release_date": self.release_date,
+        }

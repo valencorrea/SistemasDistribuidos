@@ -34,3 +34,14 @@ services:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/aggregator.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
