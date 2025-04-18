@@ -22,7 +22,8 @@ docker-image:
 	docker build -f ./rabbitmq/rabbitmq.dockerfile --no-cache -t "rabbitmq:latest" ./rabbitmq
 
 	docker build -f ./client/client.dockerfile --no-cache -t "client:latest" .
-	docker build -f ./filters/filter.dockerfile --no-cache -t "filter:latest" .
+
+	docker build -f ./filters/twentieth_century/twentieth_century_filter.dockerfile --no-cache -t "twentieth_century_filter:latest" .
 
 	# Execute this command from time to time to clean up intermediate stages generated
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you
