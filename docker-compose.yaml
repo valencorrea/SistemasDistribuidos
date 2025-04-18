@@ -1,0 +1,47 @@
+services:
+  rabbitmq:
+    build:
+      context: ./rabbitmq
+      dockerfile: rabbitmq.dockerfile
+    ports:
+      - 15672:15672
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:15672"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+    volumes:
+      - ./rabbitmq/config.ini:/config.ini
+
+  client:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  twentieth_century_filter:
+    build:
+      context: .
+      dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/aggregator.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
