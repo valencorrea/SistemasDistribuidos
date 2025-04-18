@@ -35,7 +35,3 @@ class ArgEspProductionFilter:
         except KeyboardInterrupt:
             print("[CONSUMER_CLIENT] Interrumpido por el usuario")
             # self.close()
-if __name__ == '__main__':
-    time.sleep(5)  # Espera para asegurarse que RabbitMQ está listo
-    client = ArgEspProductionFilter()
-    client.start()

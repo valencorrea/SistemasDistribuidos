@@ -35,10 +35,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  arg_esp_production_filter:
+  aggregator:
     build:
       context: .
-      dockerfile: filters/arg_esp_production/arg_esp_production_filter.dockerfile
+      dockerfile: aggregator/aggregator.dockerfile
     depends_on:
       - rabbitmq
     links:
