@@ -96,7 +96,6 @@ class Consumer:
             )
 
             if method:
-                print("body" + str(body))
                 message = json.loads(body.decode())
                 
                 # Manejar mensaje de shutdown
