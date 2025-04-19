@@ -11,19 +11,22 @@ class Client:
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
-    def wait_for_result(self, timeout: int = 30) -> bool:
-        """Espera por un resultado de la cola 'result' con timeout configurable"""
+    def wait_for_result(self, expected_results: int = 5, timeout: int = 30) -> bool:
+        """Espera por un número específico de resultados de la cola 'result' con timeout configurable"""
         start_time = time.time()
         retry_interval = 0.1  # 100ms entre intentos
+        results_received = 0
         
         while time.time() - start_time < timeout:
             result = self.consumer.dequeue()
             if result:
-                print(f"[INFO] Resultado recibido: {result}")
-                return True
+                results_received += 1
+                print(f"[INFO] Resultado {results_received}/{expected_results} recibido: {result}")
+                if results_received >= expected_results:
+                    return True
             time.sleep(retry_interval)
         
-        print("[ERROR] Timeout esperando resultado")
+        print(f"[ERROR] Timeout esperando resultados. Recibidos: {results_received}/{expected_results}")
         return False
 
     def close(self):
@@ -89,7 +92,6 @@ if __name__ == '__main__':
 
     try:
         for batch, is_last in client.process_file("root/files/movies.txt"):
-            batch_str = ''.join(batch)
             message = {
                 "type": "movie",
                 "cola": batch,
@@ -104,10 +106,10 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
-        if not client.wait_for_result(timeout=1000):
-            print(f"[WARNING] Timeout en batch {total_batches + 1}")
-            
-            
+        
+        # Esperar por 5 resultados (uno por cada filtro)
+        if not client.wait_for_result(expected_results=1, timeout=1000):
+            print(f"[WARNING] Timeout esperando resultados finales")
 
     except Exception as e:
         print(f"[ERROR] Error durante el procesamiento: {e}")
