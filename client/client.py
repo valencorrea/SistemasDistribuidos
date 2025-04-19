@@ -108,7 +108,7 @@ if __name__ == '__main__':
             total_batches += len(batch)
         
         # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=1, timeout=1000):
+        if not client.wait_for_result(expected_results=2, timeout=1000):
             print(f"[WARNING] Timeout esperando resultados finales")
 
     except Exception as e:
