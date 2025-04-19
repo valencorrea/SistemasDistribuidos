@@ -1,11 +1,12 @@
 import time
 import json
-from venv import logger
-
+import logging
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class ArgEspProductionFilter:
     def __init__(self):
@@ -45,17 +46,20 @@ class ArgEspProductionFilter:
                     continue
                 self.producer.enqueue(message)
         except KeyboardInterrupt:
-            logger.info("Deteniendo filtro...")
+            logger.info("[CONSUMER_CLIENT] Interrumpido por el usuario")
         finally:
             self.close()
 
     def close(self):
-        """Cierra las conexiones"""
         self.consumer.close()
         self.producer.close()
 
 def apply_filter(movies):
-    return [movie for movie in movies if len(movie.get("production_countries")) == 2 and "ES" in movie.get("production_countries")]
+    result = []
+    for movie in movies:
+        if int(movie.get("release_date")) < 2010 and "ES" in movie.get("production_countries"):
+            result.append({"title": movie.get("title"), "genres": movie.get("genres")})
+    return result
 
 if __name__ == '__main__':
     filter = ArgEspProductionFilter()
