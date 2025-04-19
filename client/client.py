@@ -7,6 +7,7 @@ from middleware.consumer.consumer import Consumer
 class Client:
     def __init__(self, batch_size: int = 10):
         self.producer = Producer("movie")
+        self.producer_1 = Producer("movie_1")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
@@ -30,14 +31,14 @@ class Client:
         self.producer.close()
         self.consumer.close()
 
-    def send(self, message: dict) -> bool:
+    def send(self, message: dict) -> (bool, bool):
         """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
-            return self.producer.enqueue(message)
+            return (self.producer.enqueue(message),self.producer_1.enqueue(message))
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
-            return False
+            return (False, False)
 
     def process_file(self, file_path: str) -> Generator[tuple[list[str], bool], None, None]:
         """Procesa el archivo en lotes de manera eficiente"""
@@ -95,9 +96,9 @@ if __name__ == '__main__':
                 "batch_size": len(batch),
                 "total_batches": total_batches + len(batch) if is_last else 0
             }
-            result = client.send(message)
+            result_0, result_1 = client.send(message)
 
-            if result:
+            if result_0 or result_1:
                 successful_batches += 1
                 print(f"[MAIN] Batch {total_batches + 1} enviado correctamente")
             else:
