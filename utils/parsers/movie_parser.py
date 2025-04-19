@@ -22,12 +22,15 @@ def convert_data(data):
     result = []
     for row in reader:
         if row["production_countries"] and row["release_date"] and row["title"] and row["production_countries"] != "[]":
-            result.append(Movie(title=row["title"],
-              production_countries=parse_production_countries(row["production_countries"]),
-              release_date=parse_release_date(row["release_date"]),
-              total_batches=data.get("total_batches", 0),
-              batch_size=data.get("batch_size", 0),
-              type="movie"))
+            result.append(Movie(
+                title=row["title"],
+                production_countries=parse_production_countries(row["production_countries"]),
+                release_date=parse_release_date(row["release_date"]),
+                total_batches=data.get("total_batches", 0),
+                batch_size=data.get("batch_size", 0),
+                type="movie",
+                genres=parse_genres(row["genres"])
+            ))
     return result
 
 def parse_production_countries(data):
@@ -58,3 +61,19 @@ def parse_release_date(data):
     except Exception as e:
         print(f"[MOVIE] Error parseando fecha '{data}' en title: {e}")
         return None
+
+def parse_genres(data):
+    try:
+        # Primero intentamos con ast.literal_eval
+        try:
+            genres = ast.literal_eval(data)
+        except:
+            # Si falla, intentamos con json.loads
+            genres = json.loads(data)
+        
+        if isinstance(genres, list):
+            return [g["name"] for g in genres if isinstance(g, dict) and "name" in g]
+        return []
+    except Exception as e:
+        print(f"[PARSE] Error parsing genres: {data} -> {e}")
+        return []

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class TwentiethCenturyFilter:
     def __init__(self):
         self.consumer = Consumer("movie",message_factory=self.handle_message)  # Lee de la cola de movies
-        self.producer = Producer("arg_españa_production")  # Envía resultados a aggregate_consulta_1
+        self.producer = Producer("arg_españa_production") 
 
     def handle_message(self, message):
         if message.get("type") == "shutdown":
