@@ -14,7 +14,6 @@ class Aggregator:
         self.total_batches = None
         self.received_batches = 0
 
-
     def start(self):
         """Inicia el procesamiento de mensajes"""
         logger.info("Iniciando agregador")
@@ -22,14 +21,34 @@ class Aggregator:
         try:
             while True:
                 message = self.consumer.dequeue()
+                
                 if not message:
                     continue
-
-               
-                    
-                if self.producer.enqueue(message):
-                    logger.info(f"Resultado final enviado con {len(self.filtered_movies)} películas")
+                
+                if message.get("type") == "shutdown":
                     break
+
+                if message.get("type") == "batch_result":
+                    # Acumular las películas del batch
+                    self.filtered_movies.extend(message.get("movies", []))
+                    self.received_batches += message.get("batch_size", 0)
+                    
+                    if message.get("total_batches"):
+                        self.total_batches = message.get("total_batches")
+
+                    logger.info(f"Batch procesado. Películas acumuladas: {len(self.filtered_movies)}")
+                    logger.info(f"Batches recibidos: {self.received_batches}/{self.total_batches}")
+
+                    # Si hemos recibido todos los batches, enviar el resultado final
+                    if self.total_batches and self.total_batches > 0 and self.received_batches >= self.total_batches:
+                        result_message = {
+                            "type": "result",
+                            "movies": self.filtered_movies,
+                            "total_movies": len(self.filtered_movies)
+                        }
+                        if self.producer.enqueue(result_message):
+                            logger.info(f"Resultado final enviado con {len(self.filtered_movies)} películas")
+                        break
 
         except KeyboardInterrupt:
             logger.info("Deteniendo agregador...")

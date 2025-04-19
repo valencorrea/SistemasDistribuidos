@@ -13,16 +13,21 @@ class TwentiethCenturyFilter:
         self.producer = Producer("aggregate_consulta_1")  # Envía resultados a aggregate_consulta_1
 
     def handle_message(self, message):
-        print("message_bytes" + str(message))
-        print("batch" + str(message))
+        if message.get("type") == "shutdown":
+            return message
         movies = convert_data(message)
-        print("HOLAAAAAAAAAA" + str(message))
 
         filtered_movies = apply_filter(movies)
-        for movie in filtered_movies:
-            self.movies_filtered.append(movie)
-
-        return movies
+        
+        # Crear un mensaje con la información del batch
+        batch_message = {
+            "movies": [movie.to_dict() for movie in filtered_movies],
+            "batch_size": message.get("batch_size", 0),
+            "total_batches": message.get("total_batches", 0),
+            "type": "batch_result"
+        }
+        
+        return batch_message
 
     def start(self):
         """Inicia el procesamiento de películas"""
@@ -30,10 +35,12 @@ class TwentiethCenturyFilter:
         
         try:
             while True:
-                movies = self.consumer.dequeue()
-                if not movies or len(movies) == 0:
+                message = self.consumer.dequeue()
+                if type(message) == dict and message.get("type") == "shutdown":
+                    print("Shutting down filter")
+                    break
+                if not message:
                     continue
-                message = [movie.to_dict() for movie in movies]
                 self.producer.enqueue(message)
         except KeyboardInterrupt:
             logger.info("Deteniendo filtro...")
@@ -44,8 +51,10 @@ class TwentiethCenturyFilter:
         """Cierra las conexiones"""
         self.consumer.close()
         self.producer.close()
+
 def apply_filter(movies):
-    return [movie for movie in movies if movie.released_in_or_after_2000()]
+    return [movie for movie in movies if movie.released_in_or_after_2000_argentina()]
+
 if __name__ == '__main__':
     filter = TwentiethCenturyFilter()
     filter.start()
