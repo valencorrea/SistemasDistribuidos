@@ -56,3 +56,26 @@ services:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
+
+
+  top_5_countries_filter:
+    build:
+      context: .
+      dockerfile: filters/top_5_local/top_5_local.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  top_5_countries_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/top_aggregator/aggregator.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1

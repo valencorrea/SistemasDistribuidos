@@ -29,9 +29,16 @@ def convert_data(data):
                 total_batches=data.get("total_batches", 0),
                 batch_size=data.get("batch_size", 0),
                 type="movie",
-                genres=parse_genres(row["genres"])
+                genres=parse_genres(row["genres"]),
+                budget=parse_budget(row["budget"])
             ))
     return result
+
+def parse_budget(data):
+    try:
+        return int(data)
+    except:
+        return 0
 
 def parse_production_countries(data):
     try:

@@ -10,6 +10,7 @@ class Movie:
     batch_size: int
     type: str
     genres: List[str]
+    budget: int
 
     def released_in_or_after_2000_argentina(self) -> bool:
         if not self.release_date or not self.production_countries:
@@ -28,7 +29,8 @@ class Movie:
             "type": self.type,
             "total_batches": self.total_batches,
             "batch_size": self.batch_size,
-            "genres": self.genres
+            "genres": self.genres,
+            "budget": self.budget
         }
     
     def get(self, attr: str):
