@@ -22,17 +22,11 @@ class Aggregator:
                 continue
                 
             try:
-                country = movie.get("production_countries", [])
+                country = movie.get("country", "")
                 budget = float(movie.get("budget", 0))
                 
-                if isinstance(country, str):
-                    try:
-                        country = json.loads(country)
-                    except json.JSONDecodeError:
-                        country = []
-                
-                for c in country:
-                    self.country_budget[c] += budget
+                if country:  # Solo procesar si hay un país
+                    self.country_budget[country] += budget
             except (ValueError, TypeError) as e:
                 logger.warning(f"Error procesando película: {e}")
                 continue

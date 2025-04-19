@@ -26,12 +26,35 @@ def convert_data(data):
                 title=row["title"],
                 production_countries=parse_production_countries(row["production_countries"]),
                 release_date=parse_release_date(row["release_date"]),
-                total_batches=data.get("total_batches", 0),
-                batch_size=data.get("batch_size", 0),
                 type="movie",
                 genres=parse_genres(row["genres"]),
                 budget=parse_budget(row["budget"])
             ))
+    return result
+
+def convert_data_for_second_filter(data):
+    # data debe ser una lista de strings (líneas), no un string completo
+    lines = data.get("cola", [])  # extrae lista de líneas desde el dict
+    
+    # Ignorar la primera línea que contiene los encabezados
+    if lines and lines[0].startswith("adult,"):
+        lines = lines[1:]
+
+    reader = csv.DictReader(lines, fieldnames=[
+        "adult", "belongs_to_collection", "budget", "genres", "homepage", "id", "imdb_id",
+        "original_language", "original_title", "overview", "popularity", "poster_path",
+        "production_companies", "production_countries", "release_date", "revenue", "runtime",
+        "spoken_languages", "status", "tagline", "title", "video", "vote_average", "vote_count"
+    ])
+
+    # ir sumando los campos a medida que se usan
+    result = []
+    for row in reader:
+        if row["production_countries"] and row["release_date"] and row["title"] and row["production_countries"] != "[]":
+            result.append({
+                "production_countries":parse_production_countries(row["production_countries"]),
+                "budget":parse_budget(row["budget"])
+            })
     return result
 
 def parse_budget(data):

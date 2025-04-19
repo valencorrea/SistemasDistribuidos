@@ -6,8 +6,6 @@ class Movie:
     title: str
     production_countries: list[str]
     release_date: str
-    total_batches: int
-    batch_size: int
     type: str
     genres: List[str]
     budget: int
@@ -27,8 +25,6 @@ class Movie:
             "production_countries": self.production_countries,
             "release_date": self.release_date,
             "type": self.type,
-            "total_batches": self.total_batches,
-            "batch_size": self.batch_size,
             "genres": self.genres,
             "budget": self.budget
         }

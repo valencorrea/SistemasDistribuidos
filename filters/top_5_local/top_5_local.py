@@ -2,7 +2,7 @@ import json
 import logging
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
-from utils.parsers.movie_parser import convert_data
+from utils.parsers.movie_parser import convert_data_for_second_filter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,12 +15,12 @@ class Top5LocalFilter:
     def handle_message(self, message):
         if message.get("type") == "shutdown":
             return message
-
-        filtered_movies = apply_filter(message.get("movies"))
+        movies = convert_data_for_second_filter(message)
+        filtered_movies = apply_filter(movies)
         
         # Crear un mensaje con la información del batch
         batch_message = {
-            "movies": [movie.to_dict() for movie in filtered_movies],
+            "movies": filtered_movies,
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
             "type": "batch_result"
@@ -53,6 +53,7 @@ class Top5LocalFilter:
 
 def apply_filter(movies):
     result = []
+    print("LAAAAAA LALALALALALALA   ", movies)
     for movie in movies:
         if movie.get("production_countries") and len(movie.get("production_countries")) == 1:
             result.append({"country": movie.get("production_countries")[0], "budget": movie.get("budget")})
