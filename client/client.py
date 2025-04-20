@@ -8,6 +8,7 @@ class Client:
     def __init__(self, batch_size: int = 10):
         self.producer = Producer("movie")
         self.producer_1 = Producer("movie_1")
+        self.producer_2 = Producer("movie_2")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
@@ -34,11 +35,11 @@ class Client:
         self.producer.close()
         self.consumer.close()
 
-    def send(self, message: dict) -> (bool, bool):
+    def send(self, message: dict) -> (bool, bool, bool):
         """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
-            return (self.producer.enqueue(message),self.producer_1.enqueue(message))
+            return (self.producer.enqueue(message),self.producer_1.enqueue(message),self.producer_2.enqueue(message))
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return (False, False)
@@ -98,9 +99,9 @@ if __name__ == '__main__':
                 "batch_size": len(batch),
                 "total_batches": total_batches + len(batch) if is_last else 0
             }
-            result_0, result_1 = client.send(message)
+            result_0, result_1, result_2 = client.send(message)
 
-            if result_0 or result_1:
+            if result_0 or result_1 or result_2:
                 successful_batches += 1
                 print(f"[MAIN] Batch {total_batches + 1} enviado correctamente")
             else:
@@ -108,7 +109,7 @@ if __name__ == '__main__':
             total_batches += len(batch)
         
         # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=2, timeout=1000):
+        if not client.wait_for_result(expected_results=3, timeout=1000):
             print(f"[WARNING] Timeout esperando resultados finales")
 
     except Exception as e:

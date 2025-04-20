@@ -53,7 +53,6 @@ class Top5LocalFilter:
 
 def apply_filter(movies):
     result = []
-    print("LAAAAAA LALALALALALALA   ", movies)
     for movie in movies:
         if movie.get("production_countries") and len(movie.get("production_countries")) == 1:
             result.append({"country": movie.get("production_countries")[0], "budget": movie.get("budget")})
