@@ -57,6 +57,42 @@ def convert_data_for_second_filter(data):
             })
     return result
 
+def convert_data_for_fifth_filter(data):
+    # data debe ser una lista de strings (líneas), no un string completo
+    lines = data.get("cola", [])  # extrae lista de líneas desde el dict
+    
+    # Ignorar la primera línea que contiene los encabezados
+    if lines and lines[0].startswith("adult,"):
+        lines = lines[1:]
+
+    reader = csv.DictReader(lines, fieldnames=[
+        "adult", "belongs_to_collection", "budget", "genres", "homepage", "id", "imdb_id",
+        "original_language", "original_title", "overview", "popularity", "poster_path",
+        "production_companies", "production_countries", "release_date", "revenue", "runtime",
+        "spoken_languages", "status", "tagline", "title", "video", "vote_average", "vote_count"
+    ])
+
+    # ir sumando los campos a medida que se usan
+    result = []
+    for row in reader:
+        revenue = parse_revenue(row["revenue"])
+        budget = parse_budget(row["budget"])
+        if revenue==0 or budget==0:
+            continue
+        if row["production_countries"] and row["release_date"] and row["overview"] and row["title"] and row["production_countries"] != "[]":
+            result.append({
+                "overview":row["overview"],
+                "budget":budget,
+                "revenue":revenue
+            })
+    return result
+
+def parse_revenue(data):
+    try:
+        return int(data)
+    except:
+        return 0
+
 def parse_budget(data):
     try:
         return int(data)
