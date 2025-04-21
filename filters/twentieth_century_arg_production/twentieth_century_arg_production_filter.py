@@ -7,10 +7,11 @@ from utils.parsers.movie_parser import convert_data
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class TwentiethCenturyFilter:
+class TwentiethCenturyArgProductionFilter:
     def __init__(self):
         self.consumer = Consumer("movie",message_factory=self.handle_message)  # Lee de la cola de movies
-        self.producer = Producer("arg_españa_production") 
+        self.esp_production_producer = Producer("arg_españa_production")
+        self.partial_aggregator_producer = Producer("partial_aggregator_4")
 
     def handle_message(self, message):
         if message.get("type") == "shutdown":
@@ -41,7 +42,8 @@ class TwentiethCenturyFilter:
                     break
                 if not message:
                     continue
-                self.producer.enqueue(message)
+                self.esp_production_producer.enqueue(message)
+                self.partial_aggregator_producer.enqueue(message)
         except KeyboardInterrupt:
             logger.info("Deteniendo filtro...")
         finally:
@@ -50,11 +52,12 @@ class TwentiethCenturyFilter:
     def close(self):
         """Cierra las conexiones"""
         self.consumer.close()
-        self.producer.close()
+        self.esp_production_producer.close()
+        self.partial_aggregator_producer.close()
 
 def apply_filter(movies):
     return [movie for movie in movies if movie.released_in_or_after_2000_argentina()]
 
 if __name__ == '__main__':
-    filter = TwentiethCenturyFilter()
+    filter = TwentiethCenturyArgProductionFilter()
     filter.start()

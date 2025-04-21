@@ -24,10 +24,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  twentieth_century_filter:
+  twentieth_century_arg_production_filter:
     build:
       context: .
-      dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
+      dockerfile: filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile
     depends_on:
       - rabbitmq
     links:
@@ -46,10 +46,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  arg_esp_production_filter:
+  esp_production_filter:
     build:
       context: .
-      dockerfile: filters/arg_esp_production/arg_esp_production_filter.dockerfile
+      dockerfile: filters/esp_production/esp_production_filter.dockerfile
     depends_on:
       - rabbitmq
     links:
@@ -80,10 +80,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  sentiment_aggregator:
+  twentieth_century_arg_aggregator:
     build:
       context: .
-      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
+      dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
     depends_on:
       - rabbitmq
     links:
@@ -91,35 +91,3 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  sentiment_filter:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-      - rabbitmq
-    links:
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
-
-  sentiment_filter_1:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-      - rabbitmq
-    links:
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
-
-  sentiment_filter_2:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-      - rabbitmq
-    links:
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
