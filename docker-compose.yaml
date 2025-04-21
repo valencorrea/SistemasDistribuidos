@@ -101,3 +101,14 @@ services:
       - rabbitmq
     environment:
       - PYTHONUNBUFFERED=1
+
+  ratings_joiner:
+    build:
+      context: .
+      dockerfile: joiner/ratings/rating_joiner.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1

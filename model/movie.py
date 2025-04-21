@@ -30,6 +30,11 @@ class Movie:
             "genres": self.genres,
             "budget": self.budget
         }
+    def to_dict_title(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+        }
     
     def get(self, attr: str):
         return getattr(self, attr)

@@ -10,6 +10,7 @@ class Client:
         self.producer_1 = Producer("movie_1")
         self.producer_2 = Producer("movie_2")
         self.actor_producer = Producer("credits")
+        self.rating_producer = Producer("rating")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
@@ -51,6 +52,15 @@ class Client:
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
             return self.actor_producer.enqueue(message)
+        except Exception as e:
+            print(f"[ERROR] Error al enviar mensaje: {e}")
+            return False
+    
+    def send_rating(self, message: dict) -> bool:
+        """Envía un mensaje y maneja errores"""
+        try:
+            print(f"[CLIENT] Enviando mensaje: {message}")
+            return self.rating_producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return False
@@ -118,10 +128,6 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
-        
-        # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=3, timeout=1000):
-            print(f"[WARNING] Timeout esperando resultados finales")
 
         for batch, is_last in client.process_file("root/files/credits.csv"):
             message = {
@@ -131,6 +137,22 @@ if __name__ == '__main__':
                 "total_batches": total_batches + len(batch) if is_last else 0
             }
             result = client.send_actor(message)
+
+            if result:
+                successful_batches += 1
+                print(f"[MAIN] Batch {total_batches + 1} enviado correctamente")
+            else:
+                print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
+            total_batches += len(batch)
+        
+        for batch, is_last in client.process_file("root/files/ratings.csv"):
+            message = {
+                "type": "rating",
+                "cola": batch,
+                "batch_size": len(batch),
+                "total_batches": total_batches + len(batch) if is_last else 0
+            }
+            result = client.send_rating(message)
 
             if result:
                 successful_batches += 1
