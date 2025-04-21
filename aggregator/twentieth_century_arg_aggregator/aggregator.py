@@ -11,7 +11,7 @@ class Aggregator:
     def __init__(self):
         self.movies = []
         self.consumer = Consumer("partial_aggregator_4")  # Lee de la cola de resultados filtrados
-        self.producer = Producer("result")  # Envía el resultado final
+        self.producer = Producer("credits_joiner")  # Envía el resultado final
         self.country_budget = defaultdict(float)  # Diccionario para sumar presupuestos por país
         self.total_batches = None
         self.received_batches = 0

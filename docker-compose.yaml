@@ -91,3 +91,13 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
+  credits_joiner:
+    build:
+      context: .
+      dockerfile: joiner/credits/credits_joiner.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
