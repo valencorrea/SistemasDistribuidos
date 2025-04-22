@@ -102,10 +102,10 @@ if __name__ == '__main__':
         exit(1)
 
     client = Client(batch_size=100)
-    successful_batches = 0
-    total_batches = 0
 
     try:
+        successful_batches = 0
+        total_batches = 0
         for batch, is_last in client.process_file("root/files/movies.txt"):
             message = {
                 "type": "movie",
@@ -122,7 +122,8 @@ if __name__ == '__main__':
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
 
-
+        successful_batches = 0
+        total_batches = 0
         for batch, is_last in client.process_file("root/files/credits.csv"):
             message = {
                 "type": "actor",
@@ -149,9 +150,9 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"[ERROR] Error durante el procesamiento: {e}")
     finally:
-        print(f"\nResumen:")
-        print(f"Total de lotes procesados: {total_batches}")
-        print(f"Lotes exitosos: {successful_batches}")
+        #print(f"\nResumen:")
+        #print(f"Total de lotes procesados: {total_batches}")
+        #print(f"Lotes exitosos: {successful_batches}")
         #print(f"Tasa de éxito: {(successful_batches/total_batches)*100:.2f}%")
         client.close()
 
