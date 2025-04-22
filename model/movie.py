@@ -3,6 +3,7 @@ from typing import Optional, List
 
 @dataclass
 class Movie:
+    id:int
     title: str
     production_countries: list[str]
     release_date: str
@@ -21,6 +22,7 @@ class Movie:
 
     def to_dict(self):
         return {
+            "id": self.id,
             "title": self.title,
             "production_countries": self.production_countries,
             "release_date": self.release_date,

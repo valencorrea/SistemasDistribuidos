@@ -23,8 +23,8 @@ docker-image:
 
 	docker build -f ./client/client.dockerfile --no-cache -t "client:latest" .
 
-	docker build -f ./filters/twentieth_century/twentieth_century_filter.dockerfile --no-cache -t "twentieth_century_filter:latest" .
-	docker build -f ./filters/arg_esp_production/arg_esp_production_filter.dockerfile --no-cache -t "arg_esp_production_filter:latest" .
+	docker build -f ./filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile --no-cache -t "twentieth_century_arg_production_filter:latest" .
+	docker build -f ./filters/esp_production/esp_production_filter.dockerfile --no-cache -t "esp_production_filter:latest" .
 
 	# Execute this command from time to time to clean up intermediate stages generated
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you

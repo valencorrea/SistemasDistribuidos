@@ -23,6 +23,7 @@ def convert_data(data):
     for row in reader:
         if row["production_countries"] and row["release_date"] and row["title"] and row["production_countries"] != "[]":
             result.append(Movie(
+                id=row["id"],
                 title=row["title"],
                 production_countries=parse_production_countries(row["production_countries"]),
                 release_date=parse_release_date(row["release_date"]),
