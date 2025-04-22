@@ -18,16 +18,16 @@ def convert_data_for_rating_joiner(data):
     # ir sumando los campos a medida que se usan
     result = []
     for row in reader:
-        if row["movieId"] and row["rating"] and is_integer(row["rating"]):
+        if row["movieId"] and row["rating"] and is_float(row["rating"]):
             result.append({
                 "movieId":row["movieId"],
                 "rating":row["rating"],
             })
     return result
 
-def is_integer(value):
+def is_float(value):
     try:
-        int(value)
+        float(value)
         return True
     except ValueError:
         return False

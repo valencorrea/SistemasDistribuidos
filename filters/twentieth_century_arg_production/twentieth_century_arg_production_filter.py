@@ -28,15 +28,8 @@ class TwentiethCenturyArgProductionFilter:
             "total_batches": message.get("total_batches", 0),
             "type": "batch_result"
         }
-
-        batch_message_for_rating_joiner = {
-            "movies": [movie.to_dict_title() for movie in filtered_movies],
-            "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
-        }
         
-        return batch_message, batch_message_for_rating_joiner
+        return batch_message
 
     def start(self):
         """Inicia el procesamiento de películas"""
@@ -44,7 +37,7 @@ class TwentiethCenturyArgProductionFilter:
         
         try:
             while True:
-                message, message_for_rating_joiner = self.consumer.dequeue()
+                message = self.consumer.dequeue()
                 if type(message) == dict and message.get("type") == "shutdown":
                     print("Shutting down filter")
                     break
@@ -52,7 +45,7 @@ class TwentiethCenturyArgProductionFilter:
                     continue
                 self.esp_production_producer.enqueue(message)
                 self.partial_aggregator_producer.enqueue(message)
-                self.rating_joiner_producer.enqueue(message_for_rating_joiner)
+                self.rating_joiner_producer.enqueue(message)
         except KeyboardInterrupt:
             logger.info("Deteniendo filtro...")
         finally:

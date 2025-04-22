@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 class RatingsJoiner:
     def __init__(self):
-        self.partial_aggregator_consumer = Consumer("rating_joiner", message_factory=self.handle_partial_aggregator_message)  # Lee de la cola de movies
-        self.ratings_consumer = Consumer("credits", message_factory=self.handle_ratings_message)  # Lee de la cola de movies
+        self.partial_aggregator_consumer = Consumer("rating_joiner", message_factory=self.handle_partial_aggregator_message)
+        self.ratings_consumer = Consumer("ratings", message_factory=self.handle_ratings_message)
         self.ratings_producer = Producer("result")
 
         self.movies_ratings = {}
@@ -20,15 +20,16 @@ class RatingsJoiner:
         self.total_movie_batches = None
         self.receive_ratings_batches = 0
         self.total_ratings_batches = None
-        #self.partial_aggregator_producer = Producer("aggregator_4")
 
     def handle_ratings_message(self, message):
+        if not message or not isinstance(message, dict):
+            return None
+            
         if message.get("type") == "shutdown":
             return message
 
         ratings = convert_data_for_rating_joiner(message)
 
-        # Crear un mensaje con la información del batch
         batch_message = {
             "ratings": ratings,
             "batch_size": message.get("batch_size", 0),
@@ -38,12 +39,13 @@ class RatingsJoiner:
 
         return batch_message
 
-
     def handle_partial_aggregator_message(self, message):
+        if not message or not isinstance(message, dict):
+            return None
+            
         if message.get("type") == "shutdown":
             return message
 
-        # Crear un mensaje con la información del batch
         batch_message = {
             "movies": message.get("movies", []),
             "batch_size": message.get("batch_size", 0),
@@ -54,68 +56,91 @@ class RatingsJoiner:
         return batch_message
 
     def start(self):
-        """Inicia el procesamiento de películas"""
-        logger.info("Iniciando filtro de películas del siglo XXI")
+        """Inicia el procesamiento de películas y ratings"""
+        logger.info("Iniciando joiner de ratings")
         
         try:
+            # Procesar películas primero
             while True:
                 message = self.partial_aggregator_consumer.dequeue()
                 if not message:
                     continue
 
-                if type(message) == dict and message.get("type") == "shutdown":
+                if message.get("type") == "shutdown":
                     break
 
                 if message.get("type") == "batch_result":
-                    
-                    for movie in message.get("movies", []):
-                        self.movies_ratings[movie["id"]] = {"title":movie["title"], "rating":0, "votes":0}
+                    movies = message.get("movies", [])
+                    for movie in movies:
+                        if not isinstance(movie, dict):
+                            continue
+                            
+                        movie_id = movie.get("id")
+                        if movie_id:
+                            self.movies_ratings[movie_id] = {
+                                "title": movie.get("title", ""),
+                                "rating_sum": 0,
+                                "votes": 0
+                            }
 
                     self.receive_movie_batches += message.get("batch_size", 0)
+                    if message.get("total_batches") and message.get("total_batches") > 0:
+                        self.total_movie_batches = message.get("total_batches")
 
-                if message.get("total_batches"):
-                    self.total_movie_batches = message.get("total_batches")
-                    # Si hemos recibido todos los batches, enviar el resultado final
+                    if self.total_movie_batches and self.receive_movie_batches >= self.total_movie_batches:
+                        break
 
-                if self.total_movie_batches and self.total_movie_batches > 0 and self.receive_movie_batches >= self.total_movie_batches:
-                    break
-
-
+            # Procesar ratings
             while True:
                 message = self.ratings_consumer.dequeue()
                 if not message:
                     continue
 
-                if type(message) == dict and message.get("type") == "shutdown":
+                if message.get("type") == "shutdown":
                     break
 
-                if message.get("type") == "actor":
-                    ratings = (message.get("ratings", []))
-
+                if message.get("type") == "batch_result":
+                    ratings = message.get("ratings", [])
                     for rating in ratings:
-                        if self.movies_ratings.get(rating["movieId"]):
-                            self.movies_ratings[rating["movieId"]]["rating"] += rating["rating"]
-                            self.movies_ratings[rating["movieId"]]["votes"] += 1
-                self.receive_ratings_batches += message.get("batch_size", 0)
+                        if not isinstance(rating, dict):
+                            continue
+                            
+                        movie_id = rating.get("movieId")
+                        if movie_id in self.movies_ratings:
+                            self.movies_ratings[movie_id]["rating_sum"] += float(rating.get("rating", 0))
+                            self.movies_ratings[movie_id]["votes"] += 1
 
-                if message.get("total_batches"):
-                    self.total_ratings_batches = message.get("total_batches")
-                    # Si hemos recibido todos los batches, enviar el resultado final
-                if self.total_ratings_batches and self.total_ratings_batches > 0 and self.receive_ratings_batches >= self.total_ratings_batches:
-                    break
-            self.ratings_producer.produce(self.obtain_result())
+                    if message.get("total_batches"):
+                        self.total_ratings_batches = message.get("total_batches")
+
+                    if self.total_ratings_batches and self.receive_ratings_batches >= self.total_ratings_batches:
+                        break
+
+            # Enviar resultado final
+            result = self.obtain_result()
+            if result:
+                self.ratings_producer.enqueue({
+                    "type": "result",
+                    "movies": result
+                })
 
         except KeyboardInterrupt:
-            logger.info("Deteniendo filtro...")
+            logger.info("Deteniendo joiner...")
+        except Exception as e:
+            logger.error(f"Error en el joiner: {e}")
         finally:
             self.close()
 
     def obtain_result(self):
         result = []
-        for id in self.movies_ratings.keys():
-            rating = self.movies_ratings[id]["rating"] / self.movies_ratings[id]["votes"]
-            title = self.movies_ratings[id]["title"]
-            result.append((id, title, rating))
+        for movie_id, data in self.movies_ratings.items():
+            if data["votes"] > 0:
+                avg_rating = data["rating_sum"] / data["votes"]
+                result.append({
+                    "id": movie_id,
+                    "title": data["title"],
+                    "rating": avg_rating,
+                })
         return result
 
     def close(self):

@@ -10,7 +10,7 @@ class Client:
         self.producer_1 = Producer("movie_1")
         self.producer_2 = Producer("movie_2")
         self.actor_producer = Producer("credits")
-        self.rating_producer = Producer("rating")
+        self.rating_producer = Producer("ratings")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
