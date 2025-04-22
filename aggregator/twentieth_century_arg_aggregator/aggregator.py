@@ -7,6 +7,7 @@ from middleware.producer.producer import Producer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# todo borrar: deprecado
 class Aggregator:
     def __init__(self):
         self.movies = []

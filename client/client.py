@@ -34,6 +34,9 @@ class Client:
     def close(self):
         """Cierra las conexiones"""
         self.producer.close()
+        self.producer_1.close()
+        self.producer_2.close()
+        self.actor_producer.close()
         self.consumer.close()
 
     def send(self, message: dict) -> (bool, bool, bool):
@@ -118,10 +121,7 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
-        
-        # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=3, timeout=1000):
-            print(f"[WARNING] Timeout esperando resultados finales")
+
 
         for batch, is_last in client.process_file("root/files/credits.csv"):
             message = {
@@ -130,6 +130,7 @@ if __name__ == '__main__':
                 "batch_size": len(batch),
                 "total_batches": total_batches + len(batch) if is_last else 0
             }
+            print("enviando a send actor")
             result = client.send_actor(message)
 
             if result:
@@ -138,6 +139,7 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
+
 
         # Esperar por 5 resultados (uno por cada filtro)
         if not client.wait_for_result(expected_results=3, timeout=1000):
@@ -150,7 +152,7 @@ if __name__ == '__main__':
         print(f"\nResumen:")
         print(f"Total de lotes procesados: {total_batches}")
         print(f"Lotes exitosos: {successful_batches}")
-        print(f"Tasa de éxito: {(successful_batches/total_batches)*100:.2f}%")
+        #print(f"Tasa de éxito: {(successful_batches/total_batches)*100:.2f}%")
         client.close()
 
 
