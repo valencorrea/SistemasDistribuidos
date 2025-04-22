@@ -80,17 +80,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  twentieth_century_arg_aggregator:
-    build:
-      context: .
-      dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
-    depends_on:
-      - rabbitmq
-    links:
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
-
   credits_joiner:
     build:
       context: .
@@ -106,6 +95,49 @@ services:
     build:
       context: .
       dockerfile: joiner/ratings/rating_joiner.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+  sentiment_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  sentiment_filter:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  sentiment_filter_1:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  sentiment_filter_2:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
     depends_on:
       - rabbitmq
     links:

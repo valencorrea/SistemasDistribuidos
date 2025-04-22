@@ -11,8 +11,8 @@ class TwentiethCenturyArgProductionFilter:
     def __init__(self):
         self.consumer = Consumer("movie",message_factory=self.handle_message)  # Lee de la cola de movies
         self.esp_production_producer = Producer("arg_españa_production")
-        self.partial_aggregator_producer = Producer("partial_aggregator_4")
         self.rating_joiner_producer = Producer("rating_joiner")
+        self.partial_aggregator_producer = Producer("credits_joiner")
 
     def handle_message(self, message):
         if message.get("type") == "shutdown":
