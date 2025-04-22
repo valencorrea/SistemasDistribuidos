@@ -80,17 +80,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
-  twentieth_century_arg_aggregator:
-    build:
-      context: .
-      dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
-    depends_on:
-      - rabbitmq
-    links:
-      - rabbitmq
-    environment:
-      - PYTHONUNBUFFERED=1
-
   credits_joiner:
     build:
       context: .
