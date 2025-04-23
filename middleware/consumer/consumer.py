@@ -31,7 +31,7 @@ class Consumer:
 
     def _handle_shutdown_message(self, message: dict):
         """Maneja el mensaje de shutdown del producer"""
-        if message.get("type") == "shutdown":
+        if isinstance(message, dict) and message.get("type") == "shutdown":
             self._producer_active = False
             logger.info(f"Producer se está cerrando: {message.get('message')}")
             logger.info(f"Timestamp del cierre: {message.get('timestamp')}")
@@ -96,19 +96,26 @@ class Consumer:
             )
 
             if method:
-                print("body" + str(body))
-                message = json.loads(body.decode())
-                
-                # Manejar mensaje de shutdown
-                if isinstance(message, dict) and self._handle_shutdown_message(message):
-                    logger.info("👋 Recibido mensaje de shutdown")
-                    return None
+                try:
+                    message = json.loads(body)
+                    
+                    # Manejar mensaje de shutdown
+                    if self._handle_shutdown_message(message):
+                        logger.info("👋 Recibido mensaje de shutdown")
+                        return None
 
-                # Procesar mensaje normal
-                result = self._message_factory(message)
-                logger.info(f"📥  Mensaje recibido: {message}")
-                logger.info(f"📥  Resultado: {result}")
-                return result
+                    # Procesar mensaje normal
+                    result = self._message_factory(message)
+                    #logger.info(f"📥  Mensaje recibido: {message}")
+                    if message.get("total_batches") and message.get("total_batches") > 0:
+                        logger.info(f"📥  Resultado: {result}")
+                    return result
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Error decodificando mensaje JSON: {e}")
+                    return None
+                except Exception as e:
+                    logger.error(f"❌ Error procesando mensaje: {e}")
+                    return None
 
             return None
 
