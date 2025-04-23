@@ -1,5 +1,6 @@
 import json
 import logging
+from heapq import heappush, heappushpop, nlargest
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
@@ -110,10 +111,13 @@ class RatingsJoiner:
                             self.movies_ratings[movie_id]["rating_sum"] += float(rating.get("rating", 0))
                             self.movies_ratings[movie_id]["votes"] += 1
 
-                    if message.get("total_batches"):
+                    if message.get("total_batches") and message.get("total_batches") > 0:
                         self.total_ratings_batches = message.get("total_batches")
-
+                    self.receive_ratings_batches += message.get("batch_size", 0)
+                    if self.total_ratings_batches and self.total_ratings_batches > 0:
+                        logger.info(f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
                     if self.total_ratings_batches and self.receive_ratings_batches >= self.total_ratings_batches:
+                        logger.info("Total de ratings procesados")
                         break
 
             # Enviar resultado final
@@ -121,7 +125,7 @@ class RatingsJoiner:
             if result:
                 self.ratings_producer.enqueue({
                     "type": "result",
-                    "movies": result
+                    "ratings": result
                 })
 
         except KeyboardInterrupt:
@@ -132,16 +136,24 @@ class RatingsJoiner:
             self.close()
 
     def obtain_result(self):
-        result = []
+        # Usamos un min-heap para mantener los 5 mejores
+        top_5 = []
         for movie_id, data in self.movies_ratings.items():
             if data["votes"] > 0:
                 avg_rating = data["rating_sum"] / data["votes"]
-                result.append({
+                movie_data = {
                     "id": movie_id,
                     "title": data["title"],
                     "rating": avg_rating,
-                })
-        return result
+                }
+                
+                if len(top_5) < 5:
+                    heappush(top_5, (avg_rating, movie_data))
+                elif avg_rating > top_5[0][0]:
+                    heappushpop(top_5, (avg_rating, movie_data))
+        
+        # Convertir el heap a la lista final de resultados
+        return [item[1] for item in nlargest(5, top_5)]
 
     def close(self):
         """Cierra las conexiones"""

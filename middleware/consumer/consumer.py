@@ -107,7 +107,8 @@ class Consumer:
                     # Procesar mensaje normal
                     result = self._message_factory(message)
                     #logger.info(f"📥  Mensaje recibido: {message}")
-                    logger.info(f"📥  Resultado: {result}")
+                    if message.get("total_batches") and message.get("total_batches") > 0:
+                        logger.info(f"📥  Resultado: {result}")
                     return result
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ Error decodificando mensaje JSON: {e}")

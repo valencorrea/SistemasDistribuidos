@@ -111,8 +111,7 @@ if __name__ == '__main__':
         print("[ERROR] No se pudo conectar con RabbitMQ después de varios intentos")
         exit(1)
 
-    client = Client(batch_size=100)
-
+    client = Client(batch_size=1000)
     try:
         successful_batches = 0
         total_batches = 0
@@ -150,7 +149,8 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
-        
+        successful_batches = 0
+        total_batches = 0
         for batch, is_last in client.process_file("root/files/ratings.csv"):
             message = {
                 "type": "rating",
@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
 
         # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=3, timeout=1000):
+        if not client.wait_for_result(expected_results=5, timeout=100000):
             print(f"[WARNING] Timeout esperando resultados finales")
 
 
