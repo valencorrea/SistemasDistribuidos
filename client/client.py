@@ -10,6 +10,7 @@ class Client:
         self.producer_1 = Producer("movie_1")
         self.producer_2 = Producer("movie_2")
         self.actor_producer = Producer("credits")
+        self.rating_producer = Producer("ratings")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
 
@@ -57,6 +58,15 @@ class Client:
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return False
+    
+    def send_rating(self, message: dict) -> bool:
+        """Envía un mensaje y maneja errores"""
+        try:
+            print(f"[CLIENT] Enviando mensaje: {message}")
+            return self.rating_producer.enqueue(message)
+        except Exception as e:
+            print(f"[ERROR] Error al enviar mensaje: {e}")
+            return False
 
     def process_file(self, file_path: str) -> Generator[tuple[list[str], bool], None, None]:
         """Procesa el archivo en lotes de manera eficiente"""
@@ -101,8 +111,7 @@ if __name__ == '__main__':
         print("[ERROR] No se pudo conectar con RabbitMQ después de varios intentos")
         exit(1)
 
-    client = Client(batch_size=100)
-
+    client = Client(batch_size=1000)
     try:
         successful_batches = 0
         total_batches = 0
@@ -140,10 +149,27 @@ if __name__ == '__main__':
             else:
                 print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
             total_batches += len(batch)
+        successful_batches = 0
+        total_batches = 0
+        for batch, is_last in client.process_file("root/files/ratings.csv"):
+            message = {
+                "type": "rating",
+                "cola": batch,
+                "batch_size": len(batch),
+                "total_batches": total_batches + len(batch) if is_last else 0
+            }
+            result = client.send_rating(message)
+
+            if result:
+                successful_batches += 1
+                print(f"[MAIN] Batch {total_batches + 1} enviado correctamente")
+            else:
+                print(f"[ERROR] Falló el envío del batch {total_batches + 1}")
+            total_batches += len(batch)
 
 
         # Esperar por 5 resultados (uno por cada filtro)
-        if not client.wait_for_result(expected_results=3, timeout=1000):
+        if not client.wait_for_result(expected_results=5, timeout=100000):
             print(f"[WARNING] Timeout esperando resultados finales")
 
 
