@@ -3,12 +3,14 @@ import logging
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
+from worker.worker import Worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class CreditsJoiner:
+class CreditsJoiner(Worker):
     def __init__(self):
+        super().__init__()
         self.movies_consumer = Consumer("credits_joiner", message_factory=self.handle_partial_aggregator_message)
         self.credits_consumer = Consumer("credits", message_factory=self.handle_credits_message)
         self.producer = Producer("result")
@@ -21,22 +23,30 @@ class CreditsJoiner:
         self.total_movie_batches = None
         self.total_credits_batches = None
 
-    def handle_credits_message(self, message):
+    def close(self):
+        logger.info("Cerrando conexiones del worker...")
+        try:
+            self.movies_consumer.close()
+            self.credits_consumer.close()
+            self.producer.close()
+            self.shutdown_consumer.close()
+        except Exception as e:
+            logger.error(f"Error al cerrar conexiones: {e}")
+
+    @staticmethod
+    def handle_credits_message( message):
         return message
 
-
-    def handle_partial_aggregator_message(self, message):
+    @staticmethod
+    def handle_partial_aggregator_message(message):
         return message
 
     def start(self):
         try:
-            while True: # Bucle pelis
+            while not self.shutdown_event.is_set():
                 message = self.movies_consumer.dequeue()
                 if not message:
                     continue
-
-                if shutdown_message(message):
-                    break
 
                 if message.get("type") == "batch_result":
                     self.process_movie_batch(message)
@@ -47,13 +57,10 @@ class CreditsJoiner:
                 if self.total_movie_batches and 0 < self.total_movie_batches <= self.receive_movie_batches:
                     break
 
-            while True: # Bucle actores
+            while not self.shutdown_event.is_set():
                 message = self.credits_consumer.dequeue()
                 if not message:
                     continue
-
-                if shutdown_message(message):
-                    break
 
                 if message.get("type") == "actor":
                     self.process_credits_batch(message)
@@ -61,19 +68,14 @@ class CreditsJoiner:
                 if message.get("total_batches"):
                     self.total_credits_batches = message.get("total_batches")
 
-                if self.total_movie_batches and self.total_movie_batches > 0 and self.receive_movie_batches >= self.total_movie_batches:
+                if self.total_movie_batches and 0 < self.total_movie_batches <= self.receive_movie_batches:
                     self.answer_client()
                     break
 
-        except KeyboardInterrupt:
-            logger.info("Deteniendo filtro...")
+        except Exception as e:
+            logger.error(f"Error durante el procesamiento: {e}")
         finally:
             self.close()
-
-    def close(self):
-        self.movies_consumer.close()
-        self.credits_consumer.close()
-        self.producer.close()
 
     def process_movie_batch(self, message):
         for movie in message.get("movies", []):
@@ -108,10 +110,6 @@ class CreditsJoiner:
         if self.producer.enqueue(result_message):
             logger.info(f"Resultado final enviado.")
 
-
-def shutdown_message(message):
-    return type(message) == dict and message.get("type") == "shutdown"
-
 if __name__ == '__main__':
-    filter = CreditsJoiner()
-    filter.start()
+    worker = CreditsJoiner()
+    worker.start()

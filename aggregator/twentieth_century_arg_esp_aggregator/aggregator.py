@@ -21,6 +21,7 @@ class Aggregator(Worker):
         try:
             self.consumer.close()
             self.producer.close()
+            self.shutdown_consumer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
 
