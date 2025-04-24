@@ -136,8 +136,11 @@ class RatingsJoiner(Worker):
             self.close()
 
     def obtain_result(self):
-        # Usamos un min-heap para mantener los 5 mejores
-        top_5 = []
+        max_rating = float('-inf')
+        min_rating = float('inf')
+        best_movie = None
+        worst_movie = None
+        
         for movie_id, data in self.movies_ratings.items():
             if data["votes"] > 0:
                 avg_rating = data["rating_sum"] / data["votes"]
@@ -147,13 +150,20 @@ class RatingsJoiner(Worker):
                     "rating": avg_rating,
                 }
                 
-                if len(top_5) < 5:
-                    heappush(top_5, (avg_rating, movie_data))
-                elif avg_rating > top_5[0][0]:
-                    heappushpop(top_5, (avg_rating, movie_data))
+                # Actualizar el mejor rating
+                if avg_rating > max_rating:
+                    max_rating = avg_rating
+                    best_movie = movie_data
+                
+                # Actualizar el peor rating
+                if avg_rating < min_rating:
+                    min_rating = avg_rating
+                    worst_movie = movie_data
         
-        # Convertir el heap a la lista final de resultados
-        return [item[1] for item in nlargest(5, top_5)]
+        return {
+            "best": best_movie,
+            "worst": worst_movie
+        }
 
 if __name__ == '__main__':
     worker = RatingsJoiner()

@@ -24,9 +24,9 @@ def convert_data(data):
 
         for actor in cast_list:
             result.append(Actor(
-                id=actor["cast_id"],
+                id=actor["id"],
                 name=actor["name"],
-                movie_id=actor["id"],
+                movie_id=row["id"],
             ))
     return result
 
