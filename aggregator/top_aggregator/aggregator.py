@@ -27,7 +27,6 @@ class Aggregator(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def process_country_budget(self, movies):
-        """Suma el presupuesto de las películas por país"""
         for movie in movies:
             if not movie:  # Si movie es None
                 continue
@@ -42,7 +41,6 @@ class Aggregator(Worker):
                 continue
 
     def _get_top_5_countries(self):
-        """Obtiene el top 5 de países con mayor presupuesto"""
         # Ordenar países por presupuesto (de mayor a menor)
         sorted_countries = sorted(
             self.country_budget.items(),
@@ -61,7 +59,6 @@ class Aggregator(Worker):
         ]
 
     def start(self):
-        """Inicia el procesamiento de mensajes"""
         logger.info("Iniciando agregador")
         
         try:

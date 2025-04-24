@@ -26,7 +26,6 @@ class Aggregator(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def start(self):
-        """Inicia el procesamiento de mensajes"""
         logger.info("Iniciando agregador")
         
         try:

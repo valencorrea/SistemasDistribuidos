@@ -20,7 +20,6 @@ class Client:
         self.shutdown_producer.enqueue("shutdown")
 
     def wait_for_result(self, expected_results: int = 5, timeout: int = 30) -> bool:
-        """Espera por un número específico de resultados de la cola 'result' con timeout configurable"""
         start_time = time.time()
         retry_interval = 0.1  # 100 ms entre intentos
         results_received = 0
@@ -38,13 +37,11 @@ class Client:
         return False
 
     def close(self):
-        """Cierra las conexiones"""
         self.producer.close()
         self.actor_producer.close()
         self.consumer.close()
 
     def send(self, message: dict) -> bool:
-        """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
             return self.producer.enqueue(message)
@@ -54,7 +51,6 @@ class Client:
 
 
     def send_actor(self, message: dict) -> bool:
-        """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
             return self.actor_producer.enqueue(message)
@@ -63,7 +59,6 @@ class Client:
             return False
     
     def send_rating(self, message: dict) -> bool:
-        """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
             return self.rating_producer.enqueue(message)
@@ -72,7 +67,6 @@ class Client:
             return False
 
     def process_file(self, file_path: str) -> Generator[tuple[list[str], bool], None, None]:
-        """Procesa el archivo en lotes de manera eficiente"""
         try:
             with open(file_path, "r") as file:
                 # Leer el encabezado
@@ -97,7 +91,6 @@ class Client:
             file.close()
 
 def wait_for_rabbitmq(max_retries: int = 30, retry_interval: float = 1.0) -> bool:
-    """Espera a que RabbitMQ esté disponible"""
     for _ in range(max_retries):
         try:
             producer = Producer("test")

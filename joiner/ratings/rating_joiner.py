@@ -23,7 +23,6 @@ class RatingsJoiner(Worker):
         self.total_ratings_batches = None
 
     def close(self):
-        """Cierra las conexiones"""
         self.partial_aggregator_consumer.close()
         self.ratings_consumer.close()
         self.ratings_producer.close()
@@ -65,7 +64,6 @@ class RatingsJoiner(Worker):
         return batch_message
 
     def start(self):
-        """Inicia el procesamiento de películas y ratings"""
         logger.info("Iniciando joiner de ratings")
         
         try:

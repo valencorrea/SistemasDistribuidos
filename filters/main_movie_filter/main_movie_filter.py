@@ -31,7 +31,6 @@ class MainMovieFilter:
         return batch_message
 
     def start(self):
-        """Inicia el procesamiento de películas"""
         logger.info("Iniciando filtro de películas del siglo XXI")
         
         try:
@@ -51,7 +50,6 @@ class MainMovieFilter:
             self.close()
 
     def close(self):
-        """Cierra las conexiones"""
         try:
             self.consumer.close()
             self.movie_producer.close()

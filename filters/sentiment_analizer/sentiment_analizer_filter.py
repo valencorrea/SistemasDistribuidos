@@ -45,9 +45,6 @@ class SentimentAnalyzerFilter(Worker):
         return batch_message
 
     def analyze_sentiment(self, text: str) -> str:
-        """
-        Analiza el sentimiento de un texto, truncando si es necesario.
-        """
         if not text:
             return "NEUTRAL"
 

@@ -28,7 +28,6 @@ class Aggregator(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def process_sentiment_revenue_budget(self, movies):
-        """Suma el presupuesto de las películas por país"""
         for movie in movies:
             if not movie:  # Si movie es None
                 continue
@@ -45,7 +44,6 @@ class Aggregator(Worker):
                 continue
 
     def _get_sentiment_mean(self):
-        """obtiene el promedio de ganancias y presupuestos por sentimiento"""
         sentiment_mean = {}
         for sentiment in self.sentiment_budget:
             sentiment_mean[sentiment] = {
@@ -54,7 +52,6 @@ class Aggregator(Worker):
         return sentiment_mean
 
     def start(self):
-        """Inicia el procesamiento de mensajes"""
         logger.info("Iniciando agregador")
 
         try:

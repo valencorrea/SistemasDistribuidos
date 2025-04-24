@@ -37,7 +37,6 @@ class ArgEspProductionFilter(Worker):
         return batch_message
 
     def start(self):
-        """Inicia el procesamiento de películas"""
         logger.info("Iniciando filtro de películas del siglo XXI")
         shutdown_thread = threading.Thread(target=self.listen_for_shutdown, daemon=True)
         shutdown_thread.start()

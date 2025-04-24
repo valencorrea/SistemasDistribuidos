@@ -28,7 +28,6 @@ class Producer:
             self._connection.close()
 
     def connect(self) -> bool:
-        """Establece conexión con RabbitMQ y configura el exchange"""
         try:
             self._connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
@@ -66,7 +65,6 @@ class Producer:
             return False
 
     def enqueue(self, message: Any) -> bool:
-        """Encola un mensaje en RabbitMQ"""
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
@@ -102,7 +100,6 @@ class Producer:
     #     logger.info("Notificación de shutdown enviada a los consumers")
 
     def close(self):
-        """Cierra la conexión con RabbitMQ"""
         try:
             if self._connection and not self._connection.is_closed:
                 # self._notify_shutdown()

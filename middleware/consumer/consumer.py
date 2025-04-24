@@ -33,7 +33,6 @@ class Consumer:
             self._connection.close()
 
     def _handle_shutdown_message(self, message: dict):
-        """Maneja el mensaje de shutdown del producer"""
         if isinstance(message, dict) and message.get("type") == "shutdown":
             self._producer_active = False
             logger.info(f"Producer se está cerrando: {message.get('message')}")
@@ -42,7 +41,6 @@ class Consumer:
         return False
 
     def connect(self) -> bool:
-        """Establece conexión con RabbitMQ y configura la cola"""
         try:
             self._connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
@@ -96,7 +94,6 @@ class Consumer:
             return False
 
     def dequeue(self, timeout: int = 1) -> Optional[Any]:
-        """Recibe un mensaje de la cola de forma síncrona"""
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
@@ -140,7 +137,6 @@ class Consumer:
             return None
 
     def close(self):
-        """Cierra la conexión con RabbitMQ"""
         try:
             if self._connection and not self._connection.is_closed:
                 self._connection.close()
