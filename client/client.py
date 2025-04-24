@@ -7,13 +7,12 @@ from middleware.producer.producer import Producer
 
 
 class Client:
-    def __init__(self, batch_size: int = 10):
+    def __init__(self):
         self.producer = Producer("movie_main_filter")
         self.actor_producer = Producer("credits")
         self.rating_producer = Producer("ratings")
         self.shutdown_producer = Producer("shutdown","fanout")
         self.consumer = Consumer("result")
-        self.batch_size = batch_size
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
     def exit_gracefully(self, signum, frame):
@@ -66,7 +65,7 @@ class Client:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return False
 
-    def process_file(self, file_path: str) -> Generator[tuple[list[str], bool], None, None]:
+    def process_file(self, file_path: str, batch_size: int = 1000) -> Generator[tuple[list[str], bool], None, None]:
         try:
             with open(file_path, "r") as file:
                 # Leer el encabezado
@@ -82,7 +81,7 @@ class Client:
                     next_line = next(file, None)
                     is_last = next_line is None
                     
-                    if len(current_batch) >= self.batch_size or is_last:
+                    if len(current_batch) >= batch_size or is_last:
                         yield [header] + current_batch, is_last
                         current_batch = []
                     
@@ -107,7 +106,7 @@ if __name__ == '__main__':
         print("[ERROR] No se pudo conectar con RabbitMQ después de varios intentos")
         exit(1)
 
-    client = Client(batch_size=1000)
+    client = Client()
     try:
         successful_batches = 0
         total_batches = 0
@@ -148,7 +147,7 @@ if __name__ == '__main__':
         successful_batches = 0
         total_batches = 0
 
-        for batch, is_last in client.process_file("root/files/ratings.csv"):
+        for batch, is_last in client.process_file("root/files/ratings.csv", 100000):
             message = {
                 "type": "rating",
                 "cola": batch,
