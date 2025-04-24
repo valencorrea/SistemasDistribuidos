@@ -114,8 +114,8 @@ class RatingsJoiner(Worker):
                     if message.get("total_batches") and message.get("total_batches") > 0:
                         self.total_ratings_batches = message.get("total_batches")
                     self.receive_ratings_batches += message.get("batch_size", 0)
-                    if self.total_ratings_batches and self.total_ratings_batches > 0:
-                        logger.info(f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
+
+                    logger.info(f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
                     if self.total_ratings_batches and self.receive_ratings_batches >= self.total_ratings_batches:
                         logger.info("Total de ratings procesados")
                         break
