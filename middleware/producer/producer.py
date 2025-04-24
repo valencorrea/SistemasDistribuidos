@@ -81,8 +81,6 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
-
-            logger.info(f"📤 Mensaje enviado")
             return True
 
         except Exception as e:

@@ -42,16 +42,14 @@ class Client:
 
     def send(self, message: dict) -> bool:
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
             return self.producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
-            return False, False
+            return False
 
 
     def send_actor(self, message: dict) -> bool:
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
             return self.actor_producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
@@ -59,7 +57,6 @@ class Client:
     
     def send_rating(self, message: dict) -> bool:
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
             return self.rating_producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
