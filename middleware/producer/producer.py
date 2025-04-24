@@ -82,7 +82,7 @@ class Producer:
                 )
             )
 
-            logger.info(f"📤 Mensaje enviado: {message}")
+            logger.info(f"📤 Mensaje enviado")
             return True
 
         except Exception as e:
