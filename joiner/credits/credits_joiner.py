@@ -61,7 +61,7 @@ class CreditsJoiner:
                 if message.get("total_batches"):
                     self.total_credits_batches = message.get("total_batches")
 
-                if self.total_movie_batches and self.total_movie_batches > 0 and self.receive_movie_batches >= self.total_movie_batches:
+                if self.total_credits_batches and self.total_credits_batches > 0 and self.receive_credits_batches >= self.total_credits_batches:
                     self.answer_client()
                     break
 
@@ -82,18 +82,18 @@ class CreditsJoiner:
         self.receive_movie_batches += message.get("batch_size", 0)
 
     def process_credits_batch(self, message):
+        self.receive_credits_batches += message.get("batch_size", 0)
         actors = convert_data(message)
 
         for actor in actors:
-            if actor.id not in self.actor_counts:
-                self.actor_counts[actor.id] = {
-                    "name": actor.name,
-                    "count": 1
-                }
-            else:
-                self.actor_counts[actor.id]["count"] += 1
-
-        self.receive_movie_batches += message.get("batch_size", 0)
+            if str(actor.movie_id) in self.movie_ids:
+                if actor.id not in self.actor_counts:
+                    self.actor_counts[actor.id] = {
+                        "name": actor.name,
+                        "count": 1
+                    }
+                else:
+                    self.actor_counts[actor.id]["count"] += 1
 
     def answer_client(self):
         top_10 = sorted(self.actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]

@@ -3,7 +3,7 @@ from model.movie import Movie
 import ast
 import json
 
-def convert_data(data):
+def convert_data_for_main_movie_filter(data):
     # data debe ser una lista de strings (líneas), no un string completo
     lines = data.get("cola", [])  # extrae lista de líneas desde el dict
     
@@ -21,7 +21,15 @@ def convert_data(data):
     # ir sumando los campos a medida que se usan
     result = []
     for row in reader:
-        if row["production_countries"] and row["release_date"] and row["title"] and row["production_countries"] != "[]":
+        if (row["id"] and 
+            row["genres"] and 
+            row["production_countries"] and
+            row["release_date"] and 
+            row["title"] and 
+            row["production_countries"] != "[]" and
+            row["budget"] and
+            row["overview"] and
+            row["revenue"]):
             result.append(Movie(
                 id=row["id"],
                 title=row["title"],
@@ -29,63 +37,74 @@ def convert_data(data):
                 release_date=parse_release_date(row["release_date"]),
                 type="movie",
                 genres=parse_genres(row["genres"]),
-                budget=parse_budget(row["budget"])
+                overview=row["overview"],
+                revenue=row["revenue"],
+                budget=row["budget"]
             ))
     return result
 
-def convert_data_for_second_filter(data):
-    # data debe ser una lista de strings (líneas), no un string completo
-    lines = data.get("cola", [])  # extrae lista de líneas desde el dict
-    
-    # Ignorar la primera línea que contiene los encabezados
-    if lines and lines[0].startswith("adult,"):
-        lines = lines[1:]
 
-    reader = csv.DictReader(lines, fieldnames=[
-        "adult", "belongs_to_collection", "budget", "genres", "homepage", "id", "imdb_id",
-        "original_language", "original_title", "overview", "popularity", "poster_path",
-        "production_companies", "production_countries", "release_date", "revenue", "runtime",
-        "spoken_languages", "status", "tagline", "title", "video", "vote_average", "vote_count"
-    ])
+def convert_data(data):
+    # data debe ser una lista de strings (líneas), no un string completo
+    lines = data.get("movies", [])  # extrae lista de líneas desde el dict
+
 
     # ir sumando los campos a medida que se usan
     result = []
-    for row in reader:
-        if row["production_countries"] and row["release_date"] and row["title"] and row["production_countries"] != "[]":
-            result.append({
-                "production_countries":parse_production_countries(row["production_countries"]),
-                "budget":parse_budget(row["budget"])
-            })
+    for row in lines:
+        if (row["id"] and 
+            row["genres"] and 
+            row["production_countries"] and
+            row["release_date"] and 
+            row["title"] and 
+            row["production_countries"] != "[]" and
+            row["budget"] and
+            row["overview"] and
+            row["revenue"]):
+            result.append(Movie(
+                id=row["id"],
+                title=row["title"],
+                production_countries=row["production_countries"],
+                release_date=row["release_date"],
+                type="movie",
+                genres=row["genres"],
+                overview=row["overview"],
+                revenue=row["revenue"],
+                budget=row["budget"]
+            ))
+    return result
+
+
+def convert_data_for_second_filter(data):
+    # data debe ser una lista de strings (líneas), no un string completo
+    lines = data.get("movies", [])  # extrae lista de líneas desde el dict
+    
+
+    # ir sumando los campos a medida que se usan
+    result = []
+    for row in lines:
+        result.append({
+            "production_countries":row["production_countries"],
+            "budget":row["budget"]
+        })
     return result
 
 def convert_data_for_fifth_filter(data):
     # data debe ser una lista de strings (líneas), no un string completo
-    lines = data.get("cola", [])  # extrae lista de líneas desde el dict
-    
-    # Ignorar la primera línea que contiene los encabezados
-    if lines and lines[0].startswith("adult,"):
-        lines = lines[1:]
-
-    reader = csv.DictReader(lines, fieldnames=[
-        "adult", "belongs_to_collection", "budget", "genres", "homepage", "id", "imdb_id",
-        "original_language", "original_title", "overview", "popularity", "poster_path",
-        "production_companies", "production_countries", "release_date", "revenue", "runtime",
-        "spoken_languages", "status", "tagline", "title", "video", "vote_average", "vote_count"
-    ])
+    lines = data.get("movies", [])  # extrae lista de líneas desde el dict
 
     # ir sumando los campos a medida que se usan
     result = []
-    for row in reader:
+    for row in lines:
         revenue = parse_revenue(row["revenue"])
         budget = parse_budget(row["budget"])
         if revenue==0 or budget==0:
             continue
-        if row["production_countries"] and row["release_date"] and row["overview"] and row["title"] and row["production_countries"] != "[]":
-            result.append({
-                "overview":row["overview"],
-                "budget":budget,
-                "revenue":revenue
-            })
+        result.append({
+            "overview":row["overview"],
+            "budget":budget,
+            "revenue":revenue
+        })
     return result
 
 def parse_revenue(data):
