@@ -1,7 +1,7 @@
-FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
-
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 # Optional: upgrade pip
 RUN pip install --upgrade pip
+
 
 # Set working directory
 WORKDIR /root
