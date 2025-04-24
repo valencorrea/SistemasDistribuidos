@@ -1,36 +1,36 @@
-import json
 import logging
+import threading
+
+from transformers import pipeline
+
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
-from transformers import pipeline
 from utils.parsers.movie_parser import convert_data_for_fifth_filter
+from worker.worker import Worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class SentimentAnalizerFilter:
+class SentimentAnalyzerFilter(Worker):
     def __init__(self):
+        super().__init__()
         self.consumer = Consumer("movie_2", message_factory=self.handle_message)
         self.producer = Producer("aggregate_consulta_5")
         self.sentiment_analyzer = pipeline("sentiment-analysis",
-                                           model="distilbert-base-uncased-finetuned-sst-2-english")
-        self.shutdown_consumer= Consumer(
-            queue_name="shutdown",
-            message_factory=self.close,
-            type="fanout"
-        )
+                model="distilbert-base-uncased-finetuned-sst-2-english")
 
     def close(self):
-        self.consumer.close()
-        self.producer.close()
-        self.shutdown_consumer.close()
+        logger.info("Cerrando conexiones del worker...")
+        try:
+            self.consumer.close()
+            self.producer.close()
+            self.shutdown_consumer.close()
+        except Exception as e:
+            logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
         if not message:
             return None
-        if type(message) == dict and message.get("type") == "shutdown":
-            return message
         movies = convert_data_for_fifth_filter(message)
         filtered_movies = self.apply_filter(movies)
 
@@ -64,12 +64,11 @@ class SentimentAnalizerFilter:
             return "NEUTRAL"
 
     def start(self):
-        while True:
+
+        while not self.shutdown_event.is_set():
             message = self.consumer.dequeue()
             if not message:
                 continue
-            if type(message) == dict and message.get("type") == "shutdown":
-                break
             self.producer.enqueue(message)
 
     def apply_filter(self, movies):
@@ -79,7 +78,6 @@ class SentimentAnalizerFilter:
             result.append({"sentiment": sentiment, "budget": movie.get("budget"), "revenue": movie.get("revenue")})
         return result
 
-
 if __name__ == '__main__':
-    filter = SentimentAnalizerFilter()
-    filter.start()
+    worker = SentimentAnalyzerFilter()
+    worker.start()

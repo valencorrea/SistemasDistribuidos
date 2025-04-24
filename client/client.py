@@ -1,9 +1,10 @@
 import signal
 import time
-import json
 from typing import Generator
-from middleware.producer.producer import Producer
+
 from middleware.consumer.consumer import Consumer
+from middleware.producer.producer import Producer
+
 
 class Client:
     def __init__(self, batch_size: int = 10):
@@ -23,7 +24,7 @@ class Client:
     def wait_for_result(self, expected_results: int = 5, timeout: int = 30) -> bool:
         """Espera por un número específico de resultados de la cola 'result' con timeout configurable"""
         start_time = time.time()
-        retry_interval = 0.1  # 100ms entre intentos
+        retry_interval = 0.1  # 100 ms entre intentos
         results_received = 0
         
         while time.time() - start_time < timeout:
@@ -50,10 +51,10 @@ class Client:
         """Envía un mensaje y maneja errores"""
         try:
             print(f"[CLIENT] Enviando mensaje: {message}")
-            return (self.producer.enqueue(message),self.producer_1.enqueue(message),self.producer_2.enqueue(message))
+            return self.producer.enqueue(message),self.producer_1.enqueue(message),self.producer_2.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
-            return (False, False)
+            return False, False
 
 
     def send_actor(self, message: dict) -> bool:

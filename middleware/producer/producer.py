@@ -91,21 +91,21 @@ class Producer:
             logger.error(f"❌ Error al enviar mensaje: {e}")
             return False
 
-    def _notify_shutdown(self):
-        """Notifica a los consumidores que el productor se está cerrando"""
-        shutdown_message = {
-            "type": "shutdown",
-            "timestamp": time.time(),
-            "message": "Producer se está cerrando"
-        }
-        self.enqueue(shutdown_message)
-        logger.info("Notificación de shutdown enviada a los consumers")
+    # def _notify_shutdown(self):
+    #     """Notifica a los consumidores que el productor se está cerrando"""
+    #     shutdown_message = {
+    #         "type": "shutdown",
+    #         "timestamp": time.time(),
+    #         "message": "Producer se está cerrando"
+    #     }
+    #     self.enqueue(shutdown_message)
+    #     logger.info("Notificación de shutdown enviada a los consumers")
 
     def close(self):
         """Cierra la conexión con RabbitMQ"""
         try:
             if self._connection and not self._connection.is_closed:
-                self._notify_shutdown()
+                # self._notify_shutdown()
                 self._connection.close()
                 logger.info("✅ Conexión cerrada correctamente")
         except Exception as e:
