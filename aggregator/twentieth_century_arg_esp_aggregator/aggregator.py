@@ -30,14 +30,11 @@ class Aggregator(Worker):
         logger.info("Iniciando agregador")
         
         try:
-            while True:
+            while not self.shutdown_event.is_set():
                 message = self.consumer.dequeue()
                 
                 if not message:
                     continue
-                
-                if message.get("type") == "shutdown":
-                    break
 
                 if message.get("type") == "batch_result":
                     # Acumular las películas del batch
@@ -61,8 +58,8 @@ class Aggregator(Worker):
                             logger.info(f"Resultado final enviado con {len(self.filtered_movies)} películas")
                         break
 
-        except KeyboardInterrupt:
-            logger.info("Deteniendo agregador...")
+        except Exception as e:
+            logger.error(f"Error durante el procesamiento: {e}")
         finally:
             self.close()
 
