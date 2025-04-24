@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from time import sleep
+
 import pika
 import signal
 import sys
@@ -95,6 +97,7 @@ class Consumer:
 
     def dequeue(self, timeout: int = 1) -> Optional[Any]:
         try:
+            sleep(0.05)
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
                     return None
