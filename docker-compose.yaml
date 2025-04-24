@@ -35,6 +35,17 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
+  main_movie_filter:
+    build:
+      context: .
+      dockerfile: filters/main_movie_filter/main_movie_filter.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
   twentieth_century_arg_esp_aggregator:
     build:
       context: .
