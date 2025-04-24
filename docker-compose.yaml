@@ -4,7 +4,7 @@ services:
       context: ./rabbitmq
       dockerfile: rabbitmq.dockerfile
     ports:
-      - 15672:15672
+      - "15672:15672"
     healthcheck:
         test: ["CMD", "curl", "-f", "http://localhost:15672"]
         interval: 10s
@@ -28,6 +28,17 @@ services:
     build:
       context: .
       dockerfile: filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile
+    depends_on:
+      - rabbitmq
+    links:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  main_movie_filter:
+    build:
+      context: .
+      dockerfile: filters/main_movie_filter/main_movie_filter.dockerfile
     depends_on:
       - rabbitmq
     links:
@@ -116,6 +127,7 @@ services:
     build:
       context: .
       dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    image: sentiment_filter:latest
     depends_on:
       - rabbitmq
     links:
@@ -124,9 +136,7 @@ services:
       - PYTHONUNBUFFERED=1
 
   sentiment_filter_1:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    image: sentiment_filter:latest
     depends_on:
       - rabbitmq
     links:
@@ -135,9 +145,7 @@ services:
       - PYTHONUNBUFFERED=1
 
   sentiment_filter_2:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    image: sentiment_filter:latest
     depends_on:
       - rabbitmq
     links:
