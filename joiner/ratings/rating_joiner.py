@@ -28,7 +28,7 @@ class RatingsJoiner(Worker):
         self.ratings_producer.close()
 
     @staticmethod
-    def handle_ratings_message(self, message):
+    def handle_ratings_message(message):
         if not message or not isinstance(message, dict):
             return None
             
