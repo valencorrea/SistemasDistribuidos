@@ -16,15 +16,15 @@ build: deps
 .PHONY: build
 
 docker-image:
-	docker build -f ./middleware/consumer/consumer.dockerfile --no-cache -t "consumer:latest" ./middleware/consumer
-	docker build -f ./middleware/producer/producer.dockerfile --no-cache -t "producer:latest" ./middleware/producer
+	docker build -f ./middleware/consumer/consumer.dockerfile -t "consumer:latest" ./middleware/consumer
+	docker build -f ./middleware/producer/producer.dockerfile -t "producer:latest" ./middleware/producer
 
-	docker build -f ./rabbitmq/rabbitmq.dockerfile --no-cache -t "rabbitmq:latest" ./rabbitmq
+	docker build -f ./rabbitmq/rabbitmq.dockerfile -t "rabbitmq:latest" ./rabbitmq
 
-	docker build -f ./client/client.dockerfile --no-cache -t "client:latest" .
+	docker build -f ./client/client.dockerfile -t "client:latest" .
 
-	docker build -f ./filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile --no-cache -t "twentieth_century_arg_production_filter:latest" .
-	docker build -f ./filters/esp_production/esp_production_filter.dockerfile --no-cache -t "esp_production_filter:latest" .
+	docker build -f ./filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile -t "twentieth_century_arg_production_filter:latest" .
+	docker build -f ./filters/esp_production/esp_production_filter.dockerfile -t "esp_production_filter:latest" .
 
 	# Execute this command from time to time to clean up intermediate stages generated
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you
@@ -34,7 +34,7 @@ docker-image:
 .PHONY: docker-image
 
 docker-compose-up: docker-image
-	docker compose -f docker-compose.yaml up -d --build --force-recreate
+	docker compose -f docker-compose.yaml up -d --build
 .PHONY: docker-compose-up
 
 docker-compose-down:

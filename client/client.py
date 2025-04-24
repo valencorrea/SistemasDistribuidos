@@ -1,3 +1,4 @@
+import signal
 import time
 import json
 from typing import Generator
@@ -11,8 +12,13 @@ class Client:
         self.producer_2 = Producer("movie_2")
         self.actor_producer = Producer("credits")
         self.rating_producer = Producer("ratings")
+        self.shutdown_producer = Producer("shutdown","fanout")
         self.consumer = Consumer("result")
         self.batch_size = batch_size
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self, signum, frame):
+        self.shutdown_producer.enqueue("shutdown")
 
     def wait_for_result(self, expected_results: int = 5, timeout: int = 30) -> bool:
         """Espera por un número específico de resultados de la cola 'result' con timeout configurable"""

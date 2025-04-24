@@ -6,21 +6,24 @@ import time
 import logging
 import uuid
 import json
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, Literal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Consumer:
-    def __init__(self, queue_name, 
-                 message_factory: Callable = None):
+    def __init__(self, queue_name: str,
+                 message_factory: Callable = None,
+                 queue_type: Literal['direct', 'fanout'] = 'direct'):
         self._queue_name = queue_name
+        self._queue_type = queue_type
         self._message_factory = message_factory or (lambda x: x)
         self._connection = None
         self._channel = None
         self._closing = False
         self._producer_active = True
-        self._consumer_id = str(uuid.uuid4())[:8]  # ID único para cada consumidor
+        self._consumer_id = str(uuid.uuid4())[:8]
+        self._exchange_name = f'{queue_type}_exchange'
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
     def _handle_sigterm(self, signum, frame):
@@ -42,34 +45,47 @@ class Consumer:
         """Establece conexión con RabbitMQ y configura la cola"""
         try:
             self._connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(
-                        host='rabbitmq',
-                        connection_attempts=3,
-                        retry_delay=5,
-                        heartbeat=30,
-                        socket_timeout=30
-                    ))
+                pika.ConnectionParameters(
+                    host='rabbitmq',
+                    connection_attempts=3,
+                    retry_delay=5,
+                    heartbeat=30,
+                    socket_timeout=30
+                ))
             self._channel = self._connection.channel()
 
-            # Declarar exchange direct
+            # Declarar exchange según el tipo
             self._channel.exchange_declare(
-                exchange='direct_exchange',
-                exchange_type='direct',
+                exchange=self._exchange_name,
+                exchange_type=self._queue_type,
                 durable=True
             )
 
-            # Declarar la cola compartida
-            self._channel.queue_declare(
-                queue=self._queue_name,
-                durable=True
-            )
+            if self._queue_type == 'direct':
+                # Para colas direct, usar la cola compartida
+                queue_name = self._queue_name
+                self._channel.queue_declare(
+                    queue=queue_name,
+                    durable=True
+                )
+            else:
+                # Para fanout, crear una cola exclusiva y temporal
+                result = self._channel.queue_declare(
+                    queue='',  # Cola con nombre aleatorio
+                    exclusive=True,  # Se eliminará al desconectarse
+                    auto_delete=True  # Se eliminará cuando no haya consumidores
+                )
+                queue_name = result.method.queue
 
-            # Vincular la cola al exchange direct con el routing key igual al nombre de la cola
+            # Vincular la cola al exchange
             self._channel.queue_bind(
-                exchange='direct_exchange',
-                queue=self._queue_name,
-                routing_key=self._queue_name
+                exchange=self._exchange_name,
+                queue=queue_name,
+                routing_key=self._queue_name if self._queue_type == 'direct' else ''
             )
+
+            # Guardar el nombre de la cola para uso en dequeue
+            self._actual_queue_name = queue_name
 
             self._producer_active = True
             logger.info(f"✅ Consumidor conectado a la cola: {self._queue_name}")
@@ -89,16 +105,16 @@ class Consumer:
             # Configurar QoS
             self._channel.basic_qos(prefetch_count=1)
 
-            # Obtener mensaje
+            # Obtener mensaje de la cola actual
             method, properties, body = self._channel.basic_get(
-                queue=self._queue_name,
+                queue=self._actual_queue_name,
                 auto_ack=True
             )
 
             if method:
                 try:
                     message = json.loads(body)
-                    
+
                     # Manejar mensaje de shutdown
                     if self._handle_shutdown_message(message):
                         logger.info("👋 Recibido mensaje de shutdown")

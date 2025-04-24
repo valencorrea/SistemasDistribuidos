@@ -5,17 +5,19 @@ import sys
 import time
 import logging
 import json
-from typing import Any
+from typing import Any, Literal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Producer:
-    def __init__(self, queue_name: str = 'default'):
+    def __init__(self, queue_name: str = 'default', queue_type: Literal['direct', 'fanout'] = 'direct'):
         self._queue_name = queue_name
+        self._queue_type = queue_type
         self._connection = None
         self._channel = None
         self._closing = False
+        self._exchange_name = f'{queue_type}_exchange'
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
     def _handle_sigterm(self, signum, frame):
@@ -37,27 +39,26 @@ class Producer:
             )
             self._channel = self._connection.channel()
 
-            # Declarar exchange direct
+            # Declarar exchange según el tipo especificado
             self._channel.exchange_declare(
-                exchange='direct_exchange',
-                exchange_type='direct',
+                exchange=self._exchange_name,
+                exchange_type=self._queue_type,
                 durable=True
             )
 
-            # Declarar la cola para asegurar que existe
-            self._channel.queue_declare(
-                queue=self._queue_name,
-                durable=True
-            )
+            # Solo declarar y vincular cola si es tipo direct
+            if self._queue_type == 'direct':
+                self._channel.queue_declare(
+                    queue=self._queue_name,
+                    durable=True
+                )
+                self._channel.queue_bind(
+                    exchange=self._exchange_name,
+                    queue=self._queue_name,
+                    routing_key=self._queue_name
+                )
 
-            # Vincular la cola al exchange
-            self._channel.queue_bind(
-                exchange='direct_exchange',
-                queue=self._queue_name,
-                routing_key=self._queue_name
-            )
-
-            logger.info(f"✅ Productor conectado a la cola: {self._queue_name}")
+            logger.info(f"✅ Productor conectado a la cola: {self._queue_name} exchange_name: {self._exchange_name} queue_type: {self._queue_type}")
             return True
 
         except Exception as e:
@@ -71,10 +72,12 @@ class Producer:
                 if not self.connect():
                     return False
 
-            # Publicar mensaje al exchange direct
+            # Para fanout, el routing_key se ignora pero lo mantenemos por consistencia
+            routing_key = self._queue_name if self._queue_type == 'direct' else ''
+
             self._channel.basic_publish(
-                exchange='direct_exchange',
-                routing_key=self._queue_name,
+                exchange=self._exchange_name,
+                routing_key=routing_key,
                 body=json.dumps(message).encode(),
                 properties=pika.BasicProperties(
                     delivery_mode=2,  # hace el mensaje persistente

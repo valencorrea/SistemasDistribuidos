@@ -11,6 +11,19 @@ class Top5LocalFilter:
     def __init__(self):
         self.consumer = Consumer("movie_1",message_factory=self.handle_message)  # Lee de la cola de movies
         self.producer = Producer("aggregate_consulta_2")  # Envía resultados a aggregate_consulta_1
+        self.shutdown_consumer= Consumer(
+            queue_name="shutdown",
+            message_factory=self.close,
+            type="fanout"
+        )
+
+    def close(self):
+        """Cierra las conexiones"""
+        try:
+            self.producer.close()
+            self.shutdown_consumer.close()
+        except Exception as e:
+            logger.error(f"Error al cerrar las conexiones: {e}")
 
     def handle_message(self, message):
         if message.get("type") == "shutdown":

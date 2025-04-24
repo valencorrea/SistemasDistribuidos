@@ -15,6 +15,16 @@ class SentimentAnalizerFilter:
         self.producer = Producer("aggregate_consulta_5")
         self.sentiment_analyzer = pipeline("sentiment-analysis",
                                            model="distilbert-base-uncased-finetuned-sst-2-english")
+        self.shutdown_consumer= Consumer(
+            queue_name="shutdown",
+            message_factory=self.close,
+            type="fanout"
+        )
+
+    def close(self):
+        self.consumer.close()
+        self.producer.close()
+        self.shutdown_consumer.close()
 
     def handle_message(self, message):
         if not message:

@@ -15,6 +15,16 @@ class ArgEspProductionFilter:
             message_factory=self.handle_message
         )
         self.producer = Producer("aggregate_consulta_1")
+        self.shutdown_consumer= Consumer(
+            queue_name="shutdown",
+            message_factory=self.close,
+            type="fanout"
+        )
+
+    def close(self):
+        self.consumer.close()
+        self.producer.close()
+        self.shutdown_consumer.close()
 
     def handle_message(self, message):
         if message.get("type") == "shutdown":
@@ -49,10 +59,6 @@ class ArgEspProductionFilter:
             logger.info("[CONSUMER_CLIENT] Interrumpido por el usuario")
         finally:
             self.close()
-
-    def close(self):
-        self.consumer.close()
-        self.producer.close()
 
 def apply_filter(movies):
     result = []
