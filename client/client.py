@@ -1,23 +1,26 @@
+import signal
 import time
-import json
 from typing import Generator
-from middleware.producer.producer import Producer
+
 from middleware.consumer.consumer import Consumer
+from middleware.producer.producer import Producer
+
 
 class Client:
-    def __init__(self, batch_size: int = 10):
-        self.producer = Producer("movie")
-        self.producer_1 = Producer("movie_1")
-        self.producer_2 = Producer("movie_2")
+    def __init__(self):
+        self.producer = Producer("movie_main_filter")
         self.actor_producer = Producer("credits")
         self.rating_producer = Producer("ratings")
+        self.shutdown_producer = Producer("shutdown","fanout")
         self.consumer = Consumer("result")
-        self.batch_size = batch_size
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self, signum, frame):
+        self.shutdown_producer.enqueue("shutdown")
 
     def wait_for_result(self, expected_results: int = 5, timeout: int = 30) -> bool:
-        """Espera por un número específico de resultados de la cola 'result' con timeout configurable"""
         start_time = time.time()
-        retry_interval = 0.1  # 100ms entre intentos
+        retry_interval = 0.1  # 100 ms entre intentos
         results_received = 0
         
         while time.time() - start_time < timeout:
@@ -33,43 +36,33 @@ class Client:
         return False
 
     def close(self):
-        """Cierra las conexiones"""
         self.producer.close()
-        self.producer_1.close()
-        self.producer_2.close()
         self.actor_producer.close()
         self.consumer.close()
 
-    def send(self, message: dict) -> (bool, bool, bool):
-        """Envía un mensaje y maneja errores"""
+    def send(self, message: dict) -> bool:
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
-            return (self.producer.enqueue(message),self.producer_1.enqueue(message),self.producer_2.enqueue(message))
+            return self.producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
-            return (False, False)
+            return False
 
 
     def send_actor(self, message: dict) -> bool:
-        """Envía un mensaje y maneja errores"""
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
             return self.actor_producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return False
     
     def send_rating(self, message: dict) -> bool:
-        """Envía un mensaje y maneja errores"""
         try:
-            print(f"[CLIENT] Enviando mensaje: {message}")
             return self.rating_producer.enqueue(message)
         except Exception as e:
             print(f"[ERROR] Error al enviar mensaje: {e}")
             return False
 
-    def process_file(self, file_path: str) -> Generator[tuple[list[str], bool], None, None]:
-        """Procesa el archivo en lotes de manera eficiente"""
+    def process_file(self, file_path: str, batch_size: int = 1000) -> Generator[tuple[list[str], bool], None, None]:
         try:
             with open(file_path, "r") as file:
                 # Leer el encabezado
@@ -85,7 +78,7 @@ class Client:
                     next_line = next(file, None)
                     is_last = next_line is None
                     
-                    if len(current_batch) >= self.batch_size or is_last:
+                    if len(current_batch) >= batch_size or is_last:
                         yield [header] + current_batch, is_last
                         current_batch = []
                     
@@ -94,7 +87,6 @@ class Client:
             file.close()
 
 def wait_for_rabbitmq(max_retries: int = 30, retry_interval: float = 1.0) -> bool:
-    """Espera a que RabbitMQ esté disponible"""
     for _ in range(max_retries):
         try:
             producer = Producer("test")
@@ -111,7 +103,7 @@ if __name__ == '__main__':
         print("[ERROR] No se pudo conectar con RabbitMQ después de varios intentos")
         exit(1)
 
-    client = Client(batch_size=1000)
+    client = Client()
     try:
         successful_batches = 0
         total_batches = 0
@@ -122,9 +114,9 @@ if __name__ == '__main__':
                 "batch_size": len(batch),
                 "total_batches": total_batches + len(batch) if is_last else 0
             }
-            result_0, result_1, result_2 = client.send(message)
+            result = client.send(message)
 
-            if result_0 or result_1 or result_2:
+            if result:
                 successful_batches += 1
                 print(f"[MAIN] Batch {total_batches + 1} enviado correctamente")
             else:
@@ -151,7 +143,8 @@ if __name__ == '__main__':
             total_batches += len(batch)
         successful_batches = 0
         total_batches = 0
-        for batch, is_last in client.process_file("root/files/ratings.csv"):
+
+        for batch, is_last in client.process_file("root/files/ratings.csv", 100000):
             message = {
                 "type": "rating",
                 "cola": batch,

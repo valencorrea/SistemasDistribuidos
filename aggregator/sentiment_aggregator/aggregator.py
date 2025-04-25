@@ -1,15 +1,16 @@
-import json
-from collections import defaultdict
 import logging
+from collections import defaultdict
+
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
+from worker.worker import Worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class Aggregator:
+class Aggregator(Worker):
     def __init__(self):
+        super().__init__()
         self.consumer = Consumer("aggregate_consulta_5")  # Lee de la cola de resultados filtrados
         self.producer = Producer("result")  # Envía el resultado final
         self.total_batches = None
@@ -17,12 +18,19 @@ class Aggregator:
         self.sentiment_revenue = defaultdict(float)  # Diccionario para sumar ganancias por senitmiento
         self.sentiment_budget = defaultdict(float)  # Diccionario para sumar presupuestos por sentimiento
 
+    def close(self):
+        logger.info("Cerrando conexiones del worker...")
+        try:
+            self.consumer.close()
+            self.producer.close()
+            self.shutdown_consumer.close()
+        except Exception as e:
+            logger.error(f"Error al cerrar conexiones: {e}")
+
     def process_sentiment_revenue_budget(self, movies):
-        """Suma el presupuesto de las películas por país"""
         for movie in movies:
             if not movie:  # Si movie es None
                 continue
-
             try:
                 sentiment = movie.get("sentiment", "")
                 revenue = float(movie.get("revenue", 0))
@@ -36,7 +44,6 @@ class Aggregator:
                 continue
 
     def _get_sentiment_mean(self):
-        """obtiene el promedio de ganancias y presupuestos por sentimiento"""
         sentiment_mean = {}
         for sentiment in self.sentiment_budget:
             sentiment_mean[sentiment] = {
@@ -45,18 +52,14 @@ class Aggregator:
         return sentiment_mean
 
     def start(self):
-        """Inicia el procesamiento de mensajes"""
         logger.info("Iniciando agregador")
 
         try:
-            while True:
+            while not self.shutdown_event.is_set():
                 message = self.consumer.dequeue()
 
                 if not message:
                     continue
-
-                if message.get("type") == "shutdown":
-                    break
 
                 if message.get("type") == "batch_result":
                     # Procesar las películas del batch
@@ -68,8 +71,8 @@ class Aggregator:
 
                     logger.info(f"Batches recibidos: {self.received_batches}/{self.total_batches}")
 
-                    # Si hemos recibido todos los batches, enviar el resultado final
-                    if self.total_batches and self.total_batches > 0 and self.received_batches >= self.total_batches:
+                    # Sí hemos recibido todos los batches, enviar el resultado final
+                    if self.total_batches and 0 < self.total_batches <= self.received_batches:
                         rate_revenue_budget = self._get_sentiment_mean()
                         result_message = {
                             "type": "result",
@@ -78,17 +81,10 @@ class Aggregator:
                         if self.producer.enqueue(result_message):
                             logger.info("Resultado final enviado con top 5 países")
                         break
-
-        except KeyboardInterrupt:
-            logger.info("Deteniendo agregador...")
+        except Exception as e:
+            logger.error(f"Error durante el procesamiento: {e}")
         finally:
             self.close()
-
-    def close(self):
-        """Cierra las conexiones"""
-        self.consumer.close()
-        self.producer.close()
-
 
 if __name__ == '__main__':
     aggregator = Aggregator()

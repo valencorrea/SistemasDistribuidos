@@ -1,17 +1,17 @@
-import json
 import logging
 from heapq import heappush, heappushpop, nlargest
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
-from utils.parsers.movie_parser import convert_data
 from utils.parsers.ratings_parser import convert_data_for_rating_joiner
+from worker.worker import Worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class RatingsJoiner:
+class RatingsJoiner(Worker):
     def __init__(self):
+        super().__init__()
         self.partial_aggregator_consumer = Consumer("rating_joiner", message_factory=self.handle_partial_aggregator_message)
         self.ratings_consumer = Consumer("ratings", message_factory=self.handle_ratings_message)
         self.ratings_producer = Producer("result")
@@ -22,7 +22,13 @@ class RatingsJoiner:
         self.receive_ratings_batches = 0
         self.total_ratings_batches = None
 
-    def handle_ratings_message(self, message):
+    def close(self):
+        self.partial_aggregator_consumer.close()
+        self.ratings_consumer.close()
+        self.ratings_producer.close()
+
+    @staticmethod
+    def handle_ratings_message(message):
         if not message or not isinstance(message, dict):
             return None
             
@@ -40,7 +46,8 @@ class RatingsJoiner:
 
         return batch_message
 
-    def handle_partial_aggregator_message(self, message):
+    @staticmethod
+    def handle_partial_aggregator_message(message):
         if not message or not isinstance(message, dict):
             return None
             
@@ -57,18 +64,14 @@ class RatingsJoiner:
         return batch_message
 
     def start(self):
-        """Inicia el procesamiento de películas y ratings"""
         logger.info("Iniciando joiner de ratings")
         
         try:
             # Procesar películas primero
-            while True:
+            while not self.shutdown_event.is_set():
                 message = self.partial_aggregator_consumer.dequeue()
                 if not message:
                     continue
-
-                if message.get("type") == "shutdown":
-                    break
 
                 if message.get("type") == "batch_result":
                     movies = message.get("movies", [])
@@ -92,13 +95,10 @@ class RatingsJoiner:
                         break
 
             # Procesar ratings
-            while True:
+            while not self.shutdown_event.is_set():
                 message = self.ratings_consumer.dequeue()
                 if not message:
                     continue
-
-                if message.get("type") == "shutdown":
-                    break
 
                 if message.get("type") == "batch_result":
                     ratings = message.get("ratings", [])
@@ -114,8 +114,8 @@ class RatingsJoiner:
                     if message.get("total_batches") and message.get("total_batches") > 0:
                         self.total_ratings_batches = message.get("total_batches")
                     self.receive_ratings_batches += message.get("batch_size", 0)
-                    if self.total_ratings_batches and self.total_ratings_batches > 0:
-                        logger.info(f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
+
+                    logger.info(f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
                     if self.total_ratings_batches and self.receive_ratings_batches >= self.total_ratings_batches:
                         logger.info("Total de ratings procesados")
                         break
@@ -128,16 +128,17 @@ class RatingsJoiner:
                     "ratings": result
                 })
 
-        except KeyboardInterrupt:
-            logger.info("Deteniendo joiner...")
         except Exception as e:
-            logger.error(f"Error en el joiner: {e}")
+            logger.error(f"Error durante el procesamiento: {e}")
         finally:
             self.close()
 
     def obtain_result(self):
-        # Usamos un min-heap para mantener los 5 mejores
-        top_5 = []
+        max_rating = float('-inf')
+        min_rating = float('inf')
+        best_movie = None
+        worst_movie = None
+        
         for movie_id, data in self.movies_ratings.items():
             if data["votes"] > 0:
                 avg_rating = data["rating_sum"] / data["votes"]
@@ -147,20 +148,21 @@ class RatingsJoiner:
                     "rating": avg_rating,
                 }
                 
-                if len(top_5) < 5:
-                    heappush(top_5, (avg_rating, movie_data))
-                elif avg_rating > top_5[0][0]:
-                    heappushpop(top_5, (avg_rating, movie_data))
+                # Actualizar el mejor rating
+                if avg_rating > max_rating:
+                    max_rating = avg_rating
+                    best_movie = movie_data
+                
+                # Actualizar el peor rating
+                if avg_rating < min_rating:
+                    min_rating = avg_rating
+                    worst_movie = movie_data
         
-        # Convertir el heap a la lista final de resultados
-        return [item[1] for item in nlargest(5, top_5)]
-
-    def close(self):
-        """Cierra las conexiones"""
-        self.partial_aggregator_consumer.close()
-        self.ratings_consumer.close()
-        self.ratings_producer.close()
+        return {
+            "best": best_movie,
+            "worst": worst_movie
+        }
 
 if __name__ == '__main__':
-    filter = RatingsJoiner()
-    filter.start()
+    worker = RatingsJoiner()
+    worker.start()

@@ -10,6 +10,8 @@ class Movie:
     type: str
     genres: List[str]
     budget: int
+    overview: str
+    revenue: int
 
     def released_in_or_after_2000_argentina(self) -> bool:
         if not self.release_date or not self.production_countries:
@@ -28,7 +30,9 @@ class Movie:
             "release_date": self.release_date,
             "type": self.type,
             "genres": self.genres,
-            "budget": self.budget
+            "budget": self.budget,
+            "overview": self.overview,
+            "revenue": self.revenue
         }
     def to_dict_title(self):
         return {
