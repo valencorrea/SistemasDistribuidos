@@ -36,6 +36,8 @@ class Client:
         return False
 
     def close(self):
+        print(f"Closing all workers")
+        self.shutdown_producer.enqueue("shutdown")
         self.producer.close()
         self.actor_producer.close()
         self.consumer.close()
