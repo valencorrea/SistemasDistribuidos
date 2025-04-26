@@ -16,9 +16,6 @@ build: deps
 .PHONY: build
 
 docker-image:
-	docker build -f ./middleware/consumer/consumer.dockerfile -t "consumer:latest" ./middleware/consumer
-	docker build -f ./middleware/producer/producer.dockerfile -t "producer:latest" ./middleware/producer
-
 	docker build -f ./rabbitmq/rabbitmq.dockerfile -t "rabbitmq:latest" ./rabbitmq
 
 	docker build -f ./client/client.dockerfile -t "client:latest" .

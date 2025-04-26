@@ -1,0 +1,10 @@
+.git/
+__pycache__/
+*.pyc
+*.log
+data/
+*.csv
+*.zip
+*.tar.gz
+*.md
+.venv/
