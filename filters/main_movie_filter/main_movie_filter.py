@@ -1,20 +1,32 @@
-import json
 import logging
+
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data_for_main_movie_filter
+from worker.worker import Worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class MainMovieFilter:
+class MainMovieFilter(Worker):
     def __init__(self):
+        super().__init__()
         self.consumer = Consumer("movie_main_filter",message_factory=self.handle_message)  # Lee de la cola de movies
         self.movie_producer = Producer("movie")
         self.movie_2_producer = Producer("movie_2")
         self.movie_3_producer = Producer("movie_1")
 
-    def handle_message(self, message):
+    def close(self):
+        try:
+            self.consumer.close()
+            self.movie_producer.close()
+            self.movie_2_producer.close()
+            self.movie_3_producer.close()
+        except Exception as e:
+            logger.error(f"Error al cerrar las conexiones: {e}")
+
+    @staticmethod
+    def handle_message(message):
         if message.get("type") == "shutdown":
             return message
         movies = convert_data_for_main_movie_filter(message)
@@ -34,7 +46,7 @@ class MainMovieFilter:
         logger.info("Iniciando filtro de películas del siglo XXI")
         
         try:
-            while True:
+            while not self.shutdown_event.is_set():
                 message = self.consumer.dequeue()
                 if type(message) == dict and message.get("type") == "shutdown":
                     print("Shutting down filter")
@@ -49,15 +61,6 @@ class MainMovieFilter:
         finally:
             self.close()
 
-    def close(self):
-        try:
-            self.consumer.close()
-            self.movie_producer.close()
-            self.movie_2_producer.close()
-            self.movie_3_producer.close()
-        except Exception as e:
-            logger.error(f"Error al cerrar las conexiones: {e}")
-
 if __name__ == '__main__':
-    filter = MainMovieFilter()
-    filter.start()
+    worker = MainMovieFilter()
+    worker.start()
