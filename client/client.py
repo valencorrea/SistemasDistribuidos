@@ -109,7 +109,7 @@ if __name__ == '__main__':
     try:
         successful_batches = 0
         total_batches = 0
-        for batch, is_last in client.process_file("root/files/movies.txt"):
+        for batch, is_last in client.process_file("root/files/movies_metadata.csv"):
             message = {
                 "type": "movie",
                 "cola": batch,
