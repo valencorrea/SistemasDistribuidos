@@ -1,46 +1,28 @@
 #!/usr/bin/env python3
-from time import sleep
 
-import pika
-import signal
-import sys
-import time
+import json
 import logging
 import uuid
-import json
 from typing import Callable, Any, Optional, Literal
 
-logging.basicConfig(level=logging.INFO)
+import pika
+
+
 logger = logging.getLogger(__name__)
+
 
 class Consumer:
     def __init__(self, queue_name: str,
-                 message_factory: Callable = None,
+                 _message_handler: Optional[Callable[[dict], Any]] = None,
                  queue_type: Literal['direct', 'fanout'] = 'direct'):
         self._queue_name = queue_name
         self._queue_type = queue_type
-        self._message_factory = message_factory or (lambda x: x)
+        self._message_handler = _message_handler or (lambda x: x)
         self._connection = None
         self._channel = None
-        self._closing = False
-        self._producer_active = True
-        self._consumer_id = str(uuid.uuid4())[:8]
         self._exchange_name = f'{queue_type}_exchange'
-        signal.signal(signal.SIGTERM, self._handle_sigterm)
-
-    def _handle_sigterm(self, signum, frame):
-        logger.info('SIGTERM recibido - Iniciando graceful shutdown')
-        self._closing = True
-        if self._connection:
-            self._connection.close()
-
-    def _handle_shutdown_message(self, message: dict):
-        if isinstance(message, dict) and message.get("type") == "shutdown":
-            self._producer_active = False
-            logger.info(f"Producer se está cerrando: {message.get('message')}")
-            logger.info(f"Timestamp del cierre: {message.get('timestamp')}")
-            return True
-        return False
+        self._consumer_id = str(uuid.uuid4())[:8]
+        self._actual_queue_name = None
 
     def connect(self) -> bool:
         try:
@@ -49,12 +31,11 @@ class Consumer:
                     host='rabbitmq',
                     connection_attempts=3,
                     retry_delay=5,
-                    heartbeat=30,
+                    heartbeat=240,
                     socket_timeout=30
-                ))
+                )
+            )
             self._channel = self._connection.channel()
-
-            # Declarar exchange según el tipo
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
@@ -62,87 +43,63 @@ class Consumer:
             )
 
             if self._queue_type == 'direct':
-                # Para colas direct, usar la cola compartida
+                self._channel.queue_declare(queue=self._queue_name, durable=True)
                 queue_name = self._queue_name
-                self._channel.queue_declare(
-                    queue=queue_name,
-                    durable=True
-                )
             else:
-                # Para fanout, crear una cola exclusiva y temporal
-                result = self._channel.queue_declare(
-                    queue='',  # Cola con nombre aleatorio
-                    exclusive=True,  # Se eliminará al desconectarse
-                    auto_delete=True  # Se eliminará cuando no haya consumidores
-                )
+                result = self._channel.queue_declare(queue='', exclusive=True, auto_delete=True)
                 queue_name = result.method.queue
 
-            # Vincular la cola al exchange
             self._channel.queue_bind(
                 exchange=self._exchange_name,
                 queue=queue_name,
                 routing_key=self._queue_name if self._queue_type == 'direct' else ''
             )
 
-            # Guardar el nombre de la cola para uso en dequeue
             self._actual_queue_name = queue_name
-
-            self._producer_active = True
-            logger.info(f"✅ Consumidor conectado a la cola: {self._queue_name}")
+            logger.info(f"✅ Connected to queue: {self._queue_name}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Error al configurar consumidor: {e}")
+            logger.error(f"❌ Failed to configure consumer: {e}")
             return False
 
-    def dequeue(self, timeout: int = 1) -> Optional[Any]:
+    def _on_message(self, channel, method, properties, body):
         try:
-            sleep(0.05)
-            if not self._connection or self._connection.is_closed:
-                if not self.connect():
-                    return None
+            message = json.loads(body)
+            logger.info(f"📥 Message received")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            self._message_handler(message)
 
-            # Configurar QoS
-            self._channel.basic_qos(prefetch_count=1)
-
-            # Obtener mensaje de la cola actual
-            method, properties, body = self._channel.basic_get(
-                queue=self._actual_queue_name,
-                auto_ack=True
-            )
-
-            if method:
-                try:
-                    message = json.loads(body)
-
-                    # Manejar mensaje de shutdown
-                    if self._handle_shutdown_message(message):
-                        logger.info("👋 Recibido mensaje de shutdown")
-                        return None
-
-                    # Procesar mensaje normal
-                    result = self._message_factory(message)
-                    #logger.info(f"📥  Mensaje recibido: {message}")
-                    if message.get("total_batches") and message.get("total_batches") > 0:
-                        logger.info(f"📥  Resultado: {result}")
-                    return result
-                except json.JSONDecodeError as e:
-                    logger.error(f"❌ Error decodificando mensaje JSON: {e}")
-                    return None
-                except Exception as e:
-                    logger.error(f"❌ Error procesando mensaje: {e}")
-                    return None
-
-            return None
-
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON decode error: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
         except Exception as e:
-            logger.error(f"❌ Error al recibir mensaje: {e}")
-            return None
+            logger.error(f"❌ Error processing message: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
+    def start_consuming(self):
+        if not self._connection or self._connection.is_closed:
+            if not self.connect():
+                return
+
+        self._channel.basic_qos(prefetch_count=1)
+        self._channel.basic_consume(
+            queue=self._actual_queue_name,
+            on_message_callback=self._on_message,
+            auto_ack=False
+        )
+
+        logger.info("🟢 Waiting for messages...")
+        try:
+            self._channel.start_consuming()
+        except Exception as e:
+            logger.error(f"Error during consuming: {e}")
+            self.close()
 
     def close(self):
         try:
             if self._connection and not self._connection.is_closed:
                 self._connection.close()
-                logger.info("✅ Conexión cerrada correctamente")
+                logger.info("Connection closed successfully")
         except Exception as e:
-            logger.error(f"❌ Error al cerrar conexión: {e}")
+            logger.error(f"Error closing connection: {e}")

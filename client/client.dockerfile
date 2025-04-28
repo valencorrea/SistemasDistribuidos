@@ -5,6 +5,7 @@ COPY middleware/producer/producer.py /root/middleware/producer/producer.py
 COPY files/movies_metadata.csv /root/files/movies_metadata.csv
 COPY files/credits.csv /root/files/credits.csv
 COPY files/ratings.csv /root/files/ratings.csv
+COPY worker/worker.py /root/worker/worker.py
 RUN pip install pika
 ENV PYTHONPATH="/root"
 CMD ["python", "/root/client/client.py"]

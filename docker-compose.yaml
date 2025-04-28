@@ -83,6 +83,54 @@ services:
     image: sentiment_filter:latest
     links:
     - rabbitmq
+  sentiment_filter_1:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  sentiment_filter_2:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  sentiment_filter_3:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  sentiment_filter_4:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  sentiment_filter_5:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  sentiment_filter_6:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
   top_5_countries_aggregator:
     build:
       context: .
@@ -121,22 +169,6 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
-    links:
-    - rabbitmq
-  twentieth_century_arg_production_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: twentieth_century_arg_production_filter:latest
-    links:
-    - rabbitmq
-  twentieth_century_arg_production_filter_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: twentieth_century_arg_production_filter:latest
     links:
     - rabbitmq
 version: '3'
