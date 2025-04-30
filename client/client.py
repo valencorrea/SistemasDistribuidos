@@ -19,6 +19,7 @@ class Client(Worker):
         self.rating_producer = Producer("ratings")
         self.shutdown_producer = Producer("shutdown", "fanout")
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
+        self.test_producer = Producer("result_test")
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.results_received = 0
         self.shutdown_event = threading.Event()
@@ -29,6 +30,7 @@ class Client(Worker):
     def wait_for_result(self, query_result):
         self.results_received += 1
         logger.info(f"[INFO] Resultado {self.results_received}/5 recibido: {query_result}")
+        self.test_producer.enqueue(query_result)
         if self.results_received == 5:
             self.close()
 

@@ -91,8 +91,9 @@ class CreditsJoiner(Worker):
         logger.info("Top 10 actors: " + str([(info["name"], info["count"]) for actor_id, info in top_10]))
 
         result_message = {
+            "result_number": 4,
             "type": "query_4_top_10_actores_credits",
-            "actors": top_10,
+            "result": top_10,
         }
 
         print(top_10)

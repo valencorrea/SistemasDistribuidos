@@ -75,8 +75,9 @@ class Aggregator(Worker):
             if self.total_batches and 0 < self.total_batches <= self.received_batches:
                 top_5_countries = self._get_top_5_countries()
                 result_message = {
+                    "result_number": 2,
                     "type": "query_2_top_5",
-                    "top_5_countries": top_5_countries
+                    "result": top_5_countries
                 }
                 if self.producer.enqueue(result_message):
                     logger.info("Resultado final enviado con top 5 países")

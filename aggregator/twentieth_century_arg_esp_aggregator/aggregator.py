@@ -41,8 +41,9 @@ class Aggregator(Worker):
             # Sí hemos recibido todos los batches, enviar el resultado final
             if self.total_batches and 0 < self.total_batches <= self.received_batches:
                 result_message = {
+                    "result_number": 1,
                     "type": "query_1_arg_esp_2000",
-                    "movies": self.filtered_movies,
+                    "result": self.filtered_movies,
                     "total_movies": len(self.filtered_movies)
                 }
                 if self.producer.enqueue(result_message):

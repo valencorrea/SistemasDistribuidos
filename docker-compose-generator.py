@@ -76,6 +76,12 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "depends_on": ["rabbitmq"],
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
+            },
+            "test": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "test/integration.dockerfile",
+                },
             }
         }
     }

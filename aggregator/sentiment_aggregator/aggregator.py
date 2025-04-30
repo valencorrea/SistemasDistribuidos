@@ -68,8 +68,9 @@ class Aggregator(Worker):
             if self.total_batches and 0 < self.total_batches <= self.received_batches:
                 rate_revenue_budget = self._get_sentiment_mean()
                 result_message = {
+                    "result_number": 5,
                     "type": "query_5_sentiments",
-                    "rate_revenue_budget": rate_revenue_budget
+                    "result": rate_revenue_budget
                 }
                 if self.producer.enqueue(result_message):
                     logger.info("Resultado final enviado con top 5 países")

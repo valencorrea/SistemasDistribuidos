@@ -60,8 +60,9 @@ class RatingsJoiner(Worker):
                 result = self.obtain_result()
                 if result:
                     self.ratings_producer.enqueue({
+                        "result_number": 3,
                         "type": "query_3_arg_2000_ratings",
-                        "ratings": result
+                        "result": result
                     })
 
     def handle_partial_aggregator_message(self, message):

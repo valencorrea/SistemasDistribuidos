@@ -16,7 +16,9 @@ class SentimentAnalyzerFilter(Worker):
         self.consumer = Consumer("movie_2", _message_handler=self.handle_message)
         self.producer = Producer("aggregate_consulta_5")
         self.sentiment_analyzer = pipeline("sentiment-analysis",
-                model="distilbert-base-uncased-finetuned-sst-2-english")
+                model="distilbert-base-uncased-finetuned-sst-2-english",
+                max_length=512,
+                truncation=True)
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")

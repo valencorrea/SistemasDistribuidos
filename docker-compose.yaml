@@ -107,30 +107,6 @@ services:
     image: sentiment_filter:latest
     links:
     - rabbitmq
-  sentiment_filter_4:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_5:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_6:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
   top_5_countries_aggregator:
     build:
       context: .
@@ -170,5 +146,11 @@ services:
     environment:
     - PYTHONUNBUFFERED=1
     links:
+    - rabbitmq
+  test:
+    build:
+      context: .
+      dockerfile: test/integration.dockerfile
+    depends_on:
     - rabbitmq
 version: '3'
