@@ -5,13 +5,15 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
+
 
 class Aggregator(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer("aggregate_consulta_5")  # Lee de la cola de resultados filtrados
+        self.consumer = Consumer("aggregate_consulta_5",
+                                 _message_handler=self.handle_message)  # Lee de la cola de resultados filtrados
         self.producer = Producer("result")  # Envía el resultado final
         self.total_batches = None
         self.received_batches = 0
@@ -51,40 +53,36 @@ class Aggregator(Worker):
             }
         return sentiment_mean
 
+    def handle_message(self, message):
+        if message.get("type") == "batch_result":
+            # Procesar las películas del batch
+            self.process_sentiment_revenue_budget(message.get("movies", []))
+            self.received_batches += message.get("batch_size", 0)
+
+            if message.get("total_batches"):
+                self.total_batches = message.get("total_batches")
+
+            logger.info(f"Batches recibidos: {self.received_batches}/{self.total_batches}")
+
+            # Sí hemos recibido todos los batches, enviar el resultado final
+            if self.total_batches and 0 < self.total_batches <= self.received_batches:
+                rate_revenue_budget = self._get_sentiment_mean()
+                result_message = {
+                    "result_number": 5,
+                    "type": "query_5_sentiments",
+                    "result": rate_revenue_budget
+                }
+                if self.producer.enqueue(result_message):
+                    logger.info("Resultado final enviado con top 5 países")
+                self.shutdown_event.set() # Hace falta esto?
+
     def start(self):
         logger.info("Iniciando agregador")
-
         try:
-            while not self.shutdown_event.is_set():
-                message = self.consumer.dequeue()
-
-                if not message:
-                    continue
-
-                if message.get("type") == "batch_result":
-                    # Procesar las películas del batch
-                    self.process_sentiment_revenue_budget(message.get("movies", []))
-                    self.received_batches += message.get("batch_size", 0)
-
-                    if message.get("total_batches"):
-                        self.total_batches = message.get("total_batches")
-
-                    logger.info(f"Batches recibidos: {self.received_batches}/{self.total_batches}")
-
-                    # Sí hemos recibido todos los batches, enviar el resultado final
-                    if self.total_batches and 0 < self.total_batches <= self.received_batches:
-                        rate_revenue_budget = self._get_sentiment_mean()
-                        result_message = {
-                            "type": "result",
-                            "rate_revenue_budget": rate_revenue_budget
-                        }
-                        if self.producer.enqueue(result_message):
-                            logger.info("Resultado final enviado con top 5 países")
-                        break
-        except Exception as e:
-            logger.error(f"Error durante el procesamiento: {e}")
+            self.consumer.start_consuming()
         finally:
             self.close()
+
 
 if __name__ == '__main__':
     aggregator = Aggregator()
