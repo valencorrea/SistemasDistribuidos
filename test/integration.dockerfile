@@ -8,6 +8,7 @@ COPY files/movies_metadata.csv /root/files/movies_metadata.csv
 COPY files/credits.csv /root/files/credits.csv
 COPY files/ratings.csv /root/files/ratings.csv
 COPY worker/worker.py /root/worker/worker.py
-RUN pip install pika transformers pandas numpy langid
+RUN pip install pika transformers pandas numpy langid huggingface_hub[hf_xet]
 ENV PYTHONPATH="/root"
+ENV PYTHONUNBUFFERED=1
 CMD ["python", "/root/test/integration.py"]

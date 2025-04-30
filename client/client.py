@@ -19,7 +19,7 @@ class Client(Worker):
         self.rating_producer = Producer("ratings")
         self.shutdown_producer = Producer("shutdown", "fanout")
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
-        self.test_producer = Producer("result_test")
+        self.test_producer = Producer("result_comparator")
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.results_received = 0
         self.shutdown_event = threading.Event()
@@ -36,7 +36,7 @@ class Client(Worker):
 
     def close(self):
         logger.info(f"Closing all workers")
-        self.shutdown_producer.enqueue("shutdown")
+        #self.shutdown_producer.enqueue("shutdown")
         self.producer.close()
         self.actor_producer.close()
         self.result_consumer.close()
