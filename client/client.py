@@ -64,28 +64,25 @@ class Client(Worker):
 
     @staticmethod
     def process_file(file_path: str, batch_size: int = 1000) -> Generator[tuple[list[str], bool], None, None]:
-        try:
-            with open(file_path, "r") as file:
-                # Leer el encabezado
-                header = next(file)
-                current_batch = []
-                # Leer la primera línea después del header
-                line = next(file, None)
+        with open(file_path, "r") as file:
+            # Leer el encabezado
+            header = next(file)
+            current_batch = []
+            # Leer la primera línea después del header
+            line = next(file, None)
 
-                while line is not None:
-                    current_batch.append(line)
+            while line is not None:
+                current_batch.append(line)
 
-                    # Leer la siguiente línea para ver si es la última
-                    next_line = next(file, None)
-                    is_last = next_line is None
+                # Leer la siguiente línea para ver si es la última
+                next_line = next(file, None)
+                is_last = next_line is None
 
-                    if len(current_batch) >= batch_size or is_last:
-                        yield [header] + current_batch, is_last
-                        current_batch = []
+                if len(current_batch) >= batch_size or is_last:
+                    yield [header] + current_batch, is_last
+                    current_batch = []
 
-                    line = next_line
-        finally:
-            file.close()
+                line = next_line
 
     def start(self):
         logger.info("Comenzando con el envio de archivos")
