@@ -5,14 +5,18 @@ from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
+
 
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
-        self.movies_consumer = Consumer("credits_joiner", message_factory=self.handle_partial_aggregator_message)
-        self.credits_consumer = Consumer("credits", message_factory=self.handle_credits_message)
+        self.credits_consumer = None
+        self.movies_consumer = Consumer("credits_joiner",
+                                        _message_handler=self.handle_partial_aggregator_message)
+        self.credits_consumer = Consumer("credits",
+                                            _message_handler=self.handle_credits_message)
         self.producer = Producer("result")
 
         self.movie_ids = set()
@@ -33,47 +37,32 @@ class CreditsJoiner(Worker):
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
 
-    @staticmethod
-    def handle_credits_message( message):
-        return message
+    def handle_credits_message(self, message):
+        if message.get("type") == "actor":
+            self.process_credits_batch(message)
 
-    @staticmethod
-    def handle_partial_aggregator_message(message):
-        return message
+        if message.get("total_batches"):
+            self.total_credits_batches = message.get("total_batches")
+
+        if self.total_credits_batches and 0 < self.total_credits_batches <= self.receive_credits_batches:
+            self.answer_client()
+            # TODO aca ya termino
+
+    def handle_partial_aggregator_message(self, message):
+        if message.get("type") == "batch_result":
+            self.process_movie_batch(message)
+
+        if message.get("total_batches"):
+            self.total_movie_batches = message.get("total_batches")
+
+        if self.total_movie_batches and 0 < self.total_movie_batches <= self.receive_movie_batches:
+            self.credits_consumer.start_consuming()
+            # TODO aca podriamos poner algo para marcar que termino con movies
 
     def start(self):
+        logger.info("Iniciando filtro de películas españolas")
         try:
-            while not self.shutdown_event.is_set():
-                message = self.movies_consumer.dequeue()
-                if not message:
-                    continue
-
-                if message.get("type") == "batch_result":
-                    self.process_movie_batch(message)
-
-                if message.get("total_batches"):
-                    self.total_movie_batches = message.get("total_batches")
-
-                if self.total_movie_batches and 0 < self.total_movie_batches <= self.receive_movie_batches:
-                    break
-
-            while not self.shutdown_event.is_set():
-                message = self.credits_consumer.dequeue()
-                if not message:
-                    continue
-
-                if message.get("type") == "actor":
-                    self.process_credits_batch(message)
-
-                if message.get("total_batches"):
-                    self.total_credits_batches = message.get("total_batches")
-
-                if self.total_credits_batches and self.total_credits_batches > 0 and self.receive_credits_batches >= self.total_credits_batches:
-                    self.answer_client()
-                    break
-
-        except Exception as e:
-            logger.error(f"Error durante el procesamiento: {e}")
+            self.movies_consumer.start_consuming()
         finally:
             self.close()
 
@@ -102,13 +91,15 @@ class CreditsJoiner(Worker):
         logger.info("Top 10 actors: " + str([(info["name"], info["count"]) for actor_id, info in top_10]))
 
         result_message = {
-            "type": "result",
-            "actors": top_10,
+            "result_number": 4,
+            "type": "query_4_top_10_actores_credits",
+            "result": top_10,
         }
 
         print(top_10)
         if self.producer.enqueue(result_message):
             logger.info(f"Resultado final enviado.")
+
 
 if __name__ == '__main__':
     worker = CreditsJoiner()

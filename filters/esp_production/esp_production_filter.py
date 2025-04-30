@@ -1,20 +1,17 @@
 import logging
-import threading
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
+
 
 class ArgEspProductionFilter(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer(
-            queue_name="arg_españa_production",
-            message_factory=self.handle_message
-        )
+        self.consumer = Consumer(queue_name="arg_españa_production",  _message_handler=self.handle_message)
         self.producer = Producer("aggregate_consulta_1")
 
     def close(self):
@@ -34,21 +31,12 @@ class ArgEspProductionFilter(Worker):
             "total_batches": message.get("total_batches", 0),
             "type": "batch_result"
         }
-        return batch_message
+        self.producer.enqueue(batch_message)
 
     def start(self):
-        logger.info("Iniciando filtro de películas del siglo XXI")
-        shutdown_thread = threading.Thread(target=self.listen_for_shutdown, daemon=True)
-        shutdown_thread.start()
-
+        logger.info("Iniciando filtro de películas españolas")
         try:
-            while not self.shutdown_event.is_set():
-                message = self.consumer.dequeue()
-                if not message:
-                    continue
-                self.producer.enqueue(message)
-        except KeyboardInterrupt:
-            logger.info("[CONSUMER_CLIENT] Interrumpido por el usuario")
+            self.consumer.start_consuming()
         finally:
             self.close()
 
@@ -59,6 +47,7 @@ class ArgEspProductionFilter(Worker):
             if int(movie.get("release_date")) < 2010 and "ES" in movie.get("production_countries"):
                 result.append({"title": movie.get("title"), "genres": movie.get("genres")})
         return result
+
 
 if __name__ == '__main__':
     worker = ArgEspProductionFilter()

@@ -42,3 +42,14 @@ Url de conexion: http://localhost:15672
 User: fiuba
 Password: fiuba
 
+### Comandos utiles
+
+Limpieza de cache:
+
+docker builder prune --force
+
+docker buildx prune --force
+
+docker system prune --all --force --volumes
+
+

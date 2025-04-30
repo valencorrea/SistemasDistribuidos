@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-import pika
-import signal
-import sys
-import time
-import logging
 import json
+import logging
 from typing import Any, Literal
 
-logging.basicConfig(level=logging.INFO)
+import pika
+
+
 logger = logging.getLogger(__name__)
 
 class Producer:
@@ -18,14 +15,6 @@ class Producer:
         self._channel = None
         self._closing = False
         self._exchange_name = f'{queue_type}_exchange'
-        signal.signal(signal.SIGTERM, self._handle_sigterm)
-
-    def _handle_sigterm(self, signum, frame):
-        logger.info('SIGTERM recibido - Iniciando graceful shutdown')
-        self._closing = True
-        if self._connection:
-            self._notify_shutdown()
-            self._connection.close()
 
     def connect(self) -> bool:
         try:
@@ -60,8 +49,8 @@ class Producer:
             logger.info(f"✅ Productor conectado a la cola: {self._queue_name} exchange_name: {self._exchange_name} queue_type: {self._queue_type}")
             return True
 
-        except Exception as e:
-            logger.error(f"❌ Error al configurar productor: {e}")
+        except Exception:
+            logger.error(f"❌ Error al configurar productor")
             return False
 
     def enqueue(self, message: Any) -> bool:
@@ -81,26 +70,16 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
+            logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
             return True
 
         except Exception as e:
             logger.error(f"❌ Error al enviar mensaje: {e}")
             return False
 
-    # def _notify_shutdown(self):
-    #     """Notifica a los consumidores que el productor se está cerrando"""
-    #     shutdown_message = {
-    #         "type": "shutdown",
-    #         "timestamp": time.time(),
-    #         "message": "Producer se está cerrando"
-    #     }
-    #     self.enqueue(shutdown_message)
-    #     logger.info("Notificación de shutdown enviada a los consumers")
-
     def close(self):
         try:
             if self._connection and not self._connection.is_closed:
-                # self._notify_shutdown()
                 self._connection.close()
                 logger.info("✅ Conexión cerrada correctamente")
         except Exception as e:
