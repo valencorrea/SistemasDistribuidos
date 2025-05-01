@@ -32,8 +32,7 @@ class Client(Worker):
     def wait_for_result(self, query_result):
         self.results_received += 1
         logger.info(f"[INFO] Resultado {self.results_received}/5 recibido: {query_result}")
-        self.test_producer.enqueue(query_result)
-        if self.results_received == 5:
+        if self.results_received == 1:
             self.close()
 
     def close(self):

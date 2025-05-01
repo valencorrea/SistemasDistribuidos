@@ -87,37 +87,6 @@ class CreditsJoiner(Worker):
             self.close()
 
 
-        self.receive_movie_batches += message.get("batch_size", 0)
-
-    def process_credits_batch(self, message):
-        self.receive_credits_batches += message.get("batch_size", 0)
-        actors = convert_data(message)
-
-        for actor in actors:
-            if str(actor.movie_id) in self.movie_ids:
-                if actor.id not in self.actor_counts:
-                    self.actor_counts[actor.id] = {
-                        "name": actor.name,
-                        "count": 1
-                    }
-                else:
-                    self.actor_counts[actor.id]["count"] += 1
-
-    def answer_client(self):
-        top_10 = sorted(self.actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
-        logger.info("Top 10 actors: " + str([(info["name"], info["count"]) for actor_id, info in top_10]))
-
-        result_message = {
-            "result_number": 4,
-            "type": "query_4_top_10_actores_credits",
-            "result": top_10,
-        }
-
-        print(top_10)
-        if self.producer.enqueue(result_message):
-            logger.info(f"Resultado final enviado.")
-
-
 if __name__ == '__main__':
     worker = CreditsJoiner()
     worker.start()
