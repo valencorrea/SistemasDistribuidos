@@ -99,7 +99,7 @@ class Client(Worker):
         try:
             self.send_file("root/files/movies_metadata.csv", "movie", self.producer)
             self.send_file("root/files/credits.csv", "actor", self.actor_producer)
-            self.send_file("root/files/movies_metadata.csv", "movie", self.rating_producer, 100000)
+            self.send_file("root/files/ratings.csv", "movie", self.rating_producer, 100000)
 
             self.result_consumer.start_consuming()
             logger.info("Finalizo el envio de archivos")
