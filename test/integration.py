@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class Client(Worker):
+class TestClass(Worker):
     def __init__(self):
         logger.info("Iniciando Cliente...")
         self.result = {}
@@ -247,5 +247,5 @@ def dictionary_to_list(dictionary_str):
     except (ValueError, SyntaxError):
         return [] 
 if __name__ == '__main__':
-    client = Client()
-    client.start()
+    TestClass = TestClass()
+    TestClass.start()

@@ -1,14 +1,33 @@
+version: '3.9'
+
 services:
+  client_decodifier:
+    container_name: client_decodifier
+    build:
+      context: .
+      dockerfile: client_decodifier/client_decodifier.dockerfile
+    depends_on:
+      - rabbitmq
+    ports:
+      - "50000:50000"
+    volumes:
+      - ./middleware:/app/middleware
+
   client:
+    container_name: client
     build:
       context: .
       dockerfile: client/client.dockerfile
-    depends_on:
-    - rabbitmq
     environment:
-    - PYTHONUNBUFFERED=1files=short
-    links:
-    - rabbitmq
+      - PYTHONUNBUFFERED=1
+      - DECODIFIER_HOST=client_decodifier
+      - DECODIFIER_PORT=50000
+    depends_on:
+      - client_decodifier
+    volumes:
+      - ./root/files:/app/root/files
+      - ./middleware:/app/middleware
+
   credits_joiner:
     build:
       context: .
@@ -153,4 +172,3 @@ services:
       dockerfile: test/integration.dockerfile
     depends_on:
     - rabbitmq
-version: '3'

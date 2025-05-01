@@ -20,17 +20,24 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 },
                 "volumes": ["./rabbitmq/config.ini:/config.ini"]
             },
+            "client_decodifier": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "client_decodifier/client_decodifier.dockerfile",
+                },
+                "depends_on": ["rabbitmq"],
+                "ports": ["50000:50000"],
+                "volumes": ["./middleware:/app/middleware"]
+            },
             "client": {
+                "container_name": "client",
                 "build": {
                     "context": ".",
                     "dockerfile": "client/client.dockerfile",
                 },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": [
-                    "PYTHONUNBUFFERED=1"
-                    "files=" + files
-                ]
+                "environment": ["PYTHONUNBUFFERED=1", "DECODIFIER_HOST=client_decodifier", "DECODIFIER_PORT=50000"],
+                "depends_on": ["client_decodifier"],
+                "volumes": ["./root/files:/app/root/files", "./middleware:/app/middleware"]
             },
             "twentieth_century_arg_esp_aggregator": {
                 "build": {
