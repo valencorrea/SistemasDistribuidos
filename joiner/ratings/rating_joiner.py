@@ -13,8 +13,9 @@ class RatingsJoiner(Worker):
     def __init__(self):
         super().__init__()
         self.ratings_consumer = Consumer("ratings", _message_handler=self.handle_ratings_message)
-        self.partial_aggregator_consumer = Consumer("rating_joiner",
-                                                    _message_handler=self.handle_partial_aggregator_message)
+        # TODO consumir esto entero y procesarlo como corresponde
+        # self.partial_aggregator_consumer = Consumer("20_century_batch_results",
+        #                                             _message_handler=self.handle_partial_aggregator_message)
         self.ratings_producer = Producer("result")
 
         self.movies_ratings = {}

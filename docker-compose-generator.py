@@ -32,6 +32,15 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                     "files=" + files
                 ]
             },
+            "twentieth_century_arg_production_filter": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "aggregator/twentieth_century_arg_production_filter/aggregator.dockerfile",
+                },
+                "depends_on": ["rabbitmq"],
+                "links": ["rabbitmq"],
+                "environment": ["PYTHONUNBUFFERED=1"]
+            },
             "twentieth_century_arg_esp_aggregator": {
                 "build": {
                     "context": ".",

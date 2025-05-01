@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 class Aggregator(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer("aggregate_consulta_1",
+        self.consumer = Consumer("20_century_batch_results",
                                  _message_handler=self.handle_message)  # Lee de la cola de resultados filtrados
-        self.producer = Producer("result")  # Envía el resultado final
+        self.producer = Producer("20_century_arg_result")  # Envía el resultado final
         self.filtered_movies = []  # Almacena las películas filtradas
         self.total_batches = None
         self.received_batches = 0
@@ -41,9 +41,8 @@ class Aggregator(Worker):
             # Sí hemos recibido todos los batches, enviar el resultado final
             if self.total_batches and 0 < self.total_batches <= self.received_batches:
                 result_message = {
-                    "result_number": 1,
-                    "type": "query_1_arg_esp_2000",
-                    "result": self.filtered_movies,
+                    "type": "20_century_arg_total_result",
+                    "movies": self.filtered_movies,
                     "total_movies": len(self.filtered_movies)
                 }
                 if self.producer.enqueue(result_message):

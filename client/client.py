@@ -24,7 +24,7 @@ class Client(Worker):
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.results_received = 0
-        self.shutdown_event = threading.Event()
+        self.shutdown_consumer.close()
 
     def exit_gracefully(self, signum, frame):
         self.close()
