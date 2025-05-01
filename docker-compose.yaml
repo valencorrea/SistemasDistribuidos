@@ -6,9 +6,13 @@ services:
     depends_on:
     - rabbitmq
     environment:
-    - PYTHONUNBUFFERED=1files=short
+    - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
+    volumes:
+    - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/credits.csv:/root/files/credits.csv
+    - ./files/ratings_small.csv:/root/files/ratings.csv
   credits_joiner:
     build:
       context: .
@@ -144,10 +148,6 @@ services:
 #    image: sentiment_filter:latest
 #    links:
 #    - rabbitmq
-  test:
-    build:
-      context: .
-      dockerfile: test/integration.dockerfile
 #  top_5_countries_aggregator:
 #    build:
 #      context: .
@@ -188,4 +188,3 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-#version: '3'

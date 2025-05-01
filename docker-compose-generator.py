@@ -1,10 +1,21 @@
 import sys
+
 import yaml
 
+
 def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_top5,
-                         workers_sentiment, files):
+                         workers_sentiment, test_mode):
+    # Select the correct ratings file depending on test flag
+    ratings_source_file = "ratings_small.csv" if test_mode else "ratings.csv"
+
+    common_volumes = [
+        "./files/movies_metadata.csv:/root/files/movies_metadata.csv",
+        "./files/credits.csv:/root/files/credits.csv",
+        f"./files/{ratings_source_file}:/root/files/ratings.csv"
+    ]
+
+    print("ratings: ", ratings_source_file)
     template = {
-        "version": "3",
         "services": {
             "rabbitmq": {
                 "build": {
@@ -29,17 +40,8 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "links": ["rabbitmq"],
                 "environment": [
                     "PYTHONUNBUFFERED=1"
-                    "files=" + files
-                ]
-            },
-            "twentieth_century_arg_production_filter": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/twentieth_century_arg_production_filter/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
+                ],
+                "volumes": common_volumes
             },
             "twentieth_century_arg_production_filter": {
                 "build": {
@@ -113,7 +115,6 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
     }
 
     for service_name, (dockerfile_path, worker_count) in worker_definitions.items():
-        # Servicio principal
         template["services"][service_name] = {
             "build": {
                 "context": ".",
@@ -127,7 +128,6 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
         if template["services"][service_name]["image"] is None:
             del template["services"][service_name]["image"]
 
-        # Workers adicionales
         for i in range(1, worker_count):
             worker_name = f"{service_name}_{i}"
             template["services"][worker_name] = {
@@ -165,6 +165,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_top5, _workers_sentiment, _file
+        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_top5, _workers_sentiment,
+        test_mode=True if _file == "short" else False
     )
     dump_yaml_to_file(docker_compose_template, compose_filename)
