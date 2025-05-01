@@ -16,23 +16,23 @@ services:
   credits_joiner:
     build:
       context: .
-      dockerfile: joiner/credits/credits_joiner.dockerfile
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
     depends_on:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-#  esp_production_filter:
-#    build:
-#      context: .
-#      dockerfile: filters/esp_production/esp_production_filter.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
+  esp_production_filter:
+    build:
+      context: .
+      dockerfile: filters/esp_production/esp_production_filter.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
   main_movie_filter:
     build:
       context: .
@@ -56,128 +56,77 @@ services:
     - 15672:15672
     volumes:
     - ./rabbitmq/config.ini:/config.ini
-#  ratings_joiner:
-#    build:
-#      context: .
-#      dockerfile: joiner/ratings/rating_joiner.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  sentiment_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  sentiment_filter:
-#    build:
-#      context: .
-#      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    image: sentiment_filter:latest
-#    links:
-#    - rabbitmq
-#  top_5_countries_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/top_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  top_5_countries_filter:
-#    build:
-#      context: .
-#      dockerfile: filters/top_5_local/top_5_local.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  twentieth_century_arg_esp_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-  twentieth_century_arg_aggregator:
+  ratings_aggregator:
     build:
       context: .
-      dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
+      dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
     depends_on:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-#  sentiment_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  sentiment_filter:
-#    build:
-#      context: .
-#      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    image: sentiment_filter:latest
-#    links:
-#    - rabbitmq
-#  top_5_countries_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/top_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  top_5_countries_filter:
-#    build:
-#      context: .
-#      dockerfile: filters/top_5_local/top_5_local.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
-#  twentieth_century_arg_esp_aggregator:
-#    build:
-#      context: .
-#      dockerfile: aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile
-#    depends_on:
-#    - rabbitmq
-#    environment:
-#    - PYTHONUNBUFFERED=1
-#    links:
-#    - rabbitmq
+  ratings_joiner:
+    build:
+      context: .
+      dockerfile: joiner/ratings/rating_joiner.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  sentiment_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  sentiment_filter:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+  top_5_countries_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/top_aggregator/aggregator.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  top_5_countries_filter:
+    build:
+      context: .
+      dockerfile: filters/top_5_local/top_5_local.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  twentieth_century_arg_esp_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
   twentieth_century_arg_production_filter:
     build:
       context: .

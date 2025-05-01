@@ -4,7 +4,7 @@ import yaml
 
 
 def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_top5,
-                         workers_sentiment, test_mode):
+                         workers_sentiment, workers_credits, test_mode):
     # Select the correct ratings file depending on test flag
     ratings_source_file = "ratings_small.csv" if test_mode else "ratings.csv"
 
@@ -88,6 +88,15 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
             },
+            "ratings_aggregator": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "aggregator/top_10_credits_aggregator/aggregator.dockerfile",
+                },
+                "depends_on": ["rabbitmq"],
+                "links": ["rabbitmq"],
+                "environment": ["PYTHONUNBUFFERED=1"]
+            },
             "sentiment_aggregator": {
                 "build": {
                     "context": ".",
@@ -96,12 +105,6 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "depends_on": ["rabbitmq"],
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "test": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "test/integration.dockerfile",
-                },
             }
         }
     }
@@ -111,7 +114,8 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
         "main_movie_filter": ("filters/main_movie_filter/main_movie_filter.dockerfile", workers_main_movie),
         "esp_production_filter": ("filters/esp_production/esp_production_filter.dockerfile", workers_esp_production),
         "top_5_countries_filter": ("filters/top_5_local/top_5_local.dockerfile", workers_top5),
-        "sentiment_filter": ("filters/sentiment_analizer/sentiment_analizer.dockerfile", workers_sentiment)
+        "sentiment_filter": ("filters/sentiment_analizer/sentiment_analizer.dockerfile", workers_sentiment),
+        "credits_joiner": ("filters/sentiment_analizer/sentiment_analizer.dockerfile", workers_credits)
     }
 
     for service_name, (dockerfile_path, worker_count) in worker_definitions.items():
@@ -147,8 +151,8 @@ def dump_yaml_to_file(template, filename):
 
 if __name__ == "__main__":
     print("Se inició el generador de docker-compose")
-    if len(sys.argv) != 8:
-        print("Uso: python3 docker-compose-generator.py <output_file> <short:long> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_top5> <workers_sentiment>")
+    if len(sys.argv) != 9:
+        print("Uso: python3 docker-compose-generator.py <output_file> <short:long> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_top5> <workers_sentiment> <$workers_credits>")
         sys.exit(1)
 
     compose_filename = sys.argv[1]
@@ -158,14 +162,14 @@ if __name__ == "__main__":
     _workers_esp_production = int(sys.argv[5])
     _workers_top5 = int(sys.argv[6])
     _workers_sentiment = int(sys.argv[7])
+    _workers_credits = int(sys.argv[8])
 
     if (_workers_twentieth_century < 1 or _workers_main_movie < 1 or _workers_esp_production < 1
-            or _workers_top5 < 1 or _workers_sentiment < 1):
+            or _workers_top5 < 1 or _workers_sentiment < 1 or _workers_credits < 1):
         print("Debe haber al menos 1 worker por servicio.")
         sys.exit(1)
 
     docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_top5, _workers_sentiment,
-        test_mode=True if _file == "short" else False
-    )
+        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_top5, _workers_sentiment, _workers_credits,
+        test_mode=True if _file == "short" else False)
     dump_yaml_to_file(docker_compose_template, compose_filename)

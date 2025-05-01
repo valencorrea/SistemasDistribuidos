@@ -38,7 +38,6 @@ class CreditsJoiner(Worker):
         try:
             logger.info(f"Mensaje de credits recibido")
             actor_counts = {}
-            is_first = True
             actors = convert_data(message)
             for actor in actors:
                 if actor.movie_id in self.movies:
@@ -50,25 +49,29 @@ class CreditsJoiner(Worker):
                     else:
                         actor_counts[actor_id]["count"] += 1
 
-            # Get top 10 actors by contribution count
             top_10 = sorted(actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
 
             logger.info("Top 10 actores con más contribuciones:")
             for actor_id, info in top_10:
                 logger.info(f"{info['name']}: {info['count']} contribuciones")
 
-            # You could also produce/send the result if needed
             result_message = {
                 "type": "query_4_top_10_actores_credits",
                 "actors": top_10,
             }
+            if message.get("total_batches") != 0: # Mensaje que contiene el total. Uno por cliente.
+                result_message["total_batches"] = message.get("total_batches")
+                logger.info(f"Se envia la cantidad total de batches: {result_message['total_batches']}.")
+
+            if message.get("batch_size") != 0:
+                result_message["batch_size"] = message.get("batch_size")
+                logger.info(f"Se envia la cantidad de este batch: {result_message['batch_size']}.")
+
             self.producer.enqueue(result_message)
             logger.info(f"Resultado enviado {result_message}.")
         except Exception as e:
             logger.error(f"Error al procesar credits: {e}")
             self.close()
-
-
 
     def handle_movies_result_message(self, message):
         logger.info(f"Mensaje de movies recibido")
