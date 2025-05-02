@@ -44,7 +44,8 @@ class Aggregator(Worker):
                     "result_number": 1,
                     "type": "query_1_arg_esp_2000",
                     "result": self.filtered_movies,
-                    "total_movies": len(self.filtered_movies)
+                    "total_movies": len(self.filtered_movies),
+                    "client_id": message.get("client_id")
                 }
                 if self.producer.enqueue(result_message):
                     logger.info(f"Resultado final enviado con {len(self.filtered_movies)} películas")

@@ -35,7 +35,8 @@ class RatingsJoiner(Worker):
             "ratings": ratings,
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
+            "type": "batch_result",
+            "client_id": message.get("client_id")
         }
 
         if batch_message.get("type") == "batch_result":
@@ -70,7 +71,8 @@ class RatingsJoiner(Worker):
             "movies": message.get("movies", []),
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
+            "type": "batch_result",
+            "client_id": message.get("client_id")
         }
 
         if message.get("type") == "batch_result":

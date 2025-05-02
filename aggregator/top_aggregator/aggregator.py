@@ -77,7 +77,8 @@ class Aggregator(Worker):
                 result_message = {
                     "result_number": 2,
                     "type": "query_2_top_5",
-                    "result": top_5_countries
+                    "result": top_5_countries,
+                    "client_id": message.get("client_id")
                 }
                 if self.producer.enqueue(result_message):
                     logger.info("Resultado final enviado con top 5 países")
