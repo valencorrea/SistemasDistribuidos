@@ -47,7 +47,7 @@ class ClientDecodifier(Worker):
                     logger.error(f"Tipo de archivo no válido: {metadata.type}")
                     continue
 
-                logger.info(f"Preparando mensaje para enviar batch de tipo {metadata.type} con {len(batch)} líneas")
+                logger.debug(f"Preparando mensaje para enviar batch de tipo {metadata.type} con {len(batch)} líneas")
                 
                 message = {
                     "type": metadata.type,
@@ -57,9 +57,7 @@ class ClientDecodifier(Worker):
                     "client_id": client_id
                 }
                 
-                if self.send(message, producer):
-                    logger.info(f"[MAIN] Batch {total_batches + 1} enviado correctamente a RabbitMQ")
-                else:
+                if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 
                 total_batches += len(batch)

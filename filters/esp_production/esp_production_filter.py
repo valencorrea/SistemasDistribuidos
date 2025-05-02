@@ -2,6 +2,7 @@ import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
+from utils.parsers.movie_parser import parse_genres
 from worker.worker import Worker
 
 
@@ -46,7 +47,7 @@ class ArgEspProductionFilter(Worker):
         result = []
         for movie in movies:
             if int(movie.get("release_date")) < 2010 and "ES" in movie.get("production_countries"):
-                result.append({"title": movie.get("title"), "genres": movie.get("genres")})
+                result.append({"title": movie.get("title"), "genres": parse_genres(movie.get("genres"))})
         return result
 
 
