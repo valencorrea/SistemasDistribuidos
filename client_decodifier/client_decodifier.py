@@ -6,6 +6,7 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from middleware.file_consuming.file_consuming import CSVReceiver
 from worker.worker import Worker
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class ClientDecodifier(Worker):
             return self.rating_producer
         return None
 
-    def process_connection(self, client_socket):
+    def process_connection(self, client_socket, client_id: str):
         """Procesa los batches de una conexión"""
         try:
             total_batches = 0
@@ -52,7 +53,8 @@ class ClientDecodifier(Worker):
                     "type": metadata.type,
                     "cola": batch,
                     "batch_size": len(batch),
-                    "total_batches": total_batches + len(batch) if is_last else 0
+                    "total_batches": total_batches + len(batch) if is_last else 0,
+                    "client_id": client_id
                 }
                 
                 if self.send(message, producer):
@@ -99,10 +101,11 @@ class ClientDecodifier(Worker):
                 logger.info("Esperando conexiones en el puerto 50000...")
                 client_socket, addr = self.csv_receiver.accept_connection()
                 if client_socket:
+                    client_id = str(uuid.uuid4())
                     logger.info(f"Nueva conexión aceptada desde {addr}")
                     thread = threading.Thread(
                         target=self.process_connection,
-                        args=(client_socket,)
+                        args=(client_socket,client_id)
                     )
                     thread.daemon = True
                     thread.start()

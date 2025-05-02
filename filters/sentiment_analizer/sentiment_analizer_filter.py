@@ -39,7 +39,8 @@ class SentimentAnalyzerFilter(Worker):
                 "movies": filtered_movies,
                 "batch_size": message.get("batch_size", 0),
                 "total_batches": message.get("total_batches", 0),
-                "type": "batch_result"
+                "type": "batch_result",
+                "client_id": message.get("client_id")
             }
             self.producer.enqueue(batch_message)
         except Exception as e:
