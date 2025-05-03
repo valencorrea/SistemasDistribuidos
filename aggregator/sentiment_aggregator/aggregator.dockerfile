@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.9-alpine
 
 COPY aggregator/sentiment_aggregator/aggregator.py /root/aggregator/sentiment_aggregator/aggregator.py
 COPY middleware/consumer/consumer.py /root/middleware/consumer/consumer.py
