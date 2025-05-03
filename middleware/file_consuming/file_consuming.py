@@ -5,8 +5,11 @@ from dataclasses import dataclass
 import time
 import os
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 @dataclass
 class CSVMetadata:
