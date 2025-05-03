@@ -2,7 +2,17 @@ import sys
 import yaml
 
 def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_no_colab_productions,
-                         workers_sentiment, workers_arg_production, workers_credits, files):
+                         workers_sentiment, workers_arg_production, workers_credits, test_mode):
+    ratings_source_file = "ratings_small.csv" if test_mode else "ratings.csv"
+
+    common_volumes = [
+        "./files/movies_metadata.csv:/root/files/movies_metadata.csv",
+        "./files/credits.csv:/root/files/credits.csv",
+        "./middleware:/app/middleware",
+        f"./files/{ratings_source_file}:/root/files/ratings.csv"
+    ]
+    print("ratings: ", ratings_source_file)
+
     template = {
         "services": {
             "rabbitmq": {
@@ -36,7 +46,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 },
                 "environment": ["PYTHONUNBUFFERED=1", "DECODIFIER_HOST=client_decodifier", "DECODIFIER_PORT=50000"],
                 "depends_on": ["client_decodifier"],
-                "volumes": ["./root/files:/app/root/files", "./middleware:/app/middleware"]
+                "volumes": common_volumes
             },
             "twentieth_century_arg_esp_aggregator": {
                 "build": {
@@ -175,6 +185,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _workers_credits, _file
+        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _workers_credits, test_mode=True if _file == "short" else False
     )
     dump_yaml_to_file(docker_compose_template, compose_filename)
