@@ -9,11 +9,11 @@ from worker.worker import Worker
 logger = logging.getLogger(__name__)
 
 
-class TwentiethCenturyArgProductionFilter(Worker):
+class ArgProductionFilter(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer("movie", _message_handler=self.handle_message)
-        self.esp_production_producer = Producer("arg_españa_production")
+        self.consumer = Consumer("twentieth_century", _message_handler=self.handle_message)
+        self.esp_production_producer = Producer("arg_españa_production") # rename
         self.rating_joiner_producer = Producer("rating_joiner")
         self.partial_aggregator_producer = Producer("credits_joiner")
 
@@ -29,7 +29,7 @@ class TwentiethCenturyArgProductionFilter(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def start(self):
-        logger.info("Iniciando filtro de películas del siglo XXI")
+        logger.info("Iniciando filtro de películas de produccion argentina")
         self.consumer.start_consuming()
 
     def handle_message(self, message):
@@ -51,9 +51,9 @@ class TwentiethCenturyArgProductionFilter(Worker):
 
     @staticmethod
     def apply_filter(movies):
-        return [movie for movie in movies if movie.released_in_or_after_2000_argentina()]
+        return [movie for movie in movies if movie.angentinian_production()]
 
 
 if __name__ == '__main__':
-    worker = TwentiethCenturyArgProductionFilter()
+    worker = ArgProductionFilter()
     worker.start()
