@@ -13,11 +13,20 @@ class Movie:
     overview: str
     revenue: int
 
-    def released_in_or_after_2000_argentina(self) -> bool:
-        if not self.release_date or not self.production_countries:
+    def angentinian_production(self) -> bool:
+        if not self.production_countries:
             return False
         try:
-            return int(self.release_date) >= 2000 and self.is_argentine()
+            return self.is_argentine()
+        except Exception as e:
+            print(f"[MOVIE] Error obteniendo producciones en {self.title}: {e}")
+            return False
+
+    def released_in_or_after_2000(self) -> bool:
+        if not self.release_date:
+            return False
+        try:
+            return int(self.release_date) >= 2000
         except Exception as e:
             print(f"[MOVIE] Error parseando fecha '{self.release_date}' en {self.title}: {e}")
             return False
@@ -34,6 +43,7 @@ class Movie:
             "overview": self.overview,
             "revenue": self.revenue
         }
+
     def to_dict_title(self):
         return {
             "id": self.id,
@@ -42,5 +52,6 @@ class Movie:
     
     def get(self, attr: str):
         return getattr(self, attr)
+
     def is_argentine(self) -> bool:
         return 'AR' in self.production_countries

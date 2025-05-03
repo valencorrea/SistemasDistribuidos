@@ -156,16 +156,26 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  twentieth_century_arg_production_filter:
+  twentieth_century_filter:
     build:
       context: .
-      dockerfile: filters/twentieth_century_arg_production/twentieth_century_arg_production_filter.dockerfile
+      dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
     depends_on:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
+  arg_production_filter:
+    build:
+      context: .
+      dockerfile: filters/arg_production/arg_production_filter.dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+    links:
+      - rabbitmq
   test:
     build:
       context: .
