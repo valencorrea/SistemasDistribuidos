@@ -5,8 +5,8 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-
 logger = logging.getLogger(__name__)
+
 
 class Aggregator(Worker):
     def __init__(self):
@@ -34,7 +34,7 @@ class Aggregator(Worker):
             try:
                 country = movie.get("country", "")
                 budget = float(movie.get("budget", 0))
-                
+
                 if country:  # Solo procesar si hay un país
                     self.country_budget[country] += budget
             except (ValueError, TypeError) as e:
@@ -84,7 +84,6 @@ class Aggregator(Worker):
                     logger.info("Resultado final enviado con top 5 países")
                 self.shutdown_event.set()  # Hace falta esto?
 
-
     def start(self):
         logger.info("Iniciando agregador")
         try:
@@ -92,6 +91,7 @@ class Aggregator(Worker):
         finally:
             self.close()
 
+
 if __name__ == '__main__':
     aggregator = Aggregator()
-    aggregator.start() 
+    aggregator.start()
