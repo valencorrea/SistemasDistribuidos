@@ -23,6 +23,8 @@ class RatingsJoiner(Worker):
         self.receive_ratings_batches = 0
         self.total_ratings_batches = None
 
+        self.client_id = "client-id"
+
     def close(self):
         self.partial_aggregator_consumer.close()
         self.ratings_consumer.close()
@@ -35,8 +37,7 @@ class RatingsJoiner(Worker):
             "ratings": ratings,
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
-            "type": "batch_result",
-            "client_id": message.get("client_id")
+            "type": "batch_result"
         }
 
         if batch_message.get("type") == "batch_result":
@@ -63,10 +64,13 @@ class RatingsJoiner(Worker):
                     self.ratings_producer.enqueue({
                         "result_number": 3,
                         "type": "query_3_arg_2000_ratings",
-                        "result": result
+                        "result": result,
+                        "client_id": self.client_id
                     })
 
     def handle_partial_aggregator_message(self, message):
+        self.client_id = message.get("client_id")
+
         batch_message = {
             "movies": message.get("movies", []),
             "batch_size": message.get("batch_size", 0),

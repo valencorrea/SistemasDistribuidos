@@ -21,6 +21,8 @@ class CreditsJoiner(Worker):
 
         self.movie_ids = set()
         self.actor_counts = {}
+        self.client_id = "client-id"
+
 
         self.receive_movie_batches = 0
         self.receive_credits_batches = 0
@@ -49,6 +51,7 @@ class CreditsJoiner(Worker):
             # TODO aca ya termino
 
     def handle_partial_aggregator_message(self, message):
+        self.client_id = message.get("client_id")
         if message.get("type") == "batch_result":
             self.process_movie_batch(message)
 
@@ -94,6 +97,7 @@ class CreditsJoiner(Worker):
             "result_number": 4,
             "type": "query_4_top_10_actores_credits",
             "result": top_10,
+            "client_id": self.client_id
         }
 
         print(top_10)
