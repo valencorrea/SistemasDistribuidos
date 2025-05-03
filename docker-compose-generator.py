@@ -1,7 +1,7 @@
 import sys
 import yaml
 
-def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_top5,
+def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_no_colab_productions,
                          workers_sentiment, workers_arg_production, files):
     template = {
         "version": "3",
@@ -98,7 +98,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
         "arg_production_filter": ("filters/arg_production/arg_production_filter.dockerfile", workers_arg_production),
         "main_movie_filter": ("filters/main_movie_filter/main_movie_filter.dockerfile", workers_main_movie),
         "esp_production_filter": ("filters/esp_production/esp_production_filter.dockerfile", workers_esp_production),
-        "top_5_countries_filter": ("filters/top_5_local/top_5_local.dockerfile", workers_top5),
+        "no_colab_productions_filter": ("filters/no_colab_productions/no_colab_productions_filter.dockerfile", workers_no_colab_productions),
         "sentiment_filter": ("filters/sentiment_analizer/sentiment_analizer.dockerfile", workers_sentiment)
     }
 
@@ -138,7 +138,7 @@ def dump_yaml_to_file(template, filename):
 if __name__ == "__main__":
     print("Se inició el generador de docker-compose")
     if len(sys.argv) != 8:
-        print("Uso: python3 docker-compose-generator.py <output_file> <short:long> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_top5> <workers_sentiment> <workers_arg_production>")
+        print("Uso: python3 docker-compose-generator.py <output_file> <short:long> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_no_colab_productions> <workers_sentiment> <workers_arg_production>")
         sys.exit(1)
 
     compose_filename = sys.argv[1]
@@ -146,16 +146,16 @@ if __name__ == "__main__":
     _workers_twentieth_century = int(sys.argv[3])
     _workers_main_movie = int(sys.argv[4])
     _workers_esp_production = int(sys.argv[5])
-    _workers_top5 = int(sys.argv[6])
+    _workers_no_colab_productions = int(sys.argv[6])
     _workers_sentiment = int(sys.argv[7])
     _workers_arg_production = int(sys.argv[8])
 
     if (_workers_twentieth_century < 1 or _workers_main_movie < 1 or _workers_esp_production < 1
-            or _workers_top5 < 1 or _workers_sentiment < 1 or _workers_arg_production < 1):
+            or _workers_no_colab_productions < 1 or _workers_sentiment < 1 or _workers_arg_production < 1):
         print("Debe haber al menos 1 worker por servicio.")
         sys.exit(1)
 
     docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_top5, _workers_sentiment, _workers_arg_production, _file
+        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _file
     )
     dump_yaml_to_file(docker_compose_template, compose_filename)

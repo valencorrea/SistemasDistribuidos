@@ -9,7 +9,7 @@ from worker.worker import Worker
 logger = logging.getLogger(__name__)
 
 
-class Top5LocalFilter(Worker):
+class NoColabProductionsFilter(Worker):
     def __init__(self):
         super().__init__()
         self.consumer = Consumer("movie_1", _message_handler=self.handle_message)  # Lee de la cola de movies
@@ -54,5 +54,5 @@ class Top5LocalFilter(Worker):
 
 
 if __name__ == '__main__':
-    worker = Top5LocalFilter()
+    worker = NoColabProductionsFilter()
     worker.start()

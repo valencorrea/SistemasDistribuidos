@@ -136,10 +136,10 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  top_5_countries_filter:
+  no_colab_productions_filter:
     build:
       context: .
-      dockerfile: filters/top_5_local/top_5_local.dockerfile
+      dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
     depends_on:
     - rabbitmq
     environment:
