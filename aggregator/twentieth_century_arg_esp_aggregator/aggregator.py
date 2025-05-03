@@ -44,7 +44,7 @@ class Aggregator(Worker):
             logger.info(f"Batches recibidos: {self.control_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]} cliente {client_id}")
 
             # Sí hemos recibido todos los batches, enviar el resultado final
-            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] >= self.control_batches_per_client[client_id]:
+            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
                 result_message = {
                     "result_number": 1,
                     "type": "query_1_arg_esp_2000",

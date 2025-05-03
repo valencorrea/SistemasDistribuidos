@@ -125,8 +125,6 @@ class ClientDecodifier(Worker):
         self.results_received += 1
         logger.info(f"[INFO] Resultado {self.results_received}/5 recibido: {query_result}")
         self.test_producer.enqueue(query_result)
-        if self.results_received == 5:
-            self.close()
 
     def close(self):
         logger.info(f"Closing all workers")
