@@ -13,7 +13,7 @@ class ArgProductionFilter(Worker):
     def __init__(self):
         super().__init__()
         self.consumer = Consumer("twentieth_century", _message_handler=self.handle_message)
-        self.esp_production_producer = Producer("arg_españa_production") # rename
+        self.esp_production_producer = Producer("arg_production")
         self.rating_joiner_producer = Producer("rating_joiner")
         self.partial_aggregator_producer = Producer("credits_joiner")
 

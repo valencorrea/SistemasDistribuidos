@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ArgEspProductionFilter(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer(queue_name="arg_españa_production",  _message_handler=self.handle_message)
+        self.consumer = Consumer(queue_name="arg_production",  _message_handler=self.handle_message)
         self.producer = Producer("aggregate_consulta_1")
 
     def close(self):
@@ -46,7 +46,7 @@ class ArgEspProductionFilter(Worker):
     def apply_filter(movies):
         result = []
         for movie in movies:
-            if int(movie.get("release_date")) < 2010 and "ES" in movie.get("production_countries"):
+            if "ES" in movie.get("production_countries"):
                 result.append({"title": movie.get("title"), "genres": parse_genres(movie.get("genres"))})
         return result
 
