@@ -1,33 +1,28 @@
 import logging
+from fileinput import close
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
 
-
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
-        self.credits_consumer = None
-        self.movies_consumer = Consumer("credits_joiner",
-                                        _message_handler=self.handle_partial_aggregator_message)
+        self.movies = None
+        # TODO consumir el result de 20th century aggregator
+        self.movies_consumer = Consumer("20_century_arg_result",
+                                        _message_handler=self.handle_movies_result_message)
         self.credits_consumer = Consumer("credits",
-                                            _message_handler=self.handle_credits_message)
-        self.producer = Producer("result")
-
-        self.movie_ids = set()
-        self.actor_counts = {}
-        self.client_id = "client-id"
-
-
-        self.receive_movie_batches = 0
-        self.receive_credits_batches = 0
-        self.total_movie_batches = None
-        self.total_credits_batches = None
+                                        _message_handler=self.handle_credits_message)
+        self.producer = Producer("top_10_actors_from_batch")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
@@ -40,27 +35,52 @@ class CreditsJoiner(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_credits_message(self, message):
-        if message.get("type") == "actor":
-            self.process_credits_batch(message)
+        try:
+            logger.info(f"Mensaje de credits recibido")
+            actor_counts = {}
+            actors = convert_data(message)
+            for actor in actors:
+                if actor.movie_id in self.movies:
+                    logger.info(f"Actor encontrado para una pelicula argentina.")
+                    actor_id = actor.id
+                    actor_name = actor.name
+                    if actor_id not in actor_counts:
+                        actor_counts[actor_id] = {"name": actor_name, "count": 1}
+                    else:
+                        actor_counts[actor_id]["count"] += 1
 
-        if message.get("total_batches"):
-            self.total_credits_batches = message.get("total_batches")
+            top_10 = sorted(actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
 
-        if self.total_credits_batches and 0 < self.total_credits_batches <= self.receive_credits_batches:
-            self.answer_client()
-            # TODO aca ya termino
+            logger.info("Top 10 actores con más contribuciones:")
+            for actor_id, info in top_10:
+                logger.info(f"{info['name']}: {info['count']} contribuciones")
 
-    def handle_partial_aggregator_message(self, message):
-        self.client_id = message.get("client_id")
-        if message.get("type") == "batch_result":
-            self.process_movie_batch(message)
+            result_message = {
+                "type": "query_4_top_10_actores_credits",
+                "actors": top_10,
+            }
+            if message.get("total_batches") != 0: # Mensaje que contiene el total. Uno por cliente.
+                result_message["total_batches"] = message.get("total_batches")
+                logger.info(f"Se envia la cantidad total de batches: {result_message['total_batches']}.")
 
-        if message.get("total_batches"):
-            self.total_movie_batches = message.get("total_batches")
+            if message.get("batch_size") != 0:
+                result_message["batch_size"] = message.get("batch_size")
+                logger.info(f"Se envia la cantidad de este batch: {result_message['batch_size']}.")
 
-        if self.total_movie_batches and 0 < self.total_movie_batches <= self.receive_movie_batches:
+            self.producer.enqueue(result_message)
+            logger.info(f"Resultado enviado {result_message}.")
+        except Exception as e:
+            logger.error(f"Error al procesar credits: {e}")
+            self.close()
+
+    def handle_movies_result_message(self, message):
+        logger.info(f"Mensaje de movies recibido")
+        if message.get("type") == "20_century_arg_total_result":
+            self.movies = {movie["id"] for movie in message.get("movies")}
+            logger.info(f"Obtenidas {message.get('total_movies')} películas")
             self.credits_consumer.start_consuming()
-            # TODO aca podriamos poner algo para marcar que termino con movies
+        else:
+            logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
 
     def start(self):
         logger.info("Iniciando filtro de películas españolas")
@@ -68,41 +88,6 @@ class CreditsJoiner(Worker):
             self.movies_consumer.start_consuming()
         finally:
             self.close()
-
-    def process_movie_batch(self, message):
-        for movie in message.get("movies", []):
-            self.movie_ids.add(movie["id"])
-
-        self.receive_movie_batches += message.get("batch_size", 0)
-
-    def process_credits_batch(self, message):
-        self.receive_credits_batches += message.get("batch_size", 0)
-        actors = convert_data(message)
-
-        for actor in actors:
-            if str(actor.movie_id) in self.movie_ids:
-                if actor.id not in self.actor_counts:
-                    self.actor_counts[actor.id] = {
-                        "name": actor.name,
-                        "count": 1
-                    }
-                else:
-                    self.actor_counts[actor.id]["count"] += 1
-
-    def answer_client(self):
-        top_10 = sorted(self.actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
-        logger.info("Top 10 actors: " + str([(info["name"], info["count"]) for actor_id, info in top_10]))
-
-        result_message = {
-            "result_number": 4,
-            "type": "query_4_top_10_actores_credits",
-            "result": top_10,
-            "client_id": self.client_id
-        }
-
-        print(top_10)
-        if self.producer.enqueue(result_message):
-            logger.info(f"Resultado final enviado.")
 
 
 if __name__ == '__main__':

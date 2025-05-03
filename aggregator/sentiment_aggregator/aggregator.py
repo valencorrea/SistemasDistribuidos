@@ -75,7 +75,6 @@ class Aggregator(Worker):
                 }
                 if self.producer.enqueue(result_message):
                     logger.info("Resultado final enviado con top 5 países")
-                self.shutdown_event.set() # Hace falta esto?
 
     def start(self):
         logger.info("Iniciando agregador")

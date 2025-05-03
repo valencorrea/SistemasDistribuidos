@@ -1,33 +1,38 @@
-version: '3.9'
-
 services:
+  arg_production_filter:
+    build:
+      context: .
+      dockerfile: filters/arg_production/arg_production_filter.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  client:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    container_name: client
+    depends_on:
+    - client_decodifier
+    environment:
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    volumes:
+    - ./root/files:/app/root/files
+    - ./middleware:/app/middleware
   client_decodifier:
-    container_name: client_decodifier
     build:
       context: .
       dockerfile: client_decodifier/client_decodifier.dockerfile
     depends_on:
-      - rabbitmq
+    - rabbitmq
     ports:
-      - "50000:50000"
+    - 50000:50000
     volumes:
-      - ./middleware:/app/middleware
-
-  client:
-    container_name: client
-    build:
-      context: .
-      dockerfile: client/client.dockerfile
-    environment:
-      - PYTHONUNBUFFERED=1
-      - DECODIFIER_HOST=client_decodifier
-      - DECODIFIER_PORT=50000
-    depends_on:
-      - client_decodifier
-    volumes:
-      - ./root/files:/app/root/files
-      - ./middleware:/app/middleware
-
+    - ./middleware:/app/middleware
   credits_joiner:
     build:
       context: .
@@ -52,6 +57,16 @@ services:
     build:
       context: .
       dockerfile: filters/main_movie_filter/main_movie_filter.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  no_colab_productions_filter:
+    build:
+      context: .
+      dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
     depends_on:
     - rabbitmq
     environment:
@@ -102,28 +117,18 @@ services:
     image: sentiment_filter:latest
     links:
     - rabbitmq
-  sentiment_filter_1:
+  test:
+    build:
+      context: .
+      dockerfile: test/integration.dockerfile
+  top_10_credits_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
     depends_on:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_3:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
     links:
     - rabbitmq
   top_5_countries_aggregator:
@@ -136,10 +141,10 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  no_colab_productions_filter:
+  twentieth_century_arg_aggregator:
     build:
       context: .
-      dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
+      dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
     depends_on:
     - rabbitmq
     environment:
@@ -166,19 +171,13 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  arg_production_filter:
+  workers_credits:
     build:
       context: .
-      dockerfile: filters/arg_production/arg_production_filter.dockerfile
+      dockerfile: joiner/credits/credits_joiner.dockerfile
     depends_on:
-      - rabbitmq
+    - rabbitmq
     environment:
-      - PYTHONUNBUFFERED=1
+    - PYTHONUNBUFFERED=1
     links:
-      - rabbitmq
-  test:
-    build:
-      context: .
-      dockerfile: test/integration.dockerfile
-    depends_on:
     - rabbitmq
