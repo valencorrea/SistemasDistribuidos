@@ -70,7 +70,7 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
-            logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
+            #logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
             return True
 
         except Exception as e:

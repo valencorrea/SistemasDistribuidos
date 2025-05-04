@@ -28,6 +28,21 @@ services:
       - ./root/files:/app/root/files
       - ./middleware:/app/middleware
 
+  client_real:
+    build:
+      context: .
+      dockerfile: client/client_real.dockerfile
+    container_name: client_real
+    depends_on:
+    - client_decodifier
+    environment:
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    volumes:
+    - ./root/files:/app/root/files
+    - ./middleware:/app/middleware
+
   credits_joiner:
     build:
       context: .
