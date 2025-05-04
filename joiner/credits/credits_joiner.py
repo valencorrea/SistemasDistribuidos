@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 from fileinput import close
 
@@ -16,7 +17,7 @@ logging.basicConfig(
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
-        self.movies = None
+        self.movies_per_client = defaultdict(set)
         # TODO consumir el result de 20th century aggregator
         self.movies_consumer = Consumer("20_century_arg_result",
                                         _message_handler=self.handle_movies_result_message)

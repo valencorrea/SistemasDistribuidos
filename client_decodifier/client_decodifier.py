@@ -15,7 +15,6 @@ class ClientDecodifier(Worker):
         super().__init__()
         self.csv_receiver = CSVReceiver()
         
-        # Mantener los producers existentes
         self.producer = Producer("movie_main_filter")
         self.actor_producer = Producer("credits")
         self.rating_producer = Producer("ratings")

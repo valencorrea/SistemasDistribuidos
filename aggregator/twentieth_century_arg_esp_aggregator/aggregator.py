@@ -41,7 +41,6 @@ class Aggregator(Worker):
                 self.total_batches_per_client[client_id] = message.get("total_batches")
 
             logger.info(f"Batch procesado. Películas acumuladas: {len(self.results[client_id])} cliente {client_id}")
-            logger.info(f"Batches recibidos: {self.control_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]} cliente {client_id}")
 
             # Sí hemos recibido todos los batches, enviar el resultado final
             if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
@@ -52,6 +51,7 @@ class Aggregator(Worker):
                     "total_movies": len(self.results[client_id]),
                     "client_id": message.get("client_id")
                 }
+                print(f"Punto control 9")
                 if self.producer.enqueue(result_message):
                     logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
                     self.results.pop(client_id)
@@ -60,10 +60,7 @@ class Aggregator(Worker):
 
     def start(self):
         logger.info("Iniciando agregador")
-        try:
-            self.consumer.start_consuming()
-        finally:
-            self.close()
+        self.consumer.start_consuming()
 
 if __name__ == '__main__':
     aggregator = Aggregator()

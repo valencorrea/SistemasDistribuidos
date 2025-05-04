@@ -67,8 +67,8 @@ class Consumer:
         try:
             message = json.loads(body)
             logger.info(f"📥 Message received")
-            channel.basic_ack(delivery_tag=method.delivery_tag)
             self._message_handler(message)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")

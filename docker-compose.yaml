@@ -9,22 +9,7 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  client:
-    build:
-      context: .
-      dockerfile: client/client.dockerfile
-    container_name: client
-    depends_on:
-    - client_decodifier
-    environment:
-    - PYTHONUNBUFFERED=1
-    - DECODIFIER_HOST=client_decodifier
-    - DECODIFIER_PORT=50000
-    volumes:
-    - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/credits.csv:/root/files/credits.csv
-    - ./middleware:/app/middleware
-    - ./files/ratings.csv:/root/files/ratings.csv
+
   client_decodifier:
     build:
       context: .
@@ -128,6 +113,66 @@ services:
     links:
     - rabbitmq
   sentiment_filter:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+
+  sentiment_filter_1:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+
+  sentiment_filter_2:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+
+  sentiment_filter_3:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+
+  sentiment_filter_4:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: sentiment_filter:latest
+    links:
+    - rabbitmq
+
+  sentiment_filter_5:
     build:
       context: .
       dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile

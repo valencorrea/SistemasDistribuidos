@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 
 from middleware.consumer.consumer import Consumer
@@ -17,13 +18,12 @@ class RatingsJoiner(Worker):
                                                     _message_handler=self.handle_partial_aggregator_message)
         self.ratings_producer = Producer("result")
 
-        self.movies_ratings = {}
-        self.receive_movie_batches = 0
-        self.total_movie_batches = None
-        self.receive_ratings_batches = 0
-        self.total_ratings_batches = None
+        self.movies_ratings_per_client = defaultdict(lambda: defaultdict(int))
+        self.receive_movie_batches_per_client = defaultdict(int)
+        self.total_movie_batches_per_client = defaultdict(int)
+        self.receive_ratings_batches_per_client = defaultdict(int)
+        self.total_ratings_batches_per_client = defaultdict(int)
 
-        self.client_id = "client-id"
 
     def close(self):
         self.partial_aggregator_consumer.close()
@@ -37,39 +37,41 @@ class RatingsJoiner(Worker):
             "ratings": ratings,
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
+            "type": "batch_result",
+            "client_id": message.get("client_id")
         }
 
         if batch_message.get("type") == "batch_result":
             ratings = batch_message.get("ratings", [])
+            client_id = batch_message.get("client_id")
             for rating in ratings:
                 if not isinstance(rating, dict):
                     continue
 
                 movie_id = rating.get("movieId")
-                if movie_id in self.movies_ratings:
-                    self.movies_ratings[movie_id]["rating_sum"] += float(rating.get("rating", 0))
-                    self.movies_ratings[movie_id]["votes"] += 1
+                if movie_id in self.movies_ratings_per_client[client_id]:
+                    self.movies_ratings_per_client[client_id][movie_id]["rating_sum"] += float(rating.get("rating", 0))
+                    self.movies_ratings_per_client[client_id][movie_id]["votes"] += 1
 
             if batch_message.get("total_batches") and batch_message.get("total_batches") > 0:
-                self.total_ratings_batches = batch_message.get("total_batches")
-            self.receive_ratings_batches += batch_message.get("batch_size", 0)
+                self.total_ratings_batches_per_client[client_id] = batch_message.get("total_batches")
+            self.receive_ratings_batches_per_client[client_id] += batch_message.get("batch_size", 0)
 
             logger.info(
-                f"Total de ratings procesados: {self.receive_ratings_batches}/{self.total_ratings_batches}")
-            if self.total_ratings_batches and self.receive_ratings_batches >= self.total_ratings_batches:
+                f"Total de ratings procesados: {self.receive_ratings_batches_per_client[client_id]}/{self.total_ratings_batches_per_client[client_id]}")
+            if self.total_ratings_batches_per_client[client_id] and self.receive_ratings_batches_per_client[client_id] >= self.total_ratings_batches_per_client[client_id]:
                 logger.info("Total de ratings procesados")
-                result = self.obtain_result()
+                result = self.obtain_result(client_id)
                 if result:
                     self.ratings_producer.enqueue({
                         "result_number": 3,
                         "type": "query_3_arg_2000_ratings",
                         "result": result,
-                        "client_id": self.client_id
+                        "client_id": client_id
                     })
 
     def handle_partial_aggregator_message(self, message):
-        self.client_id = message.get("client_id")
+        client_id = message.get("client_id")
 
         batch_message = {
             "movies": message.get("movies", []),
@@ -81,23 +83,24 @@ class RatingsJoiner(Worker):
 
         if message.get("type") == "batch_result":
             movies = message.get("movies", [])
+            client_id = message.get("client_id")
             for movie in movies:
                 if not isinstance(movie, dict):
                     continue
 
                 movie_id = movie.get("id")
                 if movie_id:
-                    self.movies_ratings[movie_id] = {
+                    self.movies_ratings_per_client[client_id][movie_id] = {
                         "title": movie.get("title", ""),
                         "rating_sum": 0,
                         "votes": 0
                     }
 
-            self.receive_movie_batches += message.get("batch_size", 0)
+            self.receive_movie_batches_per_client[client_id] += message.get("batch_size", 0)
             if message.get("total_batches") and message.get("total_batches") > 0:
-                self.total_movie_batches = message.get("total_batches")
+                self.total_movie_batches_per_client[client_id] = message.get("total_batches")
 
-            if self.total_movie_batches and self.receive_movie_batches >= self.total_movie_batches:
+            if self.total_movie_batches_per_client[client_id] and self.receive_movie_batches_per_client[client_id] >= self.total_movie_batches_per_client[client_id]:
                 self.ratings_consumer.start_consuming()
 
 
@@ -112,13 +115,13 @@ class RatingsJoiner(Worker):
             self.close()
 
 
-    def obtain_result(self):
+    def obtain_result(self, client_id):
         max_rating = float('-inf')
         min_rating = float('inf')
         best_movie = None
         worst_movie = None
 
-        for movie_id, data in self.movies_ratings.items():
+        for movie_id, data in self.movies_ratings_per_client[client_id].items():
             if data["votes"] > 0:
                 avg_rating = data["rating_sum"] / data["votes"]
                 movie_data = {

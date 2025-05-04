@@ -95,10 +95,7 @@ class Aggregator(Worker):
 
     def start(self):
         logger.info("Iniciando agregador")
-        try:
-            self.consumer.start_consuming()
-        finally:
-            self.close()
+        self.consumer.start_consuming()
 
 
 if __name__ == '__main__':

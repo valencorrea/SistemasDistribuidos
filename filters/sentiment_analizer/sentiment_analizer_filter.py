@@ -66,8 +66,6 @@ class SentimentAnalyzerFilter(Worker):
             self.consumer.start_consuming()
         except Exception as e:
             logger.error(f"Error en análisis de sentimiento: {e}")
-        finally:
-            self.close()
 
     def analyze_sentiments(self, movies):
         result = []

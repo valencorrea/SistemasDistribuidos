@@ -60,15 +60,14 @@ class Aggregator(Worker):
     def handle_message(self, message):
         if message.get("type") == "batch_result":
             client_id = message.get("client_id")
-            self.process_sentiment_revenue_budget(message.get("movies", []),client_id)
             if client_id not in self.control_batches_per_client.keys():
                 self.control_batches_per_client[client_id] = 0
+            self.process_sentiment_revenue_budget(message.get("movies", []),client_id)
             self.control_batches_per_client[client_id] += message.get("batch_size", 0)
 
             if message.get("total_batches"):
-                self.total_batches_per_client[client_id]     = message.get("total_batches")
+                self.total_batches_per_client[client_id] = message.get("total_batches")
 
-            logger.info(f"Batches recibidos: {self.control_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]}")
 
             if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
                 rate_revenue_budget = self._get_sentiment_mean(client_id)
@@ -87,10 +86,7 @@ class Aggregator(Worker):
 
     def start(self):
         logger.info("Iniciando agregador")
-        try:
-            self.consumer.start_consuming()
-        finally:
-            self.close()
+        self.consumer.start_consuming()
 
 
 if __name__ == '__main__':
