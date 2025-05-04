@@ -43,7 +43,8 @@ class Aggregator(Worker):
                 result_message = {
                     "type": "20_century_arg_total_result",
                     "movies": self.filtered_movies,
-                    "total_movies": len(self.filtered_movies)
+                    "total_movies": len(self.filtered_movies),
+                    "client_id": message.get("client_id")
                 }
                 logger.info(f"Se va a enviar: {result_message}")
                 if self.producer.enqueue(result_message):

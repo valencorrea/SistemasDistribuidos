@@ -16,13 +16,15 @@ logging.basicConfig(
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
-        self.movies = None
         # TODO consumir el result de 20th century aggregator
         self.movies_consumer = Consumer("20_century_arg_result",
-                                        _message_handler=self.handle_movies_result_message)
+                                        _message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
-                                        _message_handler=self.handle_credits_message)
+                                        _message_handler=self.handle_credits_message) # hacer que mande un client id tambien
         self.producer = Producer("top_10_actors_from_batch")
+        self.movies = {}
+        self.client_id = "client-id"
+
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
@@ -37,10 +39,15 @@ class CreditsJoiner(Worker):
     def handle_credits_message(self, message):
         try:
             logger.info(f"Mensaje de credits recibido")
+            client_id = message.get("client_id")
+            #if client_id not in self.movies:
+
+
             actor_counts = {}
             actors = convert_data(message)
+            movies_per_client = self.movies.get(client_id, set())
             for actor in actors:
-                if actor.movie_id in self.movies:
+                if actor.movie_id in movies_per_client:
                     logger.info(f"Actor encontrado para una pelicula argentina.")
                     actor_id = actor.id
                     actor_name = actor.name
@@ -58,6 +65,7 @@ class CreditsJoiner(Worker):
             result_message = {
                 "type": "query_4_top_10_actores_credits",
                 "actors": top_10,
+                "client_id": client_id
             }
             if message.get("total_batches") != 0: # Mensaje que contiene el total. Uno por cliente.
                 result_message["total_batches"] = message.get("total_batches")
@@ -73,14 +81,17 @@ class CreditsJoiner(Worker):
             logger.error(f"Error al procesar credits: {e}")
             self.close()
 
-    def handle_movies_result_message(self, message):
+    def handle_movies_message(self, message):
         logger.info(f"Mensaje de movies recibido")
         if message.get("type") == "20_century_arg_total_result":
-            self.movies = {movie["id"] for movie in message.get("movies")}
-            logger.info(f"Obtenidas {message.get('total_movies')} películas")
-            self.credits_consumer.start_consuming()
+            self.process_movie_message(message)
         else:
             logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
+
+    def process_movie_message(self, message):
+        self.movies[message.get("client_id")] = {movie["id"] for movie in message.get("movies")}
+        logger.info(f"Obtenidas {message.get('total_movies')} películas")
+        self.credits_consumer.start_consuming()
 
     def start(self):
         logger.info("Iniciando filtro de películas españolas")
