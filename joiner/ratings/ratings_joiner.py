@@ -58,10 +58,19 @@ class RatingsJoiner(Worker):
             # if result:
             self.producer.enqueue({
                 "type": "query_3_arg_2000_ratings",
-                "ratings": self.movies_ratings,
+                "ratings": self.get_movies_with_votes(),
                 "batch_size": self.received_ratings_batches,
                 "total_batches": self.total_ratings_batches
             })
+
+    def get_movies_with_votes(self):
+        logger.info(f"Se tienen {len(self.movies_ratings)} peliculas: {self.movies_ratings}")
+        movies_with_ratings = {}
+        for movie_id, data in self.movies_ratings.items():
+            if data["votes"] > 0:
+                movies_with_ratings[movie_id] = data
+        logger.info(f"Obtenidas {len(movies_with_ratings)} peliculas con al menos un rating")
+        return movies_with_ratings
 
     def handle_movies_result_message(self, message):
         logger.info(f"Mensaje de movies recibido")
@@ -97,11 +106,11 @@ class RatingsJoiner(Worker):
                 if movie_id in self.movies_ratings:
                     self.movies_ratings[movie_id]["rating_sum"] += float(rating.get("rating", 0))
                     self.movies_ratings[movie_id]["votes"] += 1
-                else:
-                    self.movies_ratings[movie_id] = {
-                        "rating_sum": float(rating.get("rating", 0)),
-                        "votes": 1
-                    }
+                # else:
+                #     self.movies_ratings[movie_id] = {
+                #         "rating_sum": float(rating.get("rating", 0)),
+                #         "votes": 1
+                #     }
             batch_size = int(message.get("batch_size", 0))
             total_batches = int(message.get("total_batches", 0))
 
@@ -109,8 +118,10 @@ class RatingsJoiner(Worker):
 
             if batch_size != 0:
                 self.amounts_control_producer.enqueue({"type": "batch_size","amount": batch_size})
+                logger.info(f"Mensaje de control de cantidades de ratings enviado batch_size: {batch_size}")
             if total_batches != 0:
                 self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches})
+                logger.info(f"Mensaje de control de cantidades de ratings enviado total_batches: {total_batches}")
         except Exception as e:
             logger.error(f"Error al procesar ratings: {e}")
 

@@ -31,26 +31,28 @@ class Aggregator(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
-        logger.info(f"Mensaje de ratings recibido")
+        logger.info(f"Mensaje de ratings recibido: {message}")
         ratings = message.get("ratings")
         logger.info(f"Se obtuvieron {len(ratings)} ratings: {ratings}.")
+        batch_size = int(message.get("batch_size", 0))
+        total_batches = int(message.get("total_batches", 0))
+        if batch_size != 0:
+            self.received_batches = self.received_batches + batch_size
+            logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches}.")
 
-        if message.get("batch_size") is not None and message.get("batch_size") != 0:
-            self.received_batches = self.received_batches + int(message.get("batch_size"))
-            logger.info(f"Se actualiza la cantidad recibida: {self.received_batches}, actual: {self.received_batches}.")
-
-        if message.get("total_batches") is not None and message.get("total_batches") != 0:
-            self.total_batches = int(message.get("total_batches"))
+        if total_batches != 0:
+            self.total_batches = total_batches
             logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches}.")
 
-        for movie_id, count in ratings:
+        for movie_id, data in ratings.items():
             if movie_id in self.movies_ratings:
-                self.movies_ratings[movie_id]["rating_sum"] += float(count.get("rating_sum", 0))
-                self.movies_ratings[movie_id]["votes"] += int(count.get("votes", 0))
+                self.movies_ratings[movie_id]["rating_sum"] += float(data.get("rating_sum", 0))
+                self.movies_ratings[movie_id]["votes"] += int(data.get("votes", 0))
             else:
                 self.movies_ratings[movie_id] = {
-                    "rating_sum": float(count.get("rating_sum", 0)),
-                    "votes": int(count.get("votes", 0))
+                    "title": data.get("title", ""),
+                    "rating_sum": float(data.get("rating_sum", 0)),
+                    "votes": int(data.get("votes", 0))
                 }
 
         if self.total_batches is not None and self.received_batches >= self.total_batches:
