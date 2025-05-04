@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import pika
 
@@ -8,13 +8,16 @@ import pika
 logger = logging.getLogger(__name__)
 
 class Producer:
-    def __init__(self, queue_name: str = 'default', queue_type: Literal['direct', 'fanout'] = 'direct'):
+    def __init__(self, queue_name: str = 'default', queue_type: Literal['direct', 'fanout'] = 'direct',
+                 dlx:Optional[str] = None, ttl: Optional[int] = None):
         self._queue_name = queue_name
         self._queue_type = queue_type
         self._connection = None
         self._channel = None
         self._closing = False
         self._exchange_name = f'{queue_type}_exchange'
+        self._dlx = dlx
+        self._ttl = ttl
 
     def connect(self) -> bool:
         try:
@@ -36,9 +39,16 @@ class Producer:
 
             # Solo declarar y vincular cola si es tipo direct
             if self._queue_type == 'direct':
+                queue_args = {}
+                if self._ttl:
+                    queue_args['x-message-ttl'] = self._ttl
+                if self._dlx:
+                    queue_args['x-dead-letter-exchange'] = self._dlx
+
                 self._channel.queue_declare(
                     queue=self._queue_name,
-                    durable=True
+                    durable=True,
+                    arguments=queue_args or None
                 )
                 self._channel.queue_bind(
                     exchange=self._exchange_name,
@@ -53,14 +63,14 @@ class Producer:
             logger.error(f"❌ Error al configurar productor")
             return False
 
-    def enqueue(self, message: Any) -> bool:
+    def enqueue(self, message: Any, routing_key_override: Optional[str] = None) -> bool:
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
                     return False
 
             # Para fanout, el routing_key se ignora pero lo mantenemos por consistencia
-            routing_key = self._queue_name if self._queue_type == 'direct' else ''
+            routing_key = routing_key_override or (self._queue_name if self._queue_type == 'direct' else '')
 
             self._channel.basic_publish(
                 exchange=self._exchange_name,

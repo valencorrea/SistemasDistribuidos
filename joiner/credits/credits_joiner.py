@@ -22,6 +22,13 @@ class CreditsJoiner(Worker):
         self.credits_consumer = Consumer("credits",
                                         _message_handler=self.handle_credits_message) # hacer que mande un client id tambien
         self.producer = Producer("top_10_actors_from_batch")
+        self.pending_producer = Producer(
+            queue_name="credits_pending",
+            queue_type="direct",
+            dlx="direct_exchange",
+            ttl=2000
+        )
+
         self.movies = {}
         self.client_id = "client-id"
 
@@ -33,6 +40,7 @@ class CreditsJoiner(Worker):
             self.credits_consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
+            self.pending_producer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -40,8 +48,11 @@ class CreditsJoiner(Worker):
         try:
             logger.info(f"Mensaje de credits recibido")
             client_id = message.get("client_id")
-            #if client_id not in self.movies:
 
+            if client_id not in self.movies:
+                logger.info("client id " + "not ready for credits file")
+                self.pending_producer.enqueue(message, routing_key_override="credits")
+                return
 
             actor_counts = {}
             actors = convert_data(message)
