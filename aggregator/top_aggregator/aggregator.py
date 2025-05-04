@@ -5,8 +5,8 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-
 logger = logging.getLogger(__name__)
+
 
 class Aggregator(Worker):
     def __init__(self):
@@ -93,7 +93,6 @@ class Aggregator(Worker):
                     self.control_batches_per_client.pop(client_id)
                     self.total_batches_per_client.pop(client_id)
 
-
     def start(self):
         logger.info("Iniciando agregador")
         try:
@@ -101,6 +100,7 @@ class Aggregator(Worker):
         finally:
             self.close()
 
+
 if __name__ == '__main__':
     aggregator = Aggregator()
-    aggregator.start() 
+    aggregator.start()

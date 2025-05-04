@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.9-alpine
 COPY middleware/consumer/consumer.py /root/middleware/consumer/consumer.py
 COPY middleware/producer/producer.py /root/middleware/producer/producer.py
 COPY filters/no_colab_productions/no_colab_productions_filter.py /root/filters/no_colab_productions/no_colab_productions_filter.py
