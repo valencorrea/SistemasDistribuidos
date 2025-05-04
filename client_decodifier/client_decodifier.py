@@ -60,7 +60,10 @@ class ClientDecodifier(Worker):
                     "total_batches": total_batches + len(batch) if is_last else 0,
                     "client_id": client_id
                 }
-                
+
+                if is_last:
+                    logger.info(f"Enviando ultimo batch de {metadata.type} de : {message}")
+
                 if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 

@@ -1,6 +1,5 @@
 FROM python:3.9-alpine
-COPY middleware/consumer/consumer.py /root/middleware/consumer/consumer.py
-COPY middleware/producer/producer.py /root/middleware/producer/producer.py
+COPY middleware/ /root/middleware/
 COPY joiner/ratings/rating_joiner.py /root/joiner/ratings/rating_joiner.py
 COPY utils/parsers/movie_parser.py /root/utils/parsers/movie_parser.py
 COPY utils/parsers/ratings_parser.py /root/utils/parsers/ratings_parser.py
