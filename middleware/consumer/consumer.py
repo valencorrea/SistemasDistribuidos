@@ -9,6 +9,10 @@ import pika
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
 class Consumer:
@@ -39,11 +43,11 @@ class Consumer:
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
-                durable=True
+                durable=False
             )
 
             if self._queue_type == 'direct':
-                self._channel.queue_declare(queue=self._queue_name, durable=True)
+                self._channel.queue_declare(queue=self._queue_name, durable=False)
                 queue_name = self._queue_name
             else:
                 result = self._channel.queue_declare(queue='', exclusive=True, auto_delete=True)

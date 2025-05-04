@@ -10,6 +10,32 @@ services:
     links:
     - rabbitmq
 
+  best_and_worst_ratings_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  client:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    container_name: client
+    depends_on:
+    - client_decodifier
+    environment:
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    volumes:
+    - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/credits.csv:/root/files/credits.csv
+    - ./middleware:/app/middleware
+    - ./files/ratings_small.csv:/root/files/ratings.csv
   client_decodifier:
     build:
       context: .
@@ -241,6 +267,16 @@ services:
     build:
       context: .
       dockerfile: joiner/credits/credits_joiner.dockerfile
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    links:
+    - rabbitmq
+  workers_ratings:
+    build:
+      context: .
+      dockerfile: joiner/ratings/ratings_joiner.dockerfile
     depends_on:
     - rabbitmq
     environment:

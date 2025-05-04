@@ -9,6 +9,10 @@ from worker.worker import Worker
 import uuid
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class ClientDecodifier(Worker):
     def __init__(self):
@@ -55,7 +59,10 @@ class ClientDecodifier(Worker):
                     "total_batches": total_batches + len(batch) if is_last else 0,
                     "client_id": client_id
                 }
-                
+
+                if is_last:
+                    logger.info(f"Enviando ultimo batch de {metadata.type} de : {message}")
+
                 if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 
