@@ -87,7 +87,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
             "best_and_worst_ratings_aggregator": {
                 "build": {
                     "context": ".",
-                    "dockerfile": "aggregator/top_10_credits_aggregator/aggregator.dockerfile",
+                    "dockerfile": "aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile",
                 },
                 "depends_on": ["rabbitmq"],
                 "links": ["rabbitmq"],
@@ -105,7 +105,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
             "ratings_joiner": {
                 "build": {
                     "context": ".",
-                    "dockerfile": "joiner/ratings/rating_joiner.dockerfile",
+                    "dockerfile": "joiner/ratings/ratings_joiner.dockerfile",
                 },
                 "depends_on": ["rabbitmq"],
                 "links": ["rabbitmq"],
@@ -133,7 +133,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
         "twentieth_century_filter": ("filters/twentieth_century/twentieth_century_filter.dockerfile", workers_twentieth_century),
         "arg_production_filter": ("filters/arg_production/arg_production_filter.dockerfile", workers_arg_production),
         "workers_credits": ("joiner/credits/credits_joiner.dockerfile", workers_credits),
-        "workers_ratings": ("joiner/credits/ratings_joiner.dockerfile", workers_ratings),
+        "workers_ratings": ("joiner/ratings/ratings_joiner.dockerfile", workers_ratings),
         "main_movie_filter": ("filters/main_movie_filter/main_movie_filter.dockerfile", workers_main_movie),
         "esp_production_filter": ("filters/esp_production/esp_production_filter.dockerfile", workers_esp_production),
         "no_colab_productions_filter": ("filters/no_colab_productions/no_colab_productions_filter.dockerfile", workers_no_colab_productions),

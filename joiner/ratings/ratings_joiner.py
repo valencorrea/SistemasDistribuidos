@@ -54,12 +54,14 @@ class RatingsJoiner(Worker):
 
         if self.total_ratings_batches and self.received_ratings_batches >= self.total_ratings_batches:
             logger.info("Ya fueron procesados todos los batches. Enviando el acumulado para este worker.")
-            result = self.obtain_result()
-            if result:
-                self.producer.enqueue({
-                    "type": "query_3_arg_2000_ratings",
-                    "ratings": result
-                })
+            # result = self.obtain_result()
+            # if result:
+            self.producer.enqueue({
+                "type": "query_3_arg_2000_ratings",
+                "ratings": self.movies_ratings,
+                "batch_size": self.received_ratings_batches,
+                "total_batches": self.total_ratings_batches
+            })
 
     def handle_movies_result_message(self, message):
         logger.info(f"Mensaje de movies recibido")
@@ -120,37 +122,6 @@ class RatingsJoiner(Worker):
         finally:
             self.close()
 
-    def obtain_result(self):
-        max_rating = float('-inf')
-        min_rating = float('inf')
-        best_movie = None
-        worst_movie = None
-
-        for movie_id, data in self.movies_ratings.items():
-            if data["votes"] > 0:
-                avg_rating = data["rating_sum"] / data["votes"]
-                movie_data = {
-                    "id": movie_id,
-                    "title": data["title"],
-                    "rating": avg_rating,
-                }
-
-                # Actualizar el mejor rating
-                if avg_rating > max_rating:
-                    max_rating = avg_rating
-                    best_movie = movie_data
-
-                # Actualizar el peor rating
-                if avg_rating < min_rating:
-                    min_rating = avg_rating
-                    worst_movie = movie_data
-
-        return {
-            "best": best_movie,
-            "best_rating": max_rating,
-            "worst": worst_movie,
-            "min_rating": min_rating,
-        }
 
 if __name__ == '__main__':
     worker = RatingsJoiner()
