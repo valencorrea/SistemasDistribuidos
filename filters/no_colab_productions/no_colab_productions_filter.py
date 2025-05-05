@@ -7,13 +7,16 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
-
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class NoColabProductionsFilter(Worker):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer("movie_1", _message_handler=self.handle_message)  # Lee de la cola de movies
-        self.producer = Producer("aggregate_consulta_2")  # Envía resultados a aggregate_consulta_1
+        self.consumer = Consumer("movie_1", _message_handler=self.handle_message)
+        self.producer = Producer("aggregate_consulta_2")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")

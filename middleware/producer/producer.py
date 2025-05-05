@@ -1,11 +1,17 @@
 import json
 import logging
+from typing import Any, Literal
+import time
 from typing import Any, Literal, Optional
 
 import pika
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class Producer:
     def __init__(self, queue_name: str = 'default', queue_type: Literal['direct', 'fanout'] = 'direct',
@@ -34,7 +40,7 @@ class Producer:
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
-                durable=True
+                durable=False
             )
 
             # Solo declarar y vincular cola si es tipo direct
@@ -47,7 +53,7 @@ class Producer:
 
                 self._channel.queue_declare(
                     queue=self._queue_name,
-                    durable=True,
+                    durable=False,
                     arguments=queue_args or None
                 )
                 self._channel.queue_bind(

@@ -7,6 +7,10 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
 class ArgEspProductionFilter(Worker):
@@ -37,16 +41,13 @@ class ArgEspProductionFilter(Worker):
 
     def start(self):
         logger.info("Iniciando filtro de películas españolas")
-        try:
-            self.consumer.start_consuming()
-        finally:
-            self.close()
+        self.consumer.start_consuming()
 
     @staticmethod
     def apply_filter(movies):
         result = []
         for movie in movies:
-            if "ES" in movie.get("production_countries"):
+            if "ES" in movie.get("production_countries") and int(movie.get("release_date")) < 2010:
                 result.append({"title": movie.get("title"), "genres": parse_genres(movie.get("genres"))})
         return result
 

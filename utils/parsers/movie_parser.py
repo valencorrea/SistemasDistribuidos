@@ -95,6 +95,8 @@ def convert_data_for_fifth_filter(data):
     for row in lines:
         revenue = parse_revenue(row["revenue"])
         budget = parse_budget(row["budget"])
+        if revenue==0 or budget==0:
+            continue
         result.append({
             "overview":row["overview"],
             "budget":budget,

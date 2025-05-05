@@ -3,8 +3,11 @@ from middleware.file_consuming.file_consuming import CSVSender
 import os
 import time
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class Client:
     def __init__(self):
@@ -16,8 +19,6 @@ class Client:
     def start(self):
         logger.info("Comenzando envío de archivos")
         max_retries = 10
-        retry_delay = 10
-
         
         try:
             logger.info(f"Intento 1 de {max_retries} para enviar archivos")
@@ -50,12 +51,8 @@ class Client:
             return 
             
         except Exception as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"Intento {attempt + 1} fallido: {e}. Reintentando en {retry_delay} segundos...")
-                time.sleep(retry_delay)
-            else:
-                logger.error(f"[ERROR] Error durante el procesamiento después de {max_retries} intentos: {e}")
-                raise
+            logger.error(f"[ERROR] Error durante el procesamiento después de {max_retries} intentos: {e}")
+            raise
 
 if __name__ == '__main__':
     client = Client()

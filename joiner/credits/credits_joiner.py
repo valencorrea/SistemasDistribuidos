@@ -1,7 +1,9 @@
+from collections import defaultdict
 import logging
 from fileinput import close
 
 from middleware.consumer.consumer import Consumer
+from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
@@ -16,11 +18,12 @@ logging.basicConfig(
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
+        self.movies_per_client = defaultdict(set)
         # TODO consumir el result de 20th century aggregator
-        self.movies_consumer = Consumer("20_century_arg_result",
-                                        _message_handler=self.handle_movies_message)
+        self.movies_consumer = Subscriber("20_century_arg_result",
+                                        message_handler=self.handle_movies_result_message)
         self.credits_consumer = Consumer("credits",
-                                        _message_handler=self.handle_credits_message) # hacer que mande un client id tambien
+                                        _message_handler=self.handle_credits_message)
         self.producer = Producer("top_10_actors_from_batch")
         self.pending_producer = Producer(
             queue_name="credits_pending",
@@ -107,7 +110,7 @@ class CreditsJoiner(Worker):
     def start(self):
         logger.info("Iniciando filtro de películas españolas")
         try:
-            self.movies_consumer.start_consuming()
+            self.movies_consumer.start()
         finally:
             self.close()
 
