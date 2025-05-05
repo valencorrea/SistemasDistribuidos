@@ -36,14 +36,14 @@ class Producer:
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
-                durable=False
+                durable=True
             )
 
             # Solo declarar y vincular cola si es tipo direct
             if self._queue_type == 'direct':
                 self._channel.queue_declare(
                     queue=self._queue_name,
-                    durable=False
+                    durable=True
                 )
                 self._channel.queue_bind(
                     exchange=self._exchange_name,
@@ -59,6 +59,8 @@ class Producer:
             return False
 
     def enqueue(self, message: Any) -> bool:
+        logger.info(f"Intentando enviar mensaje a la cola: {self._queue_name}")
+
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
@@ -75,7 +77,7 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
-            #logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
+            logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
             return True
 
         except Exception as e:
