@@ -3,6 +3,7 @@ import logging
 from middleware.consumer.consumer import Consumer
 from collections import defaultdict 
 from middleware.producer.producer import Producer
+from middleware.producer.publisher import Publisher
 from worker.worker import Worker
 
 
@@ -17,7 +18,7 @@ class Aggregator(Worker):
         super().__init__()
         self.consumer = Consumer("20_century_batch_results",
                                  _message_handler=self.handle_message)  # Lee de la cola de resultados filtrados
-        self.producer = Producer("20_century_arg_result")  # Envía el resultado final
+        self.producer = Publisher("20_century_arg_result")  # Envía el resultado final
         self.filtered_movies_per_client = defaultdict(list)  # Almacena las películas filtradas
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)

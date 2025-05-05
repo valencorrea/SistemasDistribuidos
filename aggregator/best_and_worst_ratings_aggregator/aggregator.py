@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 
 from middleware.consumer.consumer import Consumer
@@ -17,9 +18,9 @@ class Aggregator(Worker):
         self.consumer = Consumer("best_and_worst_ratings_partial_result",
                                  _message_handler=self.handle_message)
         self.producer = Producer("result")
-        self.total_batches = None
-        self.received_batches = 0
-        self.movies_ratings = {}
+        self.total_batches_per_client = defaultdict(int)
+        self.received_batches_per_client = defaultdict(int)
+        self.movies_ratings = defaultdict(dict)
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
@@ -36,40 +37,41 @@ class Aggregator(Worker):
         logger.info(f"Se obtuvieron {len(ratings)} ratings: {ratings}.")
         batch_size = int(message.get("batch_size", 0))
         total_batches = int(message.get("total_batches", 0))
+        client_id = message.get("client_id", None)
         if batch_size != 0:
-            self.received_batches = self.received_batches + batch_size
-            logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches}.")
+            self.received_batches_per_client[client_id] += batch_size
+            logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
         if total_batches != 0:
-            self.total_batches = total_batches
-            logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches}.")
+            self.total_batches_per_client[client_id] = total_batches
+            logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches_per_client[client_id]}.")
 
         for movie_id, data in ratings.items():
-            if movie_id in self.movies_ratings:
-                self.movies_ratings[movie_id]["rating_sum"] += float(data.get("rating_sum", 0))
-                self.movies_ratings[movie_id]["votes"] += int(data.get("votes", 0))
+            if movie_id in self.movies_ratings[client_id]:
+                self.movies_ratings[client_id][movie_id]["rating_sum"] += float(data.get("rating_sum", 0))
+                self.movies_ratings[client_id][movie_id]["votes"] += int(data.get("votes", 0))
             else:
-                self.movies_ratings[movie_id] = {
+                self.movies_ratings[client_id][movie_id] = {
                     "title": data.get("title", ""),
                     "rating_sum": float(data.get("rating_sum", 0)),
                     "votes": int(data.get("votes", 0))
                 }
 
-        if self.total_batches is not None and self.received_batches >= self.total_batches:
-            result = self.obtain_result()
+        if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
+            result = self.obtain_result(client_id)
             self.producer.enqueue({
                 "type": "best_and_worst_movies",
                 "actors": result
             })
             logger.info("Resultado de mejor y peor pelicula enviado.")
 
-    def obtain_result(self):
+    def obtain_result(self, client_id):
         max_rating = float('-inf')
         min_rating = float('inf')
         best_movie = None
         worst_movie = None
 
-        for movie_id, data in self.movies_ratings.items():
+        for movie_id, data in self.movies_ratings[client_id].items():
             if data["votes"] > 0:
                 avg_rating = data["rating_sum"] / data["votes"]
                 movie_data = {

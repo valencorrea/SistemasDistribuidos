@@ -35,7 +35,7 @@ services:
     - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
     - ./files/credits.csv:/root/files/credits.csv
     - ./middleware:/app/middleware
-    - ./files/ratings_small.csv:/root/files/ratings.csv
+    - ./files/ratings.csv:/root/files/ratings.csv
   client_decodifier:
     build:
       context: .
@@ -50,7 +50,7 @@ services:
   client_real:
     build:
       context: .
-      dockerfile: client/client_real.dockerfile
+      dockerfile: client/client.dockerfile
     container_name: client_real
     depends_on:
     - client_decodifier
@@ -63,7 +63,6 @@ services:
     - ./files/files_real/credits.csv:/root/files/credits.csv
     - ./middleware:/app/middleware
     - ./files/files_real/ratings.csv:/root/files/ratings.csv
-    - ./middleware:/app/middleware
 
   credits_joiner:
     build:
@@ -121,7 +120,7 @@ services:
   ratings_joiner:
     build:
       context: .
-      dockerfile: joiner/ratings/rating_joiner.dockerfile
+      dockerfile: joiner/ratings/ratings_joiner.dockerfile
     depends_on:
     - rabbitmq
     environment:
@@ -150,65 +149,6 @@ services:
     links:
     - rabbitmq
 
-  sentiment_filter_1:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-
-  sentiment_filter_2:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-
-  sentiment_filter_3:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-
-  sentiment_filter_4:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-
-  sentiment_filter_5:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
   test:
     build:
       context: .
@@ -279,6 +219,7 @@ services:
       dockerfile: joiner/ratings/ratings_joiner.dockerfile
     depends_on:
     - rabbitmq
+    - twentieth_century_arg_aggregator
     environment:
     - PYTHONUNBUFFERED=1
     links:

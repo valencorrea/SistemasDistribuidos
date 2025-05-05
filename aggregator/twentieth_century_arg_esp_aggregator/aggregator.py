@@ -55,7 +55,6 @@ class Aggregator(Worker):
                     "total_movies": len(self.results[client_id]),
                     "client_id": message.get("client_id")
                 }
-                print(f"Punto control 9")
                 if self.producer.enqueue(result_message):
                     logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
                     self.results.pop(client_id)
