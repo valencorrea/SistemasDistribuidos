@@ -35,14 +35,22 @@ class TwentiethCenturyFilter(Worker):
     def handle_message(self, message):
 
         movies = convert_data(message)
+        logger.info(f"Mensaje de peliculas sin filtrar recibido: {len(movies)} peliculas")
         filtered_movies = self.apply_filter(movies)
+        logger.info(f"Se encontraron {len(filtered_movies)} peliculas de la decada de los 2000")
+
+        total_batches = message.get("total_batches", 0)
+        client_id = message.get("client_id")
+
+        if total_batches != 0:
+            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         result = {
             "movies": [movie.to_dict() for movie in filtered_movies],
             "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
+            "total_batches": total_batches,
             "type": "batch_result",
-            "client_id": message.get("client_id")
+            "client_id": client_id
         }
 
         self.producer.enqueue(result)

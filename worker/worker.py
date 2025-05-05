@@ -11,6 +11,7 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
     datefmt='%H:%M:%S')
+
 class Worker(ABC):
     def __init__(self):
         logging.basicConfig(
@@ -45,7 +46,6 @@ class Worker(ABC):
     def _close(self):
         self.shutdown_event.set()
         self.close()
-
 
     @staticmethod
     def wait_for_rabbitmq(max_retries: int = 30, retry_interval: float = 8.0) -> bool:

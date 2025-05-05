@@ -19,9 +19,9 @@ class ClientDecodifier(Worker):
         super().__init__()
         self.csv_receiver = CSVReceiver()
         
-        self.producer = Producer("movie_main_filter")
-        self.actor_producer = Producer("credits")
-        self.rating_producer = Producer("ratings")
+        # self.producer = Producer("movie_main_filter")
+        # self.actor_producer = Producer("credits")
+        # self.rating_producer = Producer("ratings")
         self.test_producer = Producer("result_comparator")
         
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
@@ -29,23 +29,35 @@ class ClientDecodifier(Worker):
         self.results_received = 0
         self.shutdown_event = threading.Event()
 
-    def get_producer_for_type(self, file_type: str) -> Producer:
-        if file_type == "movie":
-            return self.producer
-        elif file_type == "actor":
-            return self.actor_producer
-        elif file_type == "rating":
-            return self.rating_producer
-        return None
+    # def get_producer_for_type(self, file_type: str) -> Producer:
+    #     if file_type == "movie":
+    #         return self.producer
+    #     elif file_type == "actor":
+    #         return self.actor_producer
+    #     elif file_type == "rating":
+    #         return self.rating_producer
+    #     return None
 
     def process_connection(self, client_socket, client_id: str):
         """Procesa los batches de una conexión"""
+        movie_producer = Producer("movie_main_filter")
+        actor_producer = Producer("credits")
+        rating_producer = Producer("ratings")
         try:
             total_batches = 0
             logger.info("Iniciando procesamiento de nueva conexión")
             
             for batch, is_last, metadata in self.csv_receiver.process_connection(client_socket):
-                producer = self.get_producer_for_type(metadata.type)
+                if metadata.type == "movie":
+                    producer = movie_producer
+                elif metadata.type == "actor":
+                    producer = actor_producer
+                elif metadata.type == "rating":
+                    producer = rating_producer
+                else:
+                    logger.error(f"Metadata no reconocido")
+                    return
+
                 if not producer:
                     logger.error(f"Tipo de archivo no válido: {metadata.type}")
                     continue
@@ -72,6 +84,11 @@ class ClientDecodifier(Worker):
             
         except Exception as e:
             logger.error(f"Error en process_connection: {e}", exc_info=True)
+        finally:
+            # Clean up to avoid open connections
+            movie_producer.close()
+            actor_producer.close()
+            rating_producer.close()
 
 
     def start(self):
@@ -135,8 +152,8 @@ class ClientDecodifier(Worker):
     def close(self):
         logger.info(f"Closing all workers")
         #self.shutdown_producer.enqueue("shutdown")
-        self.producer.close()
-        self.actor_producer.close()
+        # self.producer.close()
+        # self.actor_producer.close()
         self.result_consumer.close()
 
     @staticmethod
