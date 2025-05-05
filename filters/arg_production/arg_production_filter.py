@@ -7,6 +7,10 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
 class ArgProductionFilter(Worker):
@@ -16,14 +20,12 @@ class ArgProductionFilter(Worker):
         self.esp_production_producer = Producer("arg_production")
         self.batch_results_producer = Producer("20_century_batch_results")
         self.rating_joiner_producer = Producer("rating_joiner")
-        self.partial_aggregator_producer = Producer("credits_joiner")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.esp_production_producer.close()
-            self.partial_aggregator_producer.close()
             self.batch_results_producer.close()
             self.rating_joiner_producer.close()
             self.shutdown_consumer.close()
@@ -48,7 +50,6 @@ class ArgProductionFilter(Worker):
         }
 
         self.esp_production_producer.enqueue(result)
-        self.partial_aggregator_producer.enqueue(result)
         self.batch_results_producer.enqueue(result)
         self.rating_joiner_producer.enqueue(result)
 

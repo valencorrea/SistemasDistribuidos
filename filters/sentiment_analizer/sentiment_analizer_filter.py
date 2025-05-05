@@ -9,6 +9,10 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class SentimentAnalyzerFilter(Worker):
     def __init__(self):
@@ -66,8 +70,6 @@ class SentimentAnalyzerFilter(Worker):
             self.consumer.start_consuming()
         except Exception as e:
             logger.error(f"Error en análisis de sentimiento: {e}")
-        finally:
-            self.close()
 
     def analyze_sentiments(self, movies):
         result = []

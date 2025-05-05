@@ -9,13 +9,16 @@ from worker.worker import Worker
 import uuid
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class ClientDecodifier(Worker):
     def __init__(self):
         super().__init__()
         self.csv_receiver = CSVReceiver()
         
-        # Mantener los producers existentes
         self.producer = Producer("movie_main_filter")
         self.actor_producer = Producer("credits")
         self.rating_producer = Producer("ratings")
@@ -56,7 +59,10 @@ class ClientDecodifier(Worker):
                     "total_batches": total_batches + len(batch) if is_last else 0,
                     "client_id": client_id
                 }
-                
+
+                if is_last:
+                    logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
+
                 if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 
@@ -125,8 +131,6 @@ class ClientDecodifier(Worker):
         self.results_received += 1
         logger.info(f"[INFO] Resultado {self.results_received}/5 recibido: {query_result}")
         self.test_producer.enqueue(query_result)
-        if self.results_received == 5:
-            self.close()
 
     def close(self):
         logger.info(f"Closing all workers")
