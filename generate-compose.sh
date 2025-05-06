@@ -14,7 +14,7 @@ workers_no_colab_production=$6
 workers_sentiment=$7
 workers_arg_production=$8
 workers_credits=$9
-workers_ratings=$10
+workers_ratings=${10}
 
 # Si sólo se pasó uno
 if [ -z "$workers_main_movie" ]; then
