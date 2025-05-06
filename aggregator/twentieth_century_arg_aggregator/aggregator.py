@@ -56,7 +56,6 @@ class Aggregator(Worker):
                     "total_movies": len(self.filtered_movies_per_client[client_id]),
                     "client_id": client_id
                 }
-                logger.info(f"Se va a enviar: {result_message}")
                 if self.producer.enqueue(result_message):
                     logger.info(f"Resultado final enviado con {len(self.filtered_movies_per_client[client_id])} películas")
                     self.filtered_movies_per_client[client_id] = []
