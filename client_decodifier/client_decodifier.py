@@ -19,9 +19,9 @@ class ClientDecodifier(Worker):
         super().__init__()
         self.csv_receiver = CSVReceiver()
         
-        # self.producer = Producer("movie_main_filter")
-        # self.actor_producer = Producer("credits")
-        # self.rating_producer = Producer("ratings")
+        self.movie_producer = Producer("movie_main_filter")
+        self.credit_producer = Producer("credits")
+        self.rating_producer = Producer("ratings")
         self.test_producer = Producer("result_comparator")
         
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
@@ -29,14 +29,14 @@ class ClientDecodifier(Worker):
         self.results_received = 0
         self.shutdown_event = threading.Event()
 
-    # def get_producer_for_type(self, file_type: str) -> Producer:
-    #     if file_type == "movie":
-    #         return self.producer
-    #     elif file_type == "actor":
-    #         return self.actor_producer
-    #     elif file_type == "rating":
-    #         return self.rating_producer
-    #     return None
+    def get_producer_for_type(self, file_type: str) -> Producer:
+        if file_type == "movie":
+            return self.movie_producer
+        elif file_type == "credit":
+            return self.credit_producer
+        elif file_type == "rating":
+            return self.rating_producer
+        return None
 
     def process_connection(self, client_socket, client_id: str):
         """Procesa los batches de una conexión"""
@@ -46,8 +46,8 @@ class ClientDecodifier(Worker):
         try:
             total_batches = 0
             logger.info("Iniciando procesamiento de nueva conexión")
-            
-            for batch, is_last, metadata in self.csv_receiver.process_connection(client_socket):
+            generator = self.csv_receiver.process_connection(client_socket)
+            for batch, is_last, metadata in generator:
                 if metadata.type == "movie":
                     producer = movie_producer
                 elif metadata.type == "actor":
@@ -72,8 +72,7 @@ class ClientDecodifier(Worker):
                     "client_id": client_id
                 }
 
-                if is_last:
-                    logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
+                logger.info(f"Enviando {metadata.type} de {client_id}")
 
                 if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
@@ -152,9 +151,10 @@ class ClientDecodifier(Worker):
     def close(self):
         logger.info(f"Closing all workers")
         #self.shutdown_producer.enqueue("shutdown")
-        # self.producer.close()
-        # self.actor_producer.close()
+        self.movie_producer.close()
+        self.credit_producer.close()
         self.result_consumer.close()
+        self.rating_producer.close()
 
     @staticmethod
     def send(message: dict, producer) -> bool:

@@ -46,7 +46,6 @@ class CSVSender:
         return False
 
     def _send_all(self, data: bytes) -> bool:
-        """Asegura que todos los datos sean enviados"""
         total_sent = 0
         while total_sent < len(data):
             sent = self.socket.send(data[total_sent:])
@@ -56,56 +55,59 @@ class CSVSender:
         return True
 
     def _send_line(self, line: str) -> bool:
-        """Envía una línea asegurando que termine en \n"""
         if not line.endswith('\n'):
             line += '\n'
         line_bytes = line.encode('utf-8')
         length = len(line_bytes)
-        
-        # Enviar longitud de la línea primero
         length_bytes = str(length).zfill(10).encode('utf-8')
         if not self._send_all(length_bytes):
             return False
-            
-        # Enviar la línea
         return self._send_all(line_bytes)
 
-    def send_csv(self, file_path: str, file_type: str) -> bool:
-        """Envía un archivo CSV línea por línea"""
+    def send_multiple_csv(self, file_list: List[Tuple[str, str]]) -> bool:
         if not self.connect():
             logger.error("No se pudo establecer conexión con el servidor")
-            raise ConnectionError("No se pudo establecer conexión con el servidor")
+            return False
 
         try:
-            # Enviar metadata
-            metadata = CSVMetadata(
-                name=os.path.basename(file_path),
-                type=file_type
-            )
-            metadata_str = f"{metadata.name}|{metadata.type}"
-            if not self._send_line(metadata_str):
-                raise ConnectionError("Error enviando metadata")
+            logger.info("Enviando archivos CSV...")
+            for file_path, file_type in file_list:
+                if not self.enviar_archivo(file_path, file_type):
+                    logger.error(f"Fallo al enviar archivo: {file_path}")
+                    return False
 
-            # Enviar archivo línea por línea
-            with open(file_path, 'r') as file:
-                for line in file:
-                    if not self._send_line(line.strip()):
-                        raise ConnectionError("Error enviando línea del archivo")
+            if not self._send_line("ALL_EOF"):
+                logger.error("Error enviando ALL_EOF")
+                return False
 
-            # Enviar marca de fin de archivo
-            if not self._send_line("EOF"):
-                raise ConnectionError("Error enviando marca EOF")
-
-            logger.info(f"Archivo {file_path} enviado exitosamente")
             return True
 
         except Exception as e:
-            logger.error(f"Error enviando archivo: {e}")
-            raise
-        finally:
-            if self.socket:
-                self.socket.close()
-                self.socket = None
+            logger.error(f"[ERROR] Error durante envío múltiple: {e}")
+            return False
+
+    def enviar_archivo(self, file_path, file_type) -> bool:
+        logger.info(f"Enviando archivo {file_path} de tipo {file_type}")
+
+        metadata = CSVMetadata(name=os.path.basename(file_path), type=file_type)
+        metadata_str = f"{metadata.name}|{metadata.type}"
+        if not self._send_line(metadata_str):
+            logger.error(f"Error enviando metadata de {file_path}")
+            return False
+
+        with open(file_path, 'r') as file:
+            for line in file:
+                if not self._send_line(line.strip()):
+                    logger.error(f"Error enviando línea en {file_path}")
+                    return False
+
+        if not self._send_line("EOF"):
+            logger.error(f"Error enviando EOF de {file_path}")
+            return False
+
+        logger.info(f"Archivo {file_path} enviado exitosamente")
+        return True
+
 
 class CSVReceiver:
     def __init__(self, host: str = "0.0.0.0", port: int = 50000):
@@ -126,7 +128,6 @@ class CSVReceiver:
             return False
 
     def _recv_all(self, sock: socket.socket, n: int) -> bytes:
-        """Recibe exactamente n bytes"""
         data = bytearray()
         while len(data) < n:
             packet = sock.recv(n - len(data))
@@ -136,56 +137,55 @@ class CSVReceiver:
         return bytes(data)
 
     def _recv_line(self, sock: socket.socket) -> Optional[str]:
-        """Recibe una línea completa"""
         try:
-            # Recibir longitud de la línea
             length_bytes = self._recv_all(sock, 10)
             if not length_bytes:
                 return None
             length = int(length_bytes.decode('utf-8'))
-
-            # Recibir la línea
             line_bytes = self._recv_all(sock, length)
             if not line_bytes:
                 return None
             return line_bytes.decode('utf-8').strip()
-
         except Exception as e:
             logger.error(f"Error recibiendo línea: {e}")
             return None
 
     def process_connection(self, client_socket) -> Generator[Tuple[List[str], bool, CSVMetadata], None, None]:
         try:
-            # Recibir metadata
-            metadata_line = self._recv_line(client_socket)
-            if not metadata_line:
-                logger.error("No se recibió metadata")
-                return
-            
-            name, file_type = metadata_line.split('|')
-            metadata = CSVMetadata(name, file_type)
-            current_batch = []
-            line_count = 0
-            
             while True:
-                line = self._recv_line(client_socket)
-                if not line:
-                    logger.error("Error recibiendo línea")
-                    break
-                    
-                if line == "EOF":
-                    logger.info("Fin de archivo recibido")
-                    if current_batch:
-                        logger.info(f"Enviando último batch de {len(current_batch)} líneas")
-                        yield current_batch, True, metadata
+                metadata_line = self._recv_line(client_socket)
+                if not metadata_line:
+                    logger.error("No se recibió metadata")
                     break
 
-                line_count += 1
-                current_batch.append(line)
-                
-                if len(current_batch) >= 1000:
-                    yield current_batch, False, metadata
-                    current_batch = []
+                if metadata_line == "ALL_EOF":
+                    logger.info("Fin de transmisión de todos los archivos")
+                    break
+
+                name, file_type = metadata_line.split('|')
+                metadata = CSVMetadata(name, file_type)
+                current_batch = []
+                line_count = 0
+
+                while True:
+                    line = self._recv_line(client_socket)
+                    if not line:
+                        logger.error("Error recibiendo línea")
+                        return
+
+                    if line == "EOF":
+                        logger.info(f"Fin de archivo '{name}' recibido")
+                        if current_batch:
+                            logger.info(f"Enviando último batch de {len(current_batch)} líneas")
+                            yield current_batch, True, metadata
+                        break
+
+                    line_count += 1
+                    current_batch.append(line)
+
+                    if len(current_batch) >= 1000:
+                        yield current_batch, False, metadata
+                        current_batch = []
 
             
         except Exception as e:

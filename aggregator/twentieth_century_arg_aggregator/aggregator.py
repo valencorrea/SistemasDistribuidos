@@ -1,7 +1,7 @@
 import logging
 
 from middleware.consumer.consumer import Consumer
-from collections import defaultdict 
+from collections import defaultdict
 from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
 from worker.worker import Worker
