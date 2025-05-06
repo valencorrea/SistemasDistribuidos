@@ -93,24 +93,6 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
             },
-            "credits_joiner": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "joiner/credits/credits_joiner.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "ratings_joiner": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "joiner/ratings/ratings_joiner.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
             "sentiment_aggregator": {
                 "build": {
                     "context": ".",
@@ -132,8 +114,8 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
     worker_definitions = {
         "twentieth_century_filter": ("filters/twentieth_century/twentieth_century_filter.dockerfile", workers_twentieth_century),
         "arg_production_filter": ("filters/arg_production/arg_production_filter.dockerfile", workers_arg_production),
-        "workers_credits": ("joiner/credits/credits_joiner.dockerfile", workers_credits),
-        "workers_ratings": ("joiner/ratings/ratings_joiner.dockerfile", workers_ratings),
+        "credits_joiner": ("joiner/credits/credits_joiner.dockerfile", workers_credits),
+        "ratings_joiner": ("joiner/ratings/ratings_joiner.dockerfile", workers_ratings),
         "main_movie_filter": ("filters/main_movie_filter/main_movie_filter.dockerfile", workers_main_movie),
         "esp_production_filter": ("filters/esp_production/esp_production_filter.dockerfile", workers_esp_production),
         "no_colab_productions_filter": ("filters/no_colab_productions/no_colab_productions_filter.dockerfile", workers_no_colab_productions),
