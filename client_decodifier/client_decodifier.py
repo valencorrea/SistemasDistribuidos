@@ -39,13 +39,25 @@ class ClientDecodifier(Worker):
         return None
 
     def process_connection(self, client_socket, client_id: str):
+        """Procesa los batches de una conexión"""
+        movie_producer = Producer("movie_main_filter")
+        actor_producer = Producer("credits")
+        rating_producer = Producer("ratings")
         try:
             total_batches = 0
             logger.info("Iniciando procesamiento de nueva conexión")
-
             generator = self.csv_receiver.process_connection(client_socket)
             for batch, is_last, metadata in generator:
-                producer = self.get_producer_for_type(metadata.type)
+                if metadata.type == "movie":
+                    producer = movie_producer
+                elif metadata.type == "actor":
+                    producer = actor_producer
+                elif metadata.type == "rating":
+                    producer = rating_producer
+                else:
+                    logger.error(f"Metadata no reconocido")
+                    return
+
                 if not producer:
                     logger.error(f"Tipo de archivo no válido: {metadata.type}")
                     continue
@@ -71,6 +83,11 @@ class ClientDecodifier(Worker):
             
         except Exception as e:
             logger.error(f"Error en process_connection: {e}", exc_info=True)
+        finally:
+            # Clean up to avoid open connections
+            movie_producer.close()
+            actor_producer.close()
+            rating_producer.close()
 
 
     def start(self):

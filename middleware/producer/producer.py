@@ -70,6 +70,7 @@ class Producer:
             return False
 
     def enqueue(self, message: Any, routing_key_override: Optional[str] = None) -> bool:
+        logger.info(f"Intentando enviar mensaje a la cola: {self._queue_name}")
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():

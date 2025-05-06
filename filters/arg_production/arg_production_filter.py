@@ -37,17 +37,21 @@ class ArgProductionFilter(Worker):
         self.consumer.start_consuming()
 
     def handle_message(self, message):
-
+        client_id = message.get("client_id")
+        logger.info(f"Mensaje de batch de peliculas 2000 filtradas recibido: {len(message.get('movies', None))} peliculas del cliente {client_id}")
         movies = convert_data(message)
         filtered_movies = self.apply_filter(movies)
-
+        total_batches = message.get("total_batches", 0)
         result = {
             "movies": [movie.to_dict() for movie in filtered_movies],
             "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
+            "total_batches": total_batches,
             "type": "batch_result",
-            "client_id": message.get("client_id")
+            "client_id": client_id
         }
+
+        if total_batches != 0:
+            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         self.esp_production_producer.enqueue(result)
         self.batch_results_producer.enqueue(result)

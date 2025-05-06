@@ -6,7 +6,7 @@ import uuid
 from typing import Callable, Any, Optional, Literal
 
 import pika
-
+import datetime
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -69,10 +69,12 @@ class Consumer:
 
     def _on_message(self, channel, method, properties, body):
         try:
+            timestamp = get_timestamp()
+            logger.info(f"📥 Message received. Timestamp: {timestamp}")
             message = json.loads(body)
-            logger.info(f"📥 Message received")
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
+            logger.info(f"📥 Message acked---. Timestamp: {timestamp}")
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")
@@ -107,3 +109,8 @@ class Consumer:
                 logger.info("Connection closed successfully")
         except Exception as e:
             logger.error(f"Error closing connection: {e}")
+
+
+def get_timestamp():
+    now = datetime.datetime.now()
+    return now.strftime('%Y-%m-%dT%H:%M:%S') + ('-%02d' % (now.microsecond / 10000))
