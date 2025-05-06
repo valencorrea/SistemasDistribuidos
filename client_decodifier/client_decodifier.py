@@ -18,25 +18,13 @@ class ClientDecodifier(Worker):
     def __init__(self):
         super().__init__()
         self.csv_receiver = CSVReceiver()
-        
-        self.movie_producer = Producer("movie_main_filter")
-        self.credit_producer = Producer("credits")
-        self.rating_producer = Producer("ratings")
+
         self.test_producer = Producer("result_comparator")
         
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.results_received = 0
         self.shutdown_event = threading.Event()
-
-    def get_producer_for_type(self, file_type: str) -> Producer:
-        if file_type == "movie":
-            return self.movie_producer
-        elif file_type == "credit":
-            return self.credit_producer
-        elif file_type == "rating":
-            return self.rating_producer
-        return None
 
     def process_connection(self, client_socket, client_id: str):
         """Procesa los batches de una conexión"""
@@ -50,7 +38,7 @@ class ClientDecodifier(Worker):
             for batch, is_last, metadata in generator:
                 if metadata.type == "movie":
                     producer = movie_producer
-                elif metadata.type == "actor":
+                elif metadata.type == "credit":
                     producer = actor_producer
                 elif metadata.type == "rating":
                     producer = rating_producer
@@ -74,13 +62,16 @@ class ClientDecodifier(Worker):
 
                 logger.info(f"Enviando {metadata.type} de {client_id}")
 
+                if is_last:
+                    logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
+
                 if not self.send(message, producer):
                     logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 
                 total_batches += len(batch)
 
             logger.info(f"Procesamiento completado. Total de batches enviados: {total_batches}")
-            
+
         except Exception as e:
             logger.error(f"Error en process_connection: {e}", exc_info=True)
         finally:
@@ -151,8 +142,8 @@ class ClientDecodifier(Worker):
     def close(self):
         logger.info(f"Closing all workers")
         #self.shutdown_producer.enqueue("shutdown")
-        self.movie_producer.close()
-        self.credit_producer.close()
+        # self.producer.close()
+        # self.actor_producer.close()
         self.result_consumer.close()
         self.rating_producer.close()
 
