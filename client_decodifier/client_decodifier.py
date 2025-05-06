@@ -32,9 +32,9 @@ class ClientDecodifier(Worker):
         actor_producer = Producer("credits")
         rating_producer = Producer("ratings")
         try:
-            total_batches = 0
             logger.info("Iniciando procesamiento de nueva conexión")
             generator = self.csv_receiver.process_connection(client_socket)
+            last_metadata = None
             for batch, is_last, metadata in generator:
                 if metadata.type == "movie":
                     producer = movie_producer
@@ -45,7 +45,9 @@ class ClientDecodifier(Worker):
                 else:
                     logger.error(f"Metadata no reconocido")
                     return
-
+                if last_metadata != metadata.type:
+                    total_batches = 0
+                last_metadata = metadata.type
                 if not producer:
                     logger.error(f"Tipo de archivo no válido: {metadata.type}")
                     continue
@@ -70,7 +72,7 @@ class ClientDecodifier(Worker):
                 
                 total_batches += len(batch)
 
-            logger.info(f"Procesamiento completado. Total de batches enviados: {total_batches}")
+                logger.info(f"Enviado hasta el momento total_batches: {total_batches}")
 
         except Exception as e:
             logger.error(f"Error en process_connection: {e}", exc_info=True)

@@ -43,21 +43,23 @@ class RatingsJoiner(Worker):
 
     def handle_ratings_amounts(self, message):
         try:
+            logger.info(f"Mensaje de control de ratings recibido")
             message_type = message.get("type")
             client_id = message.get("client_id")
             amount = int(message.get("amount", 0))
             if message_type == "total_batches":
                 self.total_ratings_batches_per_client[client_id] = amount
+                logger.info(f"Actualizado total_batches {amount} a {self.total_ratings_batches_per_client[client_id] }")
             elif message_type == "batch_size":
-                self.received_ratings_batches_per_client[client_id] = \
-                    self.received_ratings_batches_per_client.get(client_id, 0) + amount
+                self.received_ratings_batches_per_client[client_id] = self.received_ratings_batches_per_client.get(client_id, 0) + amount
+                logger.info(f"Actualizado batch_size {amount} a {self.received_ratings_batches_per_client[client_id] }")
             else:
                 logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message_type}")
                 return
 
             total = self.total_ratings_batches_per_client.get(client_id, None)
             received = self.received_ratings_batches_per_client.get(client_id, 0)
-
+            logger.info(f"Control de ratings total: {total} received: {received}")
             if total is not None and 0 < total <= received:
                 logger.info(
                     f"Ya fueron procesados todos los batches ({received}/{total}) para el cliente {client_id}. Enviando el acumulado.")
