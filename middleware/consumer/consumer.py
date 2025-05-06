@@ -43,11 +43,11 @@ class Consumer:
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
-                durable=False
+                durable=True
             )
 
             if self._queue_type == 'direct':
-                self._channel.queue_declare(queue=self._queue_name, durable=False)
+                self._channel.queue_declare(queue=self._queue_name, durable=True)
                 queue_name = self._queue_name
             else:
                 result = self._channel.queue_declare(queue='', exclusive=True, auto_delete=True)

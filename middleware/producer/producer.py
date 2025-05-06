@@ -40,7 +40,7 @@ class Producer:
             self._channel.exchange_declare(
                 exchange=self._exchange_name,
                 exchange_type=self._queue_type,
-                durable=False
+                durable=True
             )
 
             # Solo declarar y vincular cola si es tipo direct
@@ -53,7 +53,7 @@ class Producer:
 
                 self._channel.queue_declare(
                     queue=self._queue_name,
-                    durable=False,
+                    durable=True,
                     arguments=queue_args or None
                 )
                 self._channel.queue_bind(

@@ -1,3 +1,4 @@
+import threading
 from collections import defaultdict
 import logging
 from fileinput import close
@@ -18,10 +19,12 @@ logging.basicConfig(
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
+        self.shutdown_event = threading.Event()
+
         self.movies_per_client = defaultdict(set)
         # TODO consumir el result de 20th century aggregator
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                        message_handler=self.handle_movies_result_message)
+                                        message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
                                         _message_handler=self.handle_credits_message)
         self.producer = Producer("top_10_actors_from_batch")
@@ -33,7 +36,7 @@ class CreditsJoiner(Worker):
         )
 
         self.movies = {}
-        self.client_id = "client-id"
+        self.client_id = "client_id"
 
 
     def close(self):
@@ -42,14 +45,13 @@ class CreditsJoiner(Worker):
             self.movies_consumer.close()
             self.credits_consumer.close()
             self.producer.close()
-            self.shutdown_consumer.close()
             self.pending_producer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_credits_message(self, message):
         try:
-            logger.info(f"Mensaje de credits recibido")
+            logger.info(f"Mensaje de credits recibido - cliente: " + str(message.get("client_id")))
             client_id = message.get("client_id")
 
             if client_id not in self.movies:
@@ -96,7 +98,7 @@ class CreditsJoiner(Worker):
             self.close()
 
     def handle_movies_message(self, message):
-        logger.info(f"Mensaje de movies recibido")
+        logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
         if message.get("type") == "20_century_arg_total_result":
             self.process_movie_message(message)
         else:
@@ -110,7 +112,10 @@ class CreditsJoiner(Worker):
     def start(self):
         logger.info("Iniciando filtro de películas españolas")
         try:
-            self.movies_consumer.start()
+            thread = threading.Thread(target=self.movies_consumer.start)
+            thread.daemon = True
+            thread.start()
+            self.shutdown_event.wait()
         finally:
             self.close()
 
