@@ -4,7 +4,7 @@ import yaml
 def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_no_colab_productions,
                          workers_sentiment, workers_arg_production, workers_credits, workers_ratings):
 
-    common_volumes = [
+    client_volumes = [
         "./files/movies_metadata.csv:/root/files/movies_metadata.csv",
         "./files/credits.csv:/root/files/credits.csv",
         "./files/ratings.csv:/root/files/ratings.csv",
@@ -44,7 +44,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 },
                 "environment": ["PYTHONUNBUFFERED=1", "DECODIFIER_HOST=client_decodifier", "DECODIFIER_PORT=50000"],
                 "depends_on": ["client_decodifier"],
-                "volumes": common_volumes
+                "volumes": client_volumes
             },
             "twentieth_century_arg_esp_aggregator": {
                 "build": {
@@ -121,8 +121,7 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
     }
 
     for service_name, (dockerfile_path, worker_count) in worker_definitions.items():
-        # Servicio principal
-        template["services"][service_name] = {
+        service_def = {
             "build": {
                 "context": ".",
                 "dockerfile": dockerfile_path,
@@ -132,8 +131,14 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
             "links": ["rabbitmq"],
             "environment": ["PYTHONUNBUFFERED=1"]
         }
-        if template["services"][service_name]["image"] is None:
-            del template["services"][service_name]["image"]
+
+        if service_name == "credits_joiner":
+            service_def["volumes"] = ["./files:/root/files"]
+
+        if service_def["image"] is None:
+            del service_def["image"]
+
+        template["services"][service_name] = service_def
 
         # Workers adicionales
         for i in range(1, worker_count):
