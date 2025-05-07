@@ -35,6 +35,22 @@ services:
     - ./files/credits.csv:/root/files/credits.csv
     - ./middleware:/app/middleware
     - ./files/ratings.csv:/root/files/ratings.csv
+  client-2:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    container_name: client-2
+    depends_on:
+      - client_decodifier
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DECODIFIER_HOST=client_decodifier
+      - DECODIFIER_PORT=50000
+    volumes:
+      - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
+      - ./files/credits.csv:/root/files/credits.csv
+      - ./middleware:/app/middleware
+      - ./files/ratings.csv:/root/files/ratings.csv
   client_decodifier:
     build:
       context: .
@@ -55,6 +71,8 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
+    volumes:
+    - ./files:/root/files
   esp_production_filter:
     build:
       context: .
