@@ -166,8 +166,13 @@ class RatingsJoiner(Worker):
 
     def start(self):
         logger.info("Iniciando joiner de ratings")
-        self.amounts_control_consumer.start()
-        self.movies_consumer.start()
+        try:
+            logger.info("Iniciando joiner de ratings")
+            self.amounts_control_consumer.start()
+            self.movies_consumer.start()
+            self.shutdown_event.wait()
+        finally:
+            self.close()
 
 if __name__ == '__main__':
     worker = RatingsJoiner()

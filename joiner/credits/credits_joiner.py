@@ -31,12 +31,12 @@ class CreditsJoiner(Worker):
         self.producer = Producer("top_10_actors_from_batch")
         self.credits_producer = Producer(
             queue_name="credits",
-            queue_type="direct"
+            queue_type="direct")
         self.actor_counts = {}
         self.movies = {}
         self.client_id = None
-        self.amounts_control_producer = Publisher("ratings_amounts")
-        self.amounts_control_consumer = Subscriber("ratings_amounts",
+        self.amounts_control_producer = Publisher("credits_amounts")
+        self.amounts_control_consumer = Subscriber("credits_amounts",
                                                    message_handler=self.handle_amounts)
 
     def handle_amounts(self, message):
@@ -108,8 +108,8 @@ class CreditsJoiner(Worker):
                     else:
                         self.actor_counts[client_id][actor_id]["count"] += 1
             total_batches = message.get("total_batches")
-            batch_size =message.get("batch_size") != 0
-            if message.gettotal_batches != 0: # Mensaje que contiene el total. Uno por cliente.
+            batch_size = message.get("batch_size") != 0
+            if total_batches != 0: # Mensaje que contiene el total. Uno por cliente.
                 logger.info(f"Se envia la cantidad total de batches: {total_batches}.")
                 self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
 
@@ -163,15 +163,13 @@ class CreditsJoiner(Worker):
         self.credits_consumer.start_consuming()
 
     def start(self):
-        logger.info("Iniciando filtro de películas españolas")
+        logger.info("Iniciando joiner de credits")
         try:
-            thread = threading.Thread(target=self.movies_consumer.start)
-            thread.daemon = True
-            thread.start()
+            self.amounts_control_consumer.start()
+            self.movies_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()
-
 
 if __name__ == '__main__':
     worker = CreditsJoiner()
