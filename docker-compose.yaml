@@ -34,7 +34,7 @@ services:
     - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
     - ./files/credits.csv:/root/files/credits.csv
     - ./middleware:/app/middleware
-    - ./files/ratings_small.csv:/root/files/ratings.csv
+    - ./files/ratings.csv:/root/files/ratings.csv
   client_decodifier:
     build:
       context: .
