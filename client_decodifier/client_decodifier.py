@@ -27,7 +27,6 @@ class ClientDecodifier(Worker):
         self.shutdown_event = threading.Event()
 
     def process_connection(self, client_socket, client_id: str):
-        """Procesa los batches de una conexión"""
         movie_producer = Producer("movie_main_filter")
         actor_producer = Producer("credits")
         rating_producer = Producer("ratings")

@@ -2,16 +2,14 @@ import sys
 import yaml
 
 def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_no_colab_productions,
-                         workers_sentiment, workers_arg_production, workers_credits, workers_ratings, test_mode):
-    ratings_source_file = "ratings_small.csv" if test_mode else "ratings.csv"
+                         workers_sentiment, workers_arg_production, workers_credits, workers_ratings):
 
     common_volumes = [
         "./files/movies_metadata.csv:/root/files/movies_metadata.csv",
         "./files/credits.csv:/root/files/credits.csv",
-        "./middleware:/app/middleware",
-        f"./files/{ratings_source_file}:/root/files/ratings.csv"
+        "./files/ratings.csv:/root/files/ratings.csv",
+        "./middleware:/app/middleware"
     ]
-    print("ratings: ", ratings_source_file)
 
     template = {
         "services": {
@@ -177,6 +175,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _workers_credits, _workers_ratings, test_mode=True if _file == "short" else False
+        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _workers_credits, _workers_ratings,
     )
     dump_yaml_to_file(docker_compose_template, compose_filename)
