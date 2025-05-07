@@ -63,7 +63,7 @@ class Aggregator(Worker):
                 "type": "best_and_worst_movies",
                 "actors": result
             })
-            logger.info("Resultado de mejor y peor pelicula enviado.")
+            logger.info(f"Resultado de mejor y peor pelicula enviado: {result}")
 
     def obtain_result(self, client_id):
         max_rating = float('-inf')

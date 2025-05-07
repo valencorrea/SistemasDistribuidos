@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 import uuid
 from typing import Callable, Any, Optional, Literal
 
@@ -15,10 +16,11 @@ logging.basicConfig(
     datefmt='%H:%M:%S')
 
 
-class Consumer:
+class Consumer(threading.Thread):
     def __init__(self, queue_name: str,
                  _message_handler: Optional[Callable[[dict], Any]] = None,
                  queue_type: Literal['direct', 'fanout'] = 'direct'):
+        super().__init__()
         self._queue_name = queue_name
         self._queue_type = queue_type
         self._message_handler = _message_handler or (lambda x: x)
@@ -70,11 +72,11 @@ class Consumer:
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.info(f"📥 Message received. Timestamp: {timestamp}")
+            logger.info(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"📥 Message acked---. Timestamp: {timestamp}")
+            logger.info(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")
@@ -109,6 +111,10 @@ class Consumer:
                 logger.info("Connection closed successfully")
         except Exception as e:
             logger.error(f"Error closing connection: {e}")
+    
+    def run(self):
+        logger.info(f"🟢 Starting direct consumer '{self._queue_name}'")
+        self.start_consuming()
 
 
 def get_timestamp():
