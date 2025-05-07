@@ -35,7 +35,7 @@ class Aggregator(Worker):
         logger.info(f"Mensaje de ratings recibido: {message}")
         ratings = message.get("ratings")
         logger.info(f"Se obtuvieron {len(ratings)} ratings: {ratings}.")
-        batch_size = int(message.get("batch_size", 0))
+        batch_size = int(message.get("processed_batches", 0))
         total_batches = int(message.get("total_batches", 0))
         client_id = message.get("client_id", None)
         if batch_size != 0:
@@ -63,6 +63,9 @@ class Aggregator(Worker):
                 "type": "best_and_worst_movies",
                 "actors": result
             })
+            self.movies_ratings.pop(client_id)
+            self.received_batches_per_client.pop(client_id)
+            self.total_batches_per_client.pop(client_id)
             logger.info("Resultado de mejor y peor pelicula enviado.")
 
     def obtain_result(self, client_id):

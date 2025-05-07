@@ -19,8 +19,10 @@ class RatingsJoiner(Worker):
     def __init__(self):
         super().__init__()
         self.movies_ratings = defaultdict(dict)
-        self.received_ratings_batches_per_client = {}
-        self.total_ratings_batches_per_client = {}
+        self.received_ratings_batches_per_client = defaultdict(int)
+        self.total_ratings_batches_per_client = defaultdict(int)
+
+        self.processed_rating_batches_per_client = defaultdict(int)
         self.ratings_consumer = Consumer("ratings",
                                         _message_handler=self.handle_ratings_message)
         self.movies_consumer = Subscriber("20_century_arg_result",
@@ -68,6 +70,7 @@ class RatingsJoiner(Worker):
                     "ratings": self.get_movies_with_votes_for_client(client_id),
                     "batch_size": received,
                     "total_batches": total,
+                    "processed_batches": self.processed_rating_batches_per_client.get(client_id, 0),
                     "client_id": client_id
                 })
                 self.movies_ratings.pop(client_id)
@@ -122,7 +125,11 @@ class RatingsJoiner(Worker):
                 }
 
             logger.info(f"{len(self.movies_ratings[client_id])} películas guardadas para {client_id}")
-            self.ratings_consumer.start_consuming()
+            if not self.ratings_consumer.is_alive():
+                self.ratings_consumer.start()
+                logger.info("Thread de consumo de peliculas empezado")
+            else:
+                logger.info("Thread de consumo de peliculas no empezado, ya existe uno")
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
@@ -134,7 +141,7 @@ class RatingsJoiner(Worker):
             logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
             client_id = message.get("client_id")
             logger.info(f"Se tienen {len(self.movies_ratings[client_id])} peliculas para el cliente {client_id}")
-
+            self.processed_rating_batches_per_client[client_id] += message.get("batch_size", 0)
             for rating in ratings:
                 if not isinstance(rating, dict):
                     continue
@@ -161,7 +168,6 @@ class RatingsJoiner(Worker):
         logger.info("Iniciando joiner de ratings")
         self.amounts_control_consumer.start()
         self.movies_consumer.start()
-
 
 if __name__ == '__main__':
     worker = RatingsJoiner()
