@@ -70,11 +70,11 @@ class Consumer:
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.info(f"📥 Message received. Timestamp: {timestamp}")
+            #logger.info(f"📥 Message received. Timestamp: {timestamp}")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"📥 Message acked---. Timestamp: {timestamp}")
+            #logger.info(f"📥 Message acked---. Timestamp: {timestamp}")
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")

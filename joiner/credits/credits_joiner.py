@@ -1,7 +1,7 @@
-import threading
-from collections import defaultdict
+import json
 import logging
-from fileinput import close
+import os
+import threading
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
@@ -9,30 +9,28 @@ from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
 
+PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
     datefmt='%H:%M:%S')
 
-
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
         self.shutdown_event = threading.Event()
 
-        self.movies_per_client = defaultdict(set)
         # TODO consumir el result de 20th century aggregator
         self.movies_consumer = Subscriber("20_century_arg_result",
                                         message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
                                         _message_handler=self.handle_credits_message)
         self.producer = Producer("top_10_actors_from_batch")
-        self.pending_producer = Producer(
-            queue_name="credits_pending",
-            queue_type="direct",
-            dlx="direct_exchange",
-            ttl=2000
+        self.credits_producer = Producer(
+            queue_name="credits",
+            queue_type="direct"
         )
 
         self.movies = {}
@@ -45,7 +43,7 @@ class CreditsJoiner(Worker):
             self.movies_consumer.close()
             self.credits_consumer.close()
             self.producer.close()
-            self.pending_producer.close()
+            self.credits_producer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -55,8 +53,9 @@ class CreditsJoiner(Worker):
             client_id = message.get("client_id")
 
             if client_id not in self.movies:
-                logger.info("client id " + "not ready for credits file")
-                self.pending_producer.enqueue(message, routing_key_override="credits")
+                logger.info("client id " + "not ready for credits file. Saving locally")
+                with open(PENDING_MESSAGES, "a") as f:
+                    f.write(json.dumps(message) + "\n")
                 return
 
             actor_counts = {}
@@ -64,7 +63,6 @@ class CreditsJoiner(Worker):
             movies_per_client = self.movies.get(client_id, set())
             for actor in actors:
                 if actor.movie_id in movies_per_client:
-                    logger.info(f"Actor encontrado para una pelicula argentina.")
                     actor_id = actor.id
                     actor_name = actor.name
                     if actor_id not in actor_counts:
@@ -73,10 +71,6 @@ class CreditsJoiner(Worker):
                         actor_counts[actor_id]["count"] += 1
 
             top_10 = sorted(actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
-
-            logger.info("Top 10 actores con más contribuciones:")
-            for actor_id, info in top_10:
-                logger.info(f"{info['name']}: {info['count']} contribuciones")
 
             result_message = {
                 "type": "query_4_top_10_actores_credits",
@@ -105,8 +99,30 @@ class CreditsJoiner(Worker):
             logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
 
     def process_movie_message(self, message):
-        self.movies[message.get("client_id")] = {movie["id"] for movie in message.get("movies")}
+        client_id = message.get("client_id")
+        self.movies[client_id] = {movie["id"] for movie in message.get("movies")}
         logger.info(f"Obtenidas {message.get('total_movies')} películas")
+
+        if os.path.exists(PENDING_MESSAGES):
+
+            if os.path.exists(PENDING_MESSAGES):
+                temp_path = PENDING_MESSAGES + ".tmp"
+                with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                    for line in reading_file:
+                        try:
+                            msg = json.loads(line)
+                        except json.JSONDecodeError:
+                            logger.warning("Invalid file line.")
+                            continue
+
+                        if msg.get("client_id") == client_id:
+                            logger.info(f"Reprocessing message for client {client_id}")
+                            self.credits_producer.enqueue(msg)
+                        else:
+                            writing_file.write(line)
+
+                os.replace(temp_path, PENDING_MESSAGES)
+
         self.credits_consumer.start_consuming()
 
     def start(self):
