@@ -91,7 +91,8 @@ class CreditsJoiner(Worker):
         try:
             logger.info(f"Mensaje de credits recibido - cliente: " + str(message.get("client_id")))
 
-            if client_id not in self.movies:
+            if client_id not in self.movies.keys():
+                os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
                 logger.info("client id " + "not ready for credits file. Saving locally")
                 with open(PENDING_MESSAGES, "a") as f:
                     f.write(json.dumps(message) + "\n")
@@ -142,7 +143,7 @@ class CreditsJoiner(Worker):
 
         if os.path.exists(PENDING_MESSAGES):
             temp_path = PENDING_MESSAGES + ".tmp"
-            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "a") as writing_file:
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
                 for line in reading_file:
                     try:
                         msg = json.loads(line)
@@ -157,6 +158,7 @@ class CreditsJoiner(Worker):
                         writing_file.write(line)
 
             os.replace(temp_path, PENDING_MESSAGES)
+            os.remove(temp_path)
 
         if not self.credits_consumer.is_alive():
             self.credits_consumer.start()
