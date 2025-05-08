@@ -48,7 +48,7 @@ class Aggregator(Worker):
             logger.info(f"Se va a aumentar la cantidad de registros de un actor: {count}: {type(count)}.")
             self.actor_counter_per_client[client_id][count["name"]] += count["count"]
 
-        if self.total_batches_per_client[client_id] is not None and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
+        if self.total_batches_per_client[client_id] is not None and self.total_batches_per_client[client_id] != 0 and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
             # Top 10 final encontrado
             final_top_10 = self.actor_counter_per_client[client_id].most_common(10)
             self.producer.enqueue({

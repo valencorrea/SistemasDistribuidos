@@ -83,6 +83,7 @@ class RatingsJoiner(Worker):
                 self.movies_ratings.pop(client_id)
                 self.total_ratings_batches_per_client.pop(client_id)
                 self.received_ratings_batches_per_client.pop(client_id)
+                self.processed_rating_batches_per_client.pop(client_id)
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje <{message}> de control de cantidades: {e}")

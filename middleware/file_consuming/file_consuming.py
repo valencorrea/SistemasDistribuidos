@@ -18,7 +18,7 @@ class CSVMetadata:
     has_header: bool = True
 
 class CSVSender:
-    def __init__(self, host: str = "localhost", port: int = 50000, timeout: int = 30):
+    def __init__(self, host: str = "localhost", port: int = 50000, timeout: int = 5000):
         self.host = host
         self.port = port
         self.socket = None

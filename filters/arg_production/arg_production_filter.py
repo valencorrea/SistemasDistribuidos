@@ -19,7 +19,6 @@ class ArgProductionFilter(Worker):
         self.consumer = Consumer("twentieth_century", _message_handler=self.handle_message)
         self.esp_production_producer = Producer("arg_production")
         self.batch_results_producer = Producer("20_century_batch_results")
-        self.rating_joiner_producer = Producer("rating_joiner")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
@@ -27,7 +26,6 @@ class ArgProductionFilter(Worker):
             self.consumer.close()
             self.esp_production_producer.close()
             self.batch_results_producer.close()
-            self.rating_joiner_producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
@@ -55,7 +53,6 @@ class ArgProductionFilter(Worker):
 
         self.esp_production_producer.enqueue(result)
         self.batch_results_producer.enqueue(result)
-        self.rating_joiner_producer.enqueue(result)
 
     @staticmethod
     def apply_filter(movies):

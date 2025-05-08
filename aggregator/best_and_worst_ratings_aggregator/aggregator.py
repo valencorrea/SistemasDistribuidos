@@ -60,7 +60,7 @@ class Aggregator(Worker):
         if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
             result = self.obtain_result(client_id)
             self.producer.enqueue({
-                "result_number": 1,
+                "result_number": 3,
                 "type": "best_and_worst_movies",
                 "actors": result,
                 "client_id": client_id

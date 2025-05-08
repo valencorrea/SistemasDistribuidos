@@ -67,13 +67,15 @@ class CreditsJoiner(Worker):
                     "type": "query_4_top_10_actores_credits",
                     "actors": top_10,
                     "client_id": client_id,
-                    "processed_batches": self.processed_rating_batches_per_client.get(client_id, 0)
+                    "processed_batches": self.processed_rating_batches_per_client.get(client_id, 0),
+                    "total_batches": self.total_credits_batches_per_client.get(client_id, 0)
                 }
                 self.producer.enqueue(result_message)
                 logger.info(f"Resultado enviado {result_message}.")
                 self.actor_counts.pop(client_id)
                 self.total_credits_batches_per_client.pop(client_id)
                 self.received_credits_batches_per_client.pop(client_id)
+                self.processed_rating_batches_per_client.pop(client_id)
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje <{message}> de control de cantidades: {e}")
