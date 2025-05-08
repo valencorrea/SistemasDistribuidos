@@ -93,7 +93,7 @@ class CreditsJoiner(Worker):
 
             if client_id not in self.movies.keys():
                 os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
-                logger.info("client id " + "not ready for credits file. Saving locally")
+                logger.info("client id " + client_id + " not ready for credits file. Saving locally")
                 with open(PENDING_MESSAGES, "a") as f:
                     f.write(json.dumps(message) + "\n")
                 return
@@ -158,7 +158,6 @@ class CreditsJoiner(Worker):
                         writing_file.write(line)
 
             os.replace(temp_path, PENDING_MESSAGES)
-            os.remove(temp_path)
 
         if not self.credits_consumer.is_alive():
             self.credits_consumer.start()

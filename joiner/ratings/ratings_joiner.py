@@ -61,7 +61,7 @@ class RatingsJoiner(Worker):
                 logger.debug(f"Actualizado total_batches {amount} a {self.total_ratings_batches_per_client[client_id] }")
             elif message_type == "batch_size":
                 self.received_ratings_batches_per_client[client_id] = self.received_ratings_batches_per_client.get(client_id, 0) + amount
-                logger.info(f"Actualizado batch_size {amount} a {self.received_ratings_batches_per_client[client_id] }")
+                logger.debug(f"Actualizado batch_size {amount} a {self.received_ratings_batches_per_client[client_id] }")
             else:
                 logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message_type}")
                 return
@@ -96,7 +96,7 @@ class RatingsJoiner(Worker):
         return movies_with_ratings
 
     def handle_movies_result_message(self, message):
-        logger.info(f"Mensaje de movies recibido")
+        logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
 
         if message.get("type") != "20_century_arg_total_result":
             logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
@@ -146,6 +146,7 @@ class RatingsJoiner(Worker):
                             self.ratings_producer.enqueue(pending_msg)
                         else:
                             outfile.write(line)
+
                 os.replace(temp_path, PENDING_MESSAGES)
 
             logger.info(f"{len(self.movies_ratings[client_id])} películas guardadas para {client_id}")
@@ -162,10 +163,11 @@ class RatingsJoiner(Worker):
 
     def handle_ratings_message(self, message):
         try:
-            logger.debug("Mensaje de ratings recibido")
+            logger.info(f"Mensaje de ratings recibido - cliente: " + str(message.get("client_id")))
             client_id = message.get("client_id")
             if client_id not in self.movies_ratings:
-                logger.info("client id " + "not ready for credits file. Saving locally")
+                os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
+                logger.info("client id " + client_id + " not ready for credits file. Saving locally")
                 with open(PENDING_MESSAGES, "a") as f:
                     f.write(json.dumps(message) + "\n")
                 return
@@ -189,9 +191,12 @@ class RatingsJoiner(Worker):
             logger.debug(f"Ratings procesados. Total actual: {len(self.movies_ratings)} batch_size {batch_size} total_batches {total_batches}")
 
             if batch_size != 0:
-                self.amounts_control_producer.enqueue({"type": "batch_size", "amount": batch_size, "client_id": client_id})
+                message = {"type": "batch_size", "amount": batch_size, "client_id": client_id}
+                self.amounts_control_producer.enqueue(message)
             if total_batches != 0:
-                self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
+                message = {"type": "total_batches","amount": total_batches, "client_id": client_id}
+                self.amounts_control_producer.enqueue(message)
+                logger.info("message " + str(message) + " enqueued")
                 logger.debug(f"Mensaje de control de cantidades de ratings enviado total_batches: {total_batches}")
         except Exception as e:
             logger.error(f"Error al procesar ratings: {e}")
