@@ -140,6 +140,40 @@ class CSVSender:
         logger.info(f"Archivo {file_path} enviado exitosamente ({line_count} líneas)")
         return True
 
+    def receive_results(self, expected_results: int = 5):
+        if not self.socket:
+            logger.error("No hay socket activo para recibir resultados")
+            return
+
+        try:
+            logger.info("Esperando resultados del servidor...")
+            buffer = b""
+            received_count = 0
+
+            while True:
+                chunk = self.socket.recv(4096)
+                if not chunk:
+                    logger.info("Conexión cerrada por el servidor")
+                    break
+                buffer += chunk
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    try:
+                        decoded_line = line.decode('utf-8')
+                        logger.info(f"Resultado recibido del servidor: {decoded_line}")
+                        received_count += 1
+                    except UnicodeDecodeError as e:
+                        logger.warning(f"Error decodificando línea: {e}")
+
+                    if received_count >= expected_results:
+                        logger.info(f"Se recibieron los {expected_results} resultados esperados.")
+                        return
+
+        except socket.timeout:
+            logger.warning("Timeout esperando resultados")
+        except Exception as e:
+            logger.error(f"Error recibiendo resultados: {e}")
+
 
 class CSVReceiver:
     def __init__(self, host: str = "0.0.0.0", port: int = 50000, timeout: int = 30):
