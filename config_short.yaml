@@ -4,7 +4,7 @@ clients:
   - id: 1
     files_path: ./files/short/client_1
   - id: 2
-    files_path: ./files/short/client_1
+    files_path: ./files/short/client_2
 
 workers:
   twentieth_century: 1

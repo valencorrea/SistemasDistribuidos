@@ -4,7 +4,7 @@ clients:
   - id: 1
     files_path: ./files/long/client_1
   - id: 2
-    files_path: ./files/long/client_1
+    files_path: ./files/long/client_2
 
 workers:
   twentieth_century: 1
@@ -13,7 +13,7 @@ workers:
   no_colab_productions: 1
   sentiment: 1
   arg_production: 1
-  credits: 1
-  ratings: 1
+  credits: 2
+  ratings: 2
 
-test: false
+test: true

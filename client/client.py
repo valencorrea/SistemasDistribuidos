@@ -21,9 +21,9 @@ class Client:
         success = False
 
         files_to_send = [
+            ("root/files/ratings.csv", "rating"),
             ("root/files/movies_metadata.csv", "movie"),
             ("root/files/credits.csv", "credit"),
-            ("root/files/ratings.csv", "rating")
         ]
 
         for retry in range(3):

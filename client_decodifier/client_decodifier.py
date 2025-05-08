@@ -20,7 +20,7 @@ class ClientDecodifier(Worker):
         self.client_sockets = {}
         self.client_sockets_lock = threading.Lock()
 
-        self.test_producer = Producer("result_comparator")
+        #self.test_producer = Producer("result_comparator")
 
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
@@ -163,7 +163,7 @@ class ClientDecodifier(Worker):
         else:
             logger.warning(f"No se encontró socket para client_id: {client_id}")
 
-        self.test_producer.enqueue(query_result)
+        #self.test_producer.enqueue(query_result)
 
     def close(self):
         logger.info(f"Closing all workers")
