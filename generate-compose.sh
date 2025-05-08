@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$#" -lt 2 ]; then
-    echo "Uso: $0 <archivo_salida> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_no_colab_production> <workers_sentiment> <workers_arg_production> <workers_credits> <workers_credits>"
+    echo "Uso: $0 <archivo_salida> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_no_colab_production> <workers_sentiment> <workers_arg_production> <workers_credits> <workers_credits> <workers_ratings>"
     exit 1
 fi
 
