@@ -1,16 +1,11 @@
 import sys
+
 import yaml
 
-def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_esp_production, workers_no_colab_productions,
-                         workers_sentiment, workers_arg_production, workers_credits, workers_ratings):
 
-    client_volumes = [
-        "./files/movies_metadata.csv:/root/files/movies_metadata.csv",
-        "./files/credits.csv:/root/files/credits.csv",
-        "./files/ratings.csv:/root/files/ratings.csv",
-        "./middleware:/app/middleware"
-    ]
-
+def generate_docker_yaml(config):
+    workers = config["workers"]
+    clients = config["clients"]
     template = {
         "services": {
             "rabbitmq": {
@@ -36,119 +31,102 @@ def generate_docker_yaml(workers_twentieth_century, workers_main_movie, workers_
                 "ports": ["50000:50000"],
                 "volumes": ["./middleware:/app/middleware"]
             },
-            "client": {
-                "container_name": "client",
-                "build": {
-                    "context": ".",
-                    "dockerfile": "client/client.dockerfile",
-                },
-                "environment": ["PYTHONUNBUFFERED=1", "DECODIFIER_HOST=client_decodifier", "DECODIFIER_PORT=50000"],
-                "depends_on": ["client_decodifier"],
-                "volumes": client_volumes
-            },
-            "twentieth_century_arg_esp_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "twentieth_century_arg_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "top_5_countries_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/top_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "top_10_credits_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/top_10_credits_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "best_and_worst_ratings_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "sentiment_aggregator": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "aggregator/sentiment_aggregator/aggregator.dockerfile",
-                },
-                "depends_on": ["rabbitmq"],
-                "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
-            },
-            "test": {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "test/integration.dockerfile",
-                },
-            }
         }
     }
-
-    worker_definitions = {
-        "twentieth_century_filter": ("filters/twentieth_century/twentieth_century_filter.dockerfile", workers_twentieth_century),
-        "arg_production_filter": ("filters/arg_production/arg_production_filter.dockerfile", workers_arg_production),
-        "credits_joiner": ("joiner/credits/credits_joiner.dockerfile", workers_credits),
-        "ratings_joiner": ("joiner/ratings/ratings_joiner.dockerfile", workers_ratings),
-        "main_movie_filter": ("filters/main_movie_filter/main_movie_filter.dockerfile", workers_main_movie),
-        "esp_production_filter": ("filters/esp_production/esp_production_filter.dockerfile", workers_esp_production),
-        "no_colab_productions_filter": ("filters/no_colab_productions/no_colab_productions_filter.dockerfile", workers_no_colab_productions),
-        "sentiment_filter": ("filters/sentiment_analizer/sentiment_analizer.dockerfile", workers_sentiment)
-    }
-
-    for service_name, (dockerfile_path, worker_count) in worker_definitions.items():
-        service_def = {
+    test_set = False
+    # Add multiple clients
+    for client in clients:
+        cid = client["id"]
+        path = client["files_path"]
+        name = f"client_{cid}"
+        template["services"][name] = {
+            "container_name": name,
             "build": {
                 "context": ".",
-                "dockerfile": dockerfile_path,
+                "dockerfile": "client/client.dockerfile",
             },
-            "image": f"{service_name}:latest" if service_name == "sentiment_filter" else None,
+            "environment": [
+                "PYTHONUNBUFFERED=1",
+                "DECODIFIER_HOST=client_decodifier",
+                "DECODIFIER_PORT=50000",
+                f"CLIENT_ID={cid}"
+            ],
+            "depends_on": ["client_decodifier"],
+            "volumes": [
+                f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
+                f"{path}/credits.csv:/root/files/credits.csv",
+                f"{path}/ratings.csv:/root/files/ratings.csv",
+                "./middleware:/app/middleware"
+            ]
+        }
+        if not test_set:
+            template["services"]["test"] = {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "test/integration.dockerfile"
+                },
+                "volumes": [
+                      f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
+                     f"{path}/credits.csv:/root/files/credits.csv",
+                    f"{path}/ratings.csv:/root/files/ratings.csv"
+                ]
+            }
+            test_set = True
+
+    # Worker definitions
+    worker_definitions = {
+        "twentieth_century_filter": "filters/twentieth_century/twentieth_century_filter.dockerfile",
+        "arg_production_filter": "filters/arg_production/arg_production_filter.dockerfile",
+        "credits_joiner": "joiner/credits/credits_joiner.dockerfile",
+        "ratings_joiner": "joiner/ratings/ratings_joiner.dockerfile",
+        "main_movie_filter": "filters/main_movie_filter/main_movie_filter.dockerfile",
+        "esp_production_filter": "filters/esp_production/esp_production_filter.dockerfile",
+        "no_colab_productions_filter": "filters/no_colab_productions/no_colab_productions_filter.dockerfile",
+        "sentiment_filter": "filters/sentiment_analizer/sentiment_analizer.dockerfile"
+    }
+
+    for name, dockerfile in worker_definitions.items():
+        count = workers.get(name.split('_filter')[0] if '_filter' in name else name.split('_joiner')[0], 1)
+        template["services"][name] = {
+            "build": {
+                "context": ".",
+                "dockerfile": dockerfile
+            },
             "depends_on": ["rabbitmq"],
             "links": ["rabbitmq"],
             "environment": ["PYTHONUNBUFFERED=1"]
         }
 
-        if service_name == "credits_joiner":
-            service_def["volumes"] = ["./files:/root/files"]
+        if name == "credits_joiner":
+            template["services"][name]["volumes"] = ["./files:/root/files"]
 
-        if service_def["image"] is None:
-            del service_def["image"]
-
-        template["services"][service_name] = service_def
-
-        # Workers adicionales
-        for i in range(1, worker_count):
-            worker_name = f"{service_name}_{i}"
-            template["services"][worker_name] = {
-                "image": f"{service_name}:latest",
+        for i in range(1, count):
+            template["services"][f"{name}_{i}"] = {
+                "image": f"{name}:latest",
                 "depends_on": ["rabbitmq"],
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
             }
+
+    aggregator_services = {
+        "twentieth_century_arg_esp_aggregator": "aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile",
+        "twentieth_century_arg_aggregator": "aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile",
+        "top_5_countries_aggregator": "aggregator/top_aggregator/aggregator.dockerfile",
+        "top_10_credits_aggregator": "aggregator/top_10_credits_aggregator/aggregator.dockerfile",
+        "best_and_worst_ratings_aggregator": "aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile",
+        "sentiment_aggregator": "aggregator/sentiment_aggregator/aggregator.dockerfile"
+    }
+
+    for name, dockerfile in aggregator_services.items():
+        template["services"][name] = {
+            "build": {
+                "context": ".",
+                "dockerfile": dockerfile
+            },
+            "depends_on": ["rabbitmq"],
+            "links": ["rabbitmq"],
+            "environment": ["PYTHONUNBUFFERED=1"]
+        }
 
     return template
 
@@ -159,27 +137,18 @@ def dump_yaml_to_file(template, filename):
 
 
 if __name__ == "__main__":
-    print("Se inició el generador de docker-compose")
-    if len(sys.argv) != 11:
-        print("Uso: python3 docker-compose-generator.py <output_file> <short:long> <workers_twentieth_century> <workers_main_movie> <workers_esp_production> <workers_no_colab_productions> <workers_sentiment> <workers_arg_production> <workers_credits> <workers_ratings>")
+    if len(sys.argv) != 2:
+        print("Usage: python3 docker-compose-generator.py <archivo_configuracion>")
         sys.exit(1)
 
-    compose_filename = sys.argv[1]
-    _file = sys.argv[2]
-    _workers_twentieth_century = int(sys.argv[3])
-    _workers_main_movie = int(sys.argv[4])
-    _workers_esp_production = int(sys.argv[5])
-    _workers_no_colab_productions = int(sys.argv[6])
-    _workers_sentiment = int(sys.argv[7])
-    _workers_arg_production = int(sys.argv[8])
-    _workers_credits = int(sys.argv[9])
-    _workers_ratings = int(sys.argv[10])
-    if (_workers_twentieth_century < 1 or _workers_main_movie < 1 or _workers_esp_production < 1
-            or _workers_no_colab_productions < 1 or _workers_sentiment < 1 or _workers_arg_production < 1 or _workers_credits < 1 or _workers_ratings < 1):
-        print("Debe haber al menos 1 worker por servicio.")
-        sys.exit(1)
+    with open(sys.argv[1], "r") as f:
+        config = yaml.safe_load(f)
 
-    docker_compose_template = generate_docker_yaml(
-        _workers_twentieth_century, _workers_main_movie, _workers_esp_production, _workers_no_colab_productions, _workers_sentiment, _workers_arg_production, _workers_credits, _workers_ratings,
-    )
-    dump_yaml_to_file(docker_compose_template, compose_filename)
+    for key in ["output_file", "clients", "workers"]:
+        if key not in config:
+            print(f"Missing key '{key}' in config file.")
+            sys.exit(1)
+
+    docker_compose = generate_docker_yaml(config)
+    dump_yaml_to_file(docker_compose, config["output_file"])
+    print(f"Docker Compose generated at {config['output_file']}")
