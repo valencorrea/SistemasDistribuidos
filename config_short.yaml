@@ -13,7 +13,7 @@ workers:
   no_colab_productions: 1
   sentiment: 0
   arg_production: 1
-  credits: 2
-  ratings: 0
+  credits: 0
+  ratings: 1
 
 test: false

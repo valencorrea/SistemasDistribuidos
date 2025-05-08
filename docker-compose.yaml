@@ -7,6 +7,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: arg_production_filter:latest
     links:
     - rabbitmq
   best_and_worst_ratings_aggregator:
@@ -19,38 +20,40 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  client:
+  client_1:
     build:
       context: .
       dockerfile: client/client.dockerfile
-    container_name: client
+    container_name: client_1
     depends_on:
     - client_decodifier
     environment:
     - PYTHONUNBUFFERED=1
     - DECODIFIER_HOST=client_decodifier
     - DECODIFIER_PORT=50000
+    - CLIENT_ID=1
     volumes:
-    - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/credits.csv:/root/files/credits.csv
-    - ./files/ratings.csv:/root/files/ratings.csv
+    - ./files/long/client_1/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/long/client_1/credits.csv:/root/files/credits.csv
+    - ./files/long/client_1/ratings.csv:/root/files/ratings.csv
     - ./middleware:/app/middleware
-  client-2:
+  client_2:
     build:
       context: .
       dockerfile: client/client.dockerfile
-    container_name: client-2
+    container_name: client_2
     depends_on:
-      - client_decodifier
+    - client_decodifier
     environment:
-      - PYTHONUNBUFFERED=1
-      - DECODIFIER_HOST=client_decodifier
-      - DECODIFIER_PORT=50000
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    - CLIENT_ID=2
     volumes:
-      - ./files/movies_metadata.csv:/root/files/movies_metadata.csv
-      - ./files/credits.csv:/root/files/credits.csv
-      - ./files/ratings.csv:/root/files/ratings.csv
-      - ./middleware:/app/middleware
+    - ./files/long/client_1/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/long/client_1/credits.csv:/root/files/credits.csv
+    - ./files/long/client_1/ratings.csv:/root/files/ratings.csv
+    - ./middleware:/app/middleware
   client_decodifier:
     build:
       context: .
@@ -69,6 +72,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: credits_joiner:latest
     links:
     - rabbitmq
     volumes:
@@ -81,6 +85,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: esp_production_filter:latest
     links:
     - rabbitmq
   main_movie_filter:
@@ -91,6 +96,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: main_movie_filter:latest
     links:
     - rabbitmq
   no_colab_productions_filter:
@@ -101,6 +107,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: no_colab_productions_filter:latest
     links:
     - rabbitmq
   rabbitmq:
@@ -124,6 +131,7 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: ratings_joiner:latest
     links:
     - rabbitmq
   sentiment_aggregator:
@@ -147,10 +155,6 @@ services:
     image: sentiment_filter:latest
     links:
     - rabbitmq
-  test:
-    build:
-      context: .
-      dockerfile: test/integration.dockerfile
   top_10_credits_aggregator:
     build:
       context: .
@@ -199,5 +203,6 @@ services:
     - rabbitmq
     environment:
     - PYTHONUNBUFFERED=1
+    image: twentieth_century_filter:latest
     links:
     - rabbitmq

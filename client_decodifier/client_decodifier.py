@@ -11,7 +11,7 @@ import uuid
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
+    level=logging.DEBUG,
     datefmt='%H:%M:%S')
 
 class ClientDecodifier(Worker):
@@ -26,15 +26,16 @@ class ClientDecodifier(Worker):
         self.results_received = 0
         self.shutdown_event = threading.Event()
 
-    def process_connection(self, client_socket, client_id: str):
+    def process_connection(self, client_socket, client):
         movie_producer = Producer("movie_main_filter")
         actor_producer = Producer("credits")
         rating_producer = Producer("ratings")
         try:
             logger.info("Iniciando procesamiento de nueva conexión")
-            generator = self.csv_receiver.process_connection(client_socket)
+            generated = self.csv_receiver.process_connection(client_socket)
             last_metadata = None
-            for batch, is_last, metadata in generator:
+            total_batches = 0
+            for client_id, batch, is_last, metadata in generated:
                 if metadata.type == "movie":
                     producer = movie_producer
                 elif metadata.type == "credit":
@@ -117,7 +118,7 @@ class ClientDecodifier(Worker):
                     logger.info(f"Nueva conexión aceptada desde {addr}")
                     thread = threading.Thread(
                         target=self.process_connection,
-                        args=(client_socket,client_id)
+                        args=(client_socket, client_id)
                     )
                     thread.daemon = True
                     thread.start()
@@ -137,7 +138,7 @@ class ClientDecodifier(Worker):
 
     def wait_for_result(self, query_result):
         self.results_received += 1
-        logger.info(f"[INFO] Resultado {self.results_received}/5 recibido: {query_result}")
+        logger.info(f"[INFO] Resultado {self.results_received} recibido: {query_result}")
         self.test_producer.enqueue(query_result)
 
     def close(self):
@@ -146,7 +147,7 @@ class ClientDecodifier(Worker):
         # self.producer.close()
         # self.actor_producer.close()
         self.result_consumer.close()
-        self.rating_producer.close()
+        # self.rating_producer.close()
 
     @staticmethod
     def send(message: dict, producer) -> bool:

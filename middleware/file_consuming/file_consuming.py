@@ -8,7 +8,7 @@ import os
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
+    level=logging.DEBUG,
     datefmt='%H:%M:%S')
 
 @dataclass
@@ -85,7 +85,7 @@ class CSVSender:
             logger.error(f"Error al enviar línea: {e}")
             return False
 
-    def send_multiple_csv(self, file_list: List[Tuple[str, str]]) -> bool:
+    def send_multiple_csv(self, file_list: List[Tuple[str, str]], client_id) -> bool:
         if not self.connect():
             logger.error("No se pudo establecer conexión con el servidor")
             return False
@@ -93,7 +93,7 @@ class CSVSender:
         try:
             logger.info("Enviando archivos CSV...")
             for file_path, file_type in file_list:
-                if not self.enviar_archivo(file_path, file_type):
+                if not self.enviar_archivo(file_path, file_type, client_id):
                     logger.error(f"Fallo al enviar archivo: {file_path}")
                     return False
 
@@ -107,11 +107,11 @@ class CSVSender:
             logger.error(f"[ERROR] Error durante envío múltiple: {e}")
             return False
 
-    def enviar_archivo(self, file_path, file_type) -> bool:
+    def enviar_archivo(self, file_path, file_type, client_id) -> bool:
         logger.info(f"Enviando archivo {file_path} de tipo {file_type}")
 
         metadata = CSVMetadata(name=os.path.basename(file_path), type=file_type)
-        metadata_str = f"{metadata.name}|{metadata.type}"
+        metadata_str = f"{client_id}|{metadata.name}|{metadata.type}"
         if not self._send_line(metadata_str):
             logger.error(f"Error enviando metadata de {file_path}")
             return False
@@ -188,9 +188,10 @@ class CSVReceiver:
             logger.error(f"Error recibiendo línea: {e}")
             return None
 
-    def process_connection(self, client_socket) -> Generator[Tuple[List[str], bool, CSVMetadata], None, None]:
+    def process_connection(self, client_socket) -> (str, Generator[Tuple[List[str], bool, CSVMetadata], None, None]):
         try:
             while True:
+                logger.debug("Por leer tipo")
                 metadata_line = self._recv_line(client_socket)
                 if not metadata_line:
                     logger.error("No se recibió metadata")
@@ -200,11 +201,12 @@ class CSVReceiver:
                     logger.info("Fin de transmisión de todos los archivos")
                     break
 
-                name, file_type = metadata_line.split('|')
+                client_id, name, file_type = metadata_line.split('|')
                 metadata = CSVMetadata(name, file_type)
                 current_batch = []
                 line_count = 0
                 last_log_time = time.time()
+                logger.debug(f"Tipo leido: {file_type}")
 
                 while True:
                     line = self._recv_line(client_socket)
@@ -215,8 +217,8 @@ class CSVReceiver:
                     if line == "EOF":
                         logger.info(f"Fin de archivo '{name}' recibido")
                         if current_batch:
-                            logger.info(f"Enviando último batch de {len(current_batch)} líneas")
-                            yield current_batch, True, metadata
+                            logger.debug(f"Enviando último batch de {len(current_batch)} líneas")
+                            yield client_id, current_batch, True, metadata
                         break
 
                     line_count += 1
@@ -229,7 +231,7 @@ class CSVReceiver:
                         last_log_time = current_time
 
                     if len(current_batch) >= 1000:
-                        yield current_batch, False, metadata
+                        yield client_id, current_batch, False, metadata
                         current_batch = []
 
         except Exception as e:
