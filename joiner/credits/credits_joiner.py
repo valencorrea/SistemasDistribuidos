@@ -141,24 +141,22 @@ class CreditsJoiner(Worker):
         logger.info(f"Obtenidas {message.get('total_movies')} películas")
 
         if os.path.exists(PENDING_MESSAGES):
+            temp_path = PENDING_MESSAGES + ".tmp"
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "a") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid file line.")
+                        continue
 
-            if os.path.exists(PENDING_MESSAGES):
-                temp_path = PENDING_MESSAGES + ".tmp"
-                with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "a") as writing_file:
-                    for line in reading_file:
-                        try:
-                            msg = json.loads(line)
-                        except json.JSONDecodeError:
-                            logger.warning("Invalid file line.")
-                            continue
+                    if msg.get("client_id") == client_id:
+                        logger.info(f"Reprocessing message for client {client_id}")
+                        self.credits_producer.enqueue(msg)
+                    else:
+                        writing_file.write(line)
 
-                        if msg.get("client_id") == client_id:
-                            logger.info(f"Reprocessing message for client {client_id}")
-                            self.credits_producer.enqueue(msg)
-                        else:
-                            writing_file.write(line)
-
-                os.replace(temp_path, PENDING_MESSAGES)
+            os.replace(temp_path, PENDING_MESSAGES)
 
         if not self.credits_consumer.is_alive():
             self.credits_consumer.start()
