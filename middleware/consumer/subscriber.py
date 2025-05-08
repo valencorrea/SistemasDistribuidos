@@ -30,10 +30,10 @@ class Subscriber(threading.Thread):
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.info(f"📥 Message received. Suscriber {self.queue_name} Timestamp: {timestamp}--------------")
+            #logger.info(f"📥 Message received. Suscriber {self.queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self.message_handler(message)
-            logger.info(f"📥 Message acked. Queue {self.queue_name} Timestamp: {timestamp} ---------------")
+            #logger.info(f"📥 Message acked. Queue {self.queue_name} Timestamp: {timestamp} ---------------")
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error on queue consumer {self.exchange_name}: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)

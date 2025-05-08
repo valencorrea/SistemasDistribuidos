@@ -127,9 +127,9 @@ class RatingsJoiner(Worker):
             logger.info(f"{len(self.movies_ratings[client_id])} películas guardadas para {client_id}")
             if not self.ratings_consumer.is_alive():
                 self.ratings_consumer.start()
-                logger.info("Thread de consumo de peliculas empezado")
+                logger.info("Thread de consumo de ratings empezado")
             else:
-                logger.info("Thread de consumo de peliculas no empezado, ya existe uno")
+                logger.info("Thread de consumo de ratings no empezado, ya existe uno")
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)

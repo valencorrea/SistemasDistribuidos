@@ -126,8 +126,6 @@ class CreditsJoiner(Worker):
     def get_result(self, client_id):
         top_10 = sorted(self.actor_counts[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
         logger.info("Top 10 actores con más contribuciones:")
-        for actor_id, info in top_10:
-            logger.info(f"{info['name']}: {info['count']} contribuciones")
         return top_10
 
     def handle_movies_message(self, message):
@@ -162,7 +160,11 @@ class CreditsJoiner(Worker):
 
                 os.replace(temp_path, PENDING_MESSAGES)
 
-        self.credits_consumer.start_consuming()
+        if not self.credits_consumer.is_alive():
+            self.credits_consumer.start()
+            logger.info("Thread de consumo de credits empezado")
+        else:
+            logger.info("Thread de consumo de credits no empezado, ya existe uno")
 
     def start(self):
         logger.info("Iniciando joiner de credits")

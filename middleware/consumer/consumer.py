@@ -72,11 +72,11 @@ class Consumer(threading.Thread):
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.info(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
+            #logger.info(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
+            #logger.info(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")
