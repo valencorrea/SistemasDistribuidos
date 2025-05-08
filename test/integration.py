@@ -1,13 +1,12 @@
-import signal
-import logging
-from transformers import pipeline
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import os
-import langid
-import time
 import ast
-import timeit
+import logging
+import signal
+import time
+
+import langid
+import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
+from transformers import pipeline
+
 from middleware.consumer.consumer import Consumer
 from worker.worker import Worker
 

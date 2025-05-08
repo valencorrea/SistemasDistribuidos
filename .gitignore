@@ -4,3 +4,7 @@ files/
 
 middleware/file_consuming/__pycache__/file_consuming.cpython-39.pyc
 docker-compose.yml
+
+*.pyc
+
+middleware/file_consuming/__pycache__/

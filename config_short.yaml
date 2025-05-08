@@ -4,14 +4,16 @@ clients:
   - id: 1
     files_path: ./files/short/client_1
   - id: 2
-    files_path: ./files/short/client_2
+    files_path: ./files/short/client_1
 
 workers:
   twentieth_century: 1
   main_movie: 1
-  esp_production: 1
+  esp_production: 0
   no_colab_productions: 1
-  sentiment: 1
+  sentiment: 0
   arg_production: 1
-  credits: 1
-  ratings: 1
+  credits: 2
+  ratings: 0
+
+test: false

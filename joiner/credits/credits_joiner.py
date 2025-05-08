@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import threading
+from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
@@ -24,6 +24,7 @@ class CreditsJoiner(Worker):
         self.received_credits_batches_per_client = {}
         self.total_credits_batches_per_client = {}
 
+        self.processed_rating_batches_per_client = defaultdict(int)
         self.movies_consumer = Subscriber("20_century_arg_result",
                                         message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
@@ -65,7 +66,8 @@ class CreditsJoiner(Worker):
                 result_message = {
                     "type": "query_4_top_10_actores_credits",
                     "actors": top_10,
-                    "client_id": client_id
+                    "client_id": client_id,
+                    "processed_batches": self.processed_rating_batches_per_client.get(client_id, 0)
                 }
                 self.producer.enqueue(result_message)
                 logger.info(f"Resultado enviado {result_message}.")
@@ -100,6 +102,8 @@ class CreditsJoiner(Worker):
 
             actors = convert_data(message)
             movies_per_client = self.movies.get(client_id, set())
+            self.processed_rating_batches_per_client[client_id] += message.get("batch_size", 0)
+
             for actor in actors:
                 if actor.movie_id in movies_per_client:
                     actor_id = actor.id
