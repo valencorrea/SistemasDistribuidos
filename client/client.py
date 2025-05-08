@@ -46,4 +46,7 @@ class Client:
 
 if __name__ == '__main__':
     client = Client()
+    for i in range(6):
+        time.sleep(i)
+        print(f"waiting {i} seconds")
     client.start()

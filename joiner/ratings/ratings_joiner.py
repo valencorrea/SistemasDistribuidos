@@ -41,7 +41,7 @@ class RatingsJoiner(Worker):
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            logger.exception(f"❌ Error al cerrar conexiones: {e}")
 
     def handle_ratings_amounts(self, message):
         try:
@@ -133,6 +133,8 @@ class RatingsJoiner(Worker):
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
+            self.close()
+
 
     def handle_ratings_message(self, message):
         try:
@@ -163,6 +165,7 @@ class RatingsJoiner(Worker):
                 logger.info(f"Mensaje de control de cantidades de ratings enviado total_batches: {total_batches}")
         except Exception as e:
             logger.error(f"Error al procesar ratings: {e}")
+            self.close()
 
     def start(self):
         logger.info("Iniciando joiner de ratings")

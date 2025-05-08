@@ -35,6 +35,8 @@ class CreditsJoiner(Worker):
         self.actor_counts = {}
         self.movies = {}
         self.client_id = None
+        self.received_credits_batches_per_client = {}
+        self.total_credits_batches_per_client = {}
         self.amounts_control_producer = Publisher("credits_amounts")
         self.amounts_control_consumer = Subscriber("credits_amounts",
                                                    message_handler=self.handle_amounts)
@@ -45,8 +47,6 @@ class CreditsJoiner(Worker):
             message_type = message.get("type")
             client_id = message.get("client_id")
             amount = int(message.get("amount", 0))
-            self.received_credits_batches_per_client = {}
-            self.total_credits_batches_per_client = {}
             if message_type == "total_batches":
                 self.total_credits_batches_per_client[client_id] = amount
                 logger.info(f"Actualizado total_batches {amount} a {self.total_credits_batches_per_client[client_id] }")
@@ -87,9 +87,9 @@ class CreditsJoiner(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_credits_message(self, message):
+        client_id = message.get("client_id")
         try:
             logger.info(f"Mensaje de credits recibido - cliente: " + str(message.get("client_id")))
-            client_id = message.get("client_id")
 
             if client_id not in self.movies:
                 logger.info("client id " + "not ready for credits file. Saving locally")
@@ -103,12 +103,14 @@ class CreditsJoiner(Worker):
                 if actor.movie_id in movies_per_client:
                     actor_id = actor.id
                     actor_name = actor.name
+                    if client_id not in self.actor_counts:
+                        self.actor_counts[client_id] = {}
                     if actor_id not in self.actor_counts[client_id]:
                         self.actor_counts[client_id][actor_id] = {"name": actor_name, "count": 1}
                     else:
                         self.actor_counts[client_id][actor_id]["count"] += 1
             total_batches = message.get("total_batches")
-            batch_size = message.get("batch_size") != 0
+            batch_size = message.get("batch_size")
             if total_batches != 0: # Mensaje que contiene el total. Uno por cliente.
                 logger.info(f"Se envia la cantidad total de batches: {total_batches}.")
                 self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
@@ -118,7 +120,7 @@ class CreditsJoiner(Worker):
                 self.amounts_control_producer.enqueue({"type": "batch_size", "amount": batch_size, "client_id": client_id})
 
         except Exception as e:
-            logger.error(f"Error al procesar credits: {e}")
+            logger.exception(f"❌ Error al procesar credits para client_id={client_id}: {e}")
             self.close()
 
     def get_result(self, client_id):
