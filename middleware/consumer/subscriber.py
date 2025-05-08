@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import threading
@@ -28,9 +29,11 @@ class Subscriber(threading.Thread):
 
     def _on_message(self, channel, method, properties, body):
         try:
+            timestamp = get_timestamp()
+            #logger.info(f"📥 Message received. Suscriber {self.queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
-            logger.info(f"📥 Message received in fanout queue {self.exchange_name}.")
             self.message_handler(message)
+            #logger.info(f"📥 Message acked. Queue {self.queue_name} Timestamp: {timestamp} ---------------")
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error on queue consumer {self.exchange_name}: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
@@ -50,6 +53,10 @@ class Subscriber(threading.Thread):
             logger.error(f"Error closing connection: {e}")
 
     def run(self):
-        logger.info("🟢 Starting fanout consumer")
+        logger.info(f"🟢 Starting fanout consumer '{self.queue_name}'")
         self.channel.basic_consume(queue=self.queue_name, on_message_callback=self._on_message, auto_ack=True)
         self.channel.start_consuming()
+
+def get_timestamp():
+    now = datetime.datetime.now()
+    return now.strftime('%Y-%m-%dT%H:%M:%S') + ('-%02d' % (now.microsecond / 10000))

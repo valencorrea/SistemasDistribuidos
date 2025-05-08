@@ -18,7 +18,7 @@ class Publisher:
         self.channel.exchange_declare(exchange=exchange_name, exchange_type='fanout')
 
     def enqueue(self, message):
-        logger.info(f"✅ Enviando mensaje por cola fanout {self.exchange_name}")
+        logger.debug(f"✅ Enviando mensaje por cola fanout {self.exchange_name}")
         self.channel.basic_publish(exchange=self.exchange_name, routing_key='', body=json.dumps(message).encode())
 
     def close(self):

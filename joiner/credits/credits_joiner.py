@@ -6,6 +6,7 @@ import threading
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
+from middleware.producer.publisher import Publisher
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
 
@@ -20,9 +21,9 @@ logging.basicConfig(
 class CreditsJoiner(Worker):
     def __init__(self):
         super().__init__()
-        self.shutdown_event = threading.Event()
+        self.received_credits_batches_per_client = {}
+        self.total_credits_batches_per_client = {}
 
-        # TODO consumir el result de 20th century aggregator
         self.movies_consumer = Subscriber("20_century_arg_result",
                                         message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
@@ -30,12 +31,50 @@ class CreditsJoiner(Worker):
         self.producer = Producer("top_10_actors_from_batch")
         self.credits_producer = Producer(
             queue_name="credits",
-            queue_type="direct"
-        )
-
+            queue_type="direct")
+        self.actor_counts = {}
         self.movies = {}
-        self.client_id = "client_id"
+        self.client_id = None
+        self.received_credits_batches_per_client = {}
+        self.total_credits_batches_per_client = {}
+        self.amounts_control_producer = Publisher("credits_amounts")
+        self.amounts_control_consumer = Subscriber("credits_amounts",
+                                                   message_handler=self.handle_amounts)
 
+    def handle_amounts(self, message):
+        try:
+            logger.info(f"Mensaje de control de ratings recibido")
+            message_type = message.get("type")
+            client_id = message.get("client_id")
+            amount = int(message.get("amount", 0))
+            if message_type == "total_batches":
+                self.total_credits_batches_per_client[client_id] = amount
+                logger.info(f"Actualizado total_batches {amount} a {self.total_credits_batches_per_client[client_id] }")
+            elif message_type == "batch_size":
+                self.received_credits_batches_per_client[client_id] = self.received_credits_batches_per_client.get(client_id, 0) + amount
+                logger.info(f"Actualizado batch_size {amount} a {self.received_credits_batches_per_client[client_id] }")
+            else:
+                logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message_type}")
+                return
+
+            total = self.total_credits_batches_per_client.get(client_id, None)
+            received = self.received_credits_batches_per_client.get(client_id, 0)
+            logger.info(f"Control de ratings total: {total} received: {received}")
+            if total is not None and 0 < total <= received:
+                top_10 = self.get_result(client_id)
+                result_message = {
+                    "type": "query_4_top_10_actores_credits",
+                    "actors": top_10,
+                    "client_id": client_id
+                }
+                self.producer.enqueue(result_message)
+                logger.info(f"Resultado enviado {result_message}.")
+                self.actor_counts.pop(client_id)
+                self.total_credits_batches_per_client.pop(client_id)
+                self.received_credits_batches_per_client.pop(client_id)
+
+        except Exception as e:
+            logger.error(f"Error al procesar mensaje <{message}> de control de cantidades: {e}")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
@@ -48,9 +87,9 @@ class CreditsJoiner(Worker):
             logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_credits_message(self, message):
+        client_id = message.get("client_id")
         try:
             logger.info(f"Mensaje de credits recibido - cliente: " + str(message.get("client_id")))
-            client_id = message.get("client_id")
 
             if client_id not in self.movies:
                 logger.info("client id " + "not ready for credits file. Saving locally")
@@ -58,38 +97,36 @@ class CreditsJoiner(Worker):
                     f.write(json.dumps(message) + "\n")
                 return
 
-            actor_counts = {}
             actors = convert_data(message)
             movies_per_client = self.movies.get(client_id, set())
             for actor in actors:
                 if actor.movie_id in movies_per_client:
                     actor_id = actor.id
                     actor_name = actor.name
-                    if actor_id not in actor_counts:
-                        actor_counts[actor_id] = {"name": actor_name, "count": 1}
+                    if client_id not in self.actor_counts:
+                        self.actor_counts[client_id] = {}
+                    if actor_id not in self.actor_counts[client_id]:
+                        self.actor_counts[client_id][actor_id] = {"name": actor_name, "count": 1}
                     else:
-                        actor_counts[actor_id]["count"] += 1
+                        self.actor_counts[client_id][actor_id]["count"] += 1
+            total_batches = message.get("total_batches")
+            batch_size = message.get("batch_size")
+            if total_batches != 0: # Mensaje que contiene el total. Uno por cliente.
+                logger.info(f"Se envia la cantidad total de batches: {total_batches}.")
+                self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
 
-            top_10 = sorted(actor_counts.items(), key=lambda item: item[1]["count"], reverse=True)[:10]
+            if batch_size!= 0:
+                logger.info(f"Se envia la cantidad de este batch: {batch_size}.")
+                self.amounts_control_producer.enqueue({"type": "batch_size", "amount": batch_size, "client_id": client_id})
 
-            result_message = {
-                "type": "query_4_top_10_actores_credits",
-                "actors": top_10,
-                "client_id": client_id
-            }
-            if message.get("total_batches") != 0: # Mensaje que contiene el total. Uno por cliente.
-                result_message["total_batches"] = message.get("total_batches")
-                logger.info(f"Se envia la cantidad total de batches: {result_message['total_batches']}.")
-
-            if message.get("batch_size") != 0:
-                result_message["batch_size"] = message.get("batch_size")
-                logger.info(f"Se envia la cantidad de este batch: {result_message['batch_size']}.")
-
-            self.producer.enqueue(result_message)
-            logger.info(f"Resultado enviado {result_message}.")
         except Exception as e:
-            logger.error(f"Error al procesar credits: {e}")
+            logger.exception(f"❌ Error al procesar credits para client_id={client_id}: {e}")
             self.close()
+
+    def get_result(self, client_id):
+        top_10 = sorted(self.actor_counts[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
+        logger.info("Top 10 actores con más contribuciones:")
+        return top_10
 
     def handle_movies_message(self, message):
         logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
@@ -104,37 +141,37 @@ class CreditsJoiner(Worker):
         logger.info(f"Obtenidas {message.get('total_movies')} películas")
 
         if os.path.exists(PENDING_MESSAGES):
+            temp_path = PENDING_MESSAGES + ".tmp"
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "a") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid file line.")
+                        continue
 
-            if os.path.exists(PENDING_MESSAGES):
-                temp_path = PENDING_MESSAGES + ".tmp"
-                with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
-                    for line in reading_file:
-                        try:
-                            msg = json.loads(line)
-                        except json.JSONDecodeError:
-                            logger.warning("Invalid file line.")
-                            continue
+                    if msg.get("client_id") == client_id:
+                        logger.info(f"Reprocessing message for client {client_id}")
+                        self.credits_producer.enqueue(msg)
+                    else:
+                        writing_file.write(line)
 
-                        if msg.get("client_id") == client_id:
-                            logger.info(f"Reprocessing message for client {client_id}")
-                            self.credits_producer.enqueue(msg)
-                        else:
-                            writing_file.write(line)
+            os.replace(temp_path, PENDING_MESSAGES)
 
-                os.replace(temp_path, PENDING_MESSAGES)
-
-        self.credits_consumer.start_consuming()
+        if not self.credits_consumer.is_alive():
+            self.credits_consumer.start()
+            logger.info("Thread de consumo de credits empezado")
+        else:
+            logger.info("Thread de consumo de credits no empezado, ya existe uno")
 
     def start(self):
-        logger.info("Iniciando filtro de películas españolas")
+        logger.info("Iniciando joiner de credits")
         try:
-            thread = threading.Thread(target=self.movies_consumer.start)
-            thread.daemon = True
-            thread.start()
+            self.amounts_control_consumer.start()
+            self.movies_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()
-
 
 if __name__ == '__main__':
     worker = CreditsJoiner()

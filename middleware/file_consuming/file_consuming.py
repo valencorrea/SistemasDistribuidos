@@ -18,11 +18,12 @@ class CSVMetadata:
     has_header: bool = True
 
 class CSVSender:
-    def __init__(self, host: str = "localhost", port: int = 50000):
+    def __init__(self, host: str = "localhost", port: int = 50000, timeout: int = 30):
         self.host = host
         self.port = port
         self.socket = None
-        logger.info(f"CSVSender inicializado con host={host}, port={port}")
+        self.timeout = timeout
+        logger.info(f"CSVSender inicializado con host={host}, port={port}, timeout={timeout}s")
 
     def connect(self) -> bool:
         max_retries = 3
@@ -32,6 +33,7 @@ class CSVSender:
             try:
                 logger.info(f"Intentando conectar a {self.host}:{self.port} (intento {attempt + 1})")
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.settimeout(self.timeout)
                 self.socket.connect((self.host, self.port))
                 logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
                 return True
@@ -48,10 +50,18 @@ class CSVSender:
     def _send_all(self, data: bytes) -> bool:
         total_sent = 0
         while total_sent < len(data):
-            sent = self.socket.send(data[total_sent:])
-            if sent == 0:
+            try:
+                sent = self.socket.send(data[total_sent:])
+                if sent == 0:
+                    logger.error("Conexión cerrada por el peer")
+                    return False
+                total_sent += sent
+            except socket.timeout:
+                logger.error("Timeout al enviar datos")
                 return False
-            total_sent += sent
+            except Exception as e:
+                logger.error(f"Error al enviar datos: {e}")
+                return False
         return True
 
     def _send_line(self, line: str) -> bool:
@@ -60,9 +70,20 @@ class CSVSender:
         line_bytes = line.encode('utf-8')
         length = len(line_bytes)
         length_bytes = str(length).zfill(10).encode('utf-8')
-        if not self._send_all(length_bytes):
+        
+        try:
+            if not self._send_all(length_bytes):
+                return False
+            if not self._send_all(line_bytes):
+                return False
+                
+            return True
+        except socket.timeout:
+            logger.error("Timeout al enviar línea")
             return False
-        return self._send_all(line_bytes)
+        except Exception as e:
+            logger.error(f"Error al enviar línea: {e}")
+            return False
 
     def send_multiple_csv(self, file_list: List[Tuple[str, str]]) -> bool:
         if not self.connect():
@@ -95,22 +116,33 @@ class CSVSender:
             logger.error(f"Error enviando metadata de {file_path}")
             return False
 
+        line_count = 0
+        file_size = os.path.getsize(file_path)
+        bytes_sent = 0
+
         with open(file_path, 'r') as file:
             for line in file:
                 if not self._send_line(line.strip()):
                     logger.error(f"Error enviando línea en {file_path}")
                     return False
+                
+                line_count += 1
+                bytes_sent += len(line.encode('utf-8'))
+                
+                if line_count % 1000000 == 0:
+                    progress = (bytes_sent / file_size) * 100 if file_size > 0 else 0
+                    logger.debug(f"Progreso de {file_path}: {progress:.2f}% ({line_count} líneas enviadas)")
 
         if not self._send_line("EOF"):
             logger.error(f"Error enviando EOF de {file_path}")
             return False
 
-        logger.info(f"Archivo {file_path} enviado exitosamente")
+        logger.info(f"Archivo {file_path} enviado exitosamente ({line_count} líneas)")
         return True
 
 
 class CSVReceiver:
-    def __init__(self, host: str = "0.0.0.0", port: int = 50000):
+    def __init__(self, host: str = "0.0.0.0", port: int = 50000, timeout: int = 30):
         self.host = host
         self.port = port
         self.socket: Optional[socket.socket] = None
@@ -130,10 +162,15 @@ class CSVReceiver:
     def _recv_all(self, sock: socket.socket, n: int) -> bytes:
         data = bytearray()
         while len(data) < n:
-            packet = sock.recv(n - len(data))
-            if not packet:
-                return bytes()
-            data.extend(packet)
+            try:
+                packet = sock.recv(n - len(data))
+                if not packet:
+                    break
+                data.extend(packet)
+            except socket.timeout:
+                logger.error("Timeout al recibir datos")
+            except Exception as e:
+                logger.error(f"Error al recibir datos: {e}")
         return bytes(data)
 
     def _recv_line(self, sock: socket.socket) -> Optional[str]:
@@ -145,6 +182,7 @@ class CSVReceiver:
             line_bytes = self._recv_all(sock, length)
             if not line_bytes:
                 return None
+
             return line_bytes.decode('utf-8').strip()
         except Exception as e:
             logger.error(f"Error recibiendo línea: {e}")
@@ -166,6 +204,7 @@ class CSVReceiver:
                 metadata = CSVMetadata(name, file_type)
                 current_batch = []
                 line_count = 0
+                last_log_time = time.time()
 
                 while True:
                     line = self._recv_line(client_socket)
@@ -183,11 +222,16 @@ class CSVReceiver:
                     line_count += 1
                     current_batch.append(line)
 
+                    # Log cada 5 segundos o cada 1000 líneas
+                    current_time = time.time()
+                    if current_time - last_log_time >= 5 or line_count % 1000 == 0:
+                        logger.debug(f"Progreso de {name}: {line_count} líneas recibidas")
+                        last_log_time = current_time
+
                     if len(current_batch) >= 1000:
                         yield current_batch, False, metadata
                         current_batch = []
 
-            
         except Exception as e:
             logger.error(f"Error procesando conexión: {e}")
 

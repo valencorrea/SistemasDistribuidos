@@ -70,7 +70,7 @@ class Producer:
             return False
 
     def enqueue(self, message: Any, routing_key_override: Optional[str] = None) -> bool:
-        logger.info(f"Intentando enviar mensaje a la cola: {self._queue_name}")
+        logger.debug(f"Intentando enviar mensaje a la cola: {self._queue_name}")
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
@@ -87,7 +87,7 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
-            logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
+            logger.debug(f"✅ Mensaje enviado a la cola: {self._queue_name}")
             return True
 
         except Exception as e:
@@ -98,6 +98,6 @@ class Producer:
         try:
             if self._connection and not self._connection.is_closed:
                 self._connection.close()
-                logger.info("✅ Conexión cerrada correctamente")
+                logger.debug("✅ Conexión cerrada correctamente")
         except Exception as e:
             logger.error(f"❌ Error al cerrar conexión: {e}")

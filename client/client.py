@@ -28,7 +28,7 @@ class Client:
 
         for retry in range(3):
             try:
-                logger.info(f"Enviando archivos (intento {retry + 1})")
+                logger.debug(f"Enviando archivos (intento {retry + 1})")
                 if self.sender.send_multiple_csv(files_to_send):
                     logger.info(f"Archivos enviados exitosamente")
                     success = True
@@ -46,4 +46,7 @@ class Client:
 
 if __name__ == '__main__':
     client = Client()
+    for i in range(6):
+        time.sleep(i)
+        print(f"waiting {i} seconds")
     client.start()

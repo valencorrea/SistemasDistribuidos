@@ -41,17 +41,17 @@ class RatingsJoiner(Worker):
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            logger.exception(f"❌ Error al cerrar conexiones: {e}")
 
     def handle_ratings_amounts(self, message):
         try:
-            logger.info(f"Mensaje de control de ratings recibido")
+            logger.debug(f"Mensaje de control de ratings recibido")
             message_type = message.get("type")
             client_id = message.get("client_id")
             amount = int(message.get("amount", 0))
             if message_type == "total_batches":
                 self.total_ratings_batches_per_client[client_id] = amount
-                logger.info(f"Actualizado total_batches {amount} a {self.total_ratings_batches_per_client[client_id] }")
+                logger.debug(f"Actualizado total_batches {amount} a {self.total_ratings_batches_per_client[client_id] }")
             elif message_type == "batch_size":
                 self.received_ratings_batches_per_client[client_id] = self.received_ratings_batches_per_client.get(client_id, 0) + amount
                 logger.info(f"Actualizado batch_size {amount} a {self.received_ratings_batches_per_client[client_id] }")
@@ -61,7 +61,7 @@ class RatingsJoiner(Worker):
 
             total = self.total_ratings_batches_per_client.get(client_id, None)
             received = self.received_ratings_batches_per_client.get(client_id, 0)
-            logger.info(f"Control de ratings total: {total} received: {received}")
+            logger.debug(f"Control de ratings total: {total} received: {received}")
             if total is not None and 0 < total <= received:
                 logger.info(
                     f"Ya fueron procesados todos los batches ({received}/{total}) para el cliente {client_id}. Enviando el acumulado.")
@@ -127,47 +127,54 @@ class RatingsJoiner(Worker):
             logger.info(f"{len(self.movies_ratings[client_id])} películas guardadas para {client_id}")
             if not self.ratings_consumer.is_alive():
                 self.ratings_consumer.start()
-                logger.info("Thread de consumo de peliculas empezado")
+                logger.info("Thread de consumo de ratings empezado")
             else:
-                logger.info("Thread de consumo de peliculas no empezado, ya existe uno")
+                logger.info("Thread de consumo de ratings no empezado, ya existe uno")
 
         except Exception as e:
             logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
+            self.close()
+
 
     def handle_ratings_message(self, message):
         try:
-            logger.info("Mensaje de ratings recibido")
+            logger.debug("Mensaje de ratings recibido")
             ratings = convert_data_for_rating_joiner(message)
-            logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
+            logger.debug(f"Ratings convertidos. Total recibido: {len(ratings)}")
             client_id = message.get("client_id")
-            logger.info(f"Se tienen {len(self.movies_ratings[client_id])} peliculas para el cliente {client_id}")
+            logger.debug(f"Se tienen {len(self.movies_ratings[client_id])} peliculas para el cliente {client_id}")
             self.processed_rating_batches_per_client[client_id] += message.get("batch_size", 0)
             for rating in ratings:
                 if not isinstance(rating, dict):
                     continue
                 movie_id = rating.get("movieId")
                 if int(movie_id) in self.movies_ratings[client_id].keys() or str(movie_id) in self.movies_ratings[client_id].keys():
-                    logger.info(f"Se agrega rating a la pelicula {movie_id}")
+                    logger.debug(f"Se agrega rating a la pelicula {movie_id}")
                     self.movies_ratings[client_id][movie_id]["rating_sum"] += float(rating.get("rating", 0))
                     self.movies_ratings[client_id][movie_id]["votes"] += 1
 
             batch_size = int(message.get("batch_size", 0))
             total_batches = int(message.get("total_batches", 0))
 
-            logger.info(f"Ratings procesados. Total actual: {len(self.movies_ratings)} batch_size {batch_size} total_batches {total_batches}")
+            logger.debug(f"Ratings procesados. Total actual: {len(self.movies_ratings)} batch_size {batch_size} total_batches {total_batches}")
 
             if batch_size != 0:
                 self.amounts_control_producer.enqueue({"type": "batch_size", "amount": batch_size, "client_id": client_id})
             if total_batches != 0:
                 self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
-                logger.info(f"Mensaje de control de cantidades de ratings enviado total_batches: {total_batches}")
+                logger.debug(f"Mensaje de control de cantidades de ratings enviado total_batches: {total_batches}")
         except Exception as e:
             logger.error(f"Error al procesar ratings: {e}")
+            self.close()
 
     def start(self):
-        logger.info("Iniciando joiner de ratings")
-        self.amounts_control_consumer.start()
-        self.movies_consumer.start()
+        logger.debug("Iniciando joiner de ratings")
+        try:
+            self.amounts_control_consumer.start()
+            self.movies_consumer.start()
+            self.shutdown_event.wait()
+        finally:
+            self.close()
 
 if __name__ == '__main__':
     worker = RatingsJoiner()

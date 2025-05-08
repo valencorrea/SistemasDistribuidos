@@ -61,7 +61,7 @@ class ClientDecodifier(Worker):
                     "client_id": client_id
                 }
 
-                logger.info(f"Enviando {metadata.type} de {client_id}")
+                logger.debug(f"Enviando {metadata.type} de {client_id}")
 
                 if is_last:
                     logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
@@ -71,7 +71,7 @@ class ClientDecodifier(Worker):
                 
                 total_batches += len(batch)
 
-                logger.info(f"Enviado hasta el momento total_batches: {total_batches}")
+                logger.debug(f"Enviado hasta el momento total_batches: {total_batches}")
 
         except Exception as e:
             logger.error(f"Error en process_connection: {e}", exc_info=True)
