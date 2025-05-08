@@ -87,7 +87,7 @@ class Producer:
                     delivery_mode=2,  # hace el mensaje persistente
                 )
             )
-            logger.info(f"✅ Mensaje enviado a la cola: {self._queue_name}")
+            logger.debug(f"✅ Mensaje enviado a la cola: {self._queue_name}")
             return True
 
         except Exception as e:
@@ -98,6 +98,6 @@ class Producer:
         try:
             if self._connection and not self._connection.is_closed:
                 self._connection.close()
-                logger.info("✅ Conexión cerrada correctamente")
+                logger.debug("✅ Conexión cerrada correctamente")
         except Exception as e:
             logger.error(f"❌ Error al cerrar conexión: {e}")
