@@ -144,7 +144,7 @@ class CreditsJoiner(Worker):
 
             if os.path.exists(PENDING_MESSAGES):
                 temp_path = PENDING_MESSAGES + ".tmp"
-                with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "a") as writing_file:
                     for line in reading_file:
                         try:
                             msg = json.loads(line)
