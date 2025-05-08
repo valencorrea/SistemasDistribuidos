@@ -59,7 +59,7 @@ def generate_docker_yaml(config):
                 "./middleware:/app/middleware"
             ]
         }
-        if not test_set:
+        if not test_set and config["test"] != False:
             template["services"]["test"] = {
                 "build": {
                     "context": ".",
@@ -87,6 +87,10 @@ def generate_docker_yaml(config):
 
     for name, dockerfile in worker_definitions.items():
         count = workers.get(name.split('_filter')[0] if '_filter' in name else name.split('_joiner')[0], 1)
+
+        if count == 0:
+            continue
+
         template["services"][name] = {
             "build": {
                 "context": ".",
@@ -94,7 +98,8 @@ def generate_docker_yaml(config):
             },
             "depends_on": ["rabbitmq"],
             "links": ["rabbitmq"],
-            "environment": ["PYTHONUNBUFFERED=1"]
+            "environment": ["PYTHONUNBUFFERED=1"],
+            "image": f"{name}:latest"
         }
 
         if name == "credits_joiner":

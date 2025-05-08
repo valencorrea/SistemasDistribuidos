@@ -36,8 +36,8 @@ class Aggregator(Worker):
         actors = message.get("actors")
         logger.info(f"Se obtuvieron {len(actors)}: {actors} actores.")
 
-        if message.get("batch_size") is not None and message.get("batch_size") != 0:
-            self.received_batches_per_client[client_id] = self.received_batches_per_client[client_id] + int(message.get("batch_size"))
+        if message.get("processed_batches") is not None and message.get("batch_size") != 0:
+            self.received_batches_per_client[client_id] = self.received_batches_per_client[client_id] + int(message.get("processed_batches"))
             logger.info(f"Se actualiza la cantidad recibida: {self.received_batches_per_client[client_id]}, actual: {self.received_batches_per_client[client_id]}.")
 
         if message.get("total_batches") is not None and message.get("total_batches") != 0:
