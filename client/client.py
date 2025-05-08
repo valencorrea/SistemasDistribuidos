@@ -44,11 +44,12 @@ class Client:
             logger.info("Todos los archivos enviados exitosamente")
             raise Exception(f"No se pudo enviar los archivos después de 3 intentos")
 
+        self.sender.receive_results(expected_results=5)
+
 
 if __name__ == '__main__':
     client = Client()
     for i in range(6):
         time.sleep(i)
-        print(f"waiting {i} seconds")
     client.start()
     time.sleep(10*60)

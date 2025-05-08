@@ -44,7 +44,7 @@ class CreditsJoiner(Worker):
 
     def handle_amounts(self, message):
         try:
-            logger.info(f"Mensaje de control de ratings recibido")
+            logger.info(f"Mensaje de control de credits recibido")
             message_type = message.get("type")
             client_id = message.get("client_id")
             amount = int(message.get("amount", 0))
@@ -60,7 +60,7 @@ class CreditsJoiner(Worker):
 
             total = self.total_credits_batches_per_client.get(client_id, None)
             received = self.received_credits_batches_per_client.get(client_id, 0)
-            logger.info(f"Control de ratings total: {total} received: {received}")
+            logger.info(f"Control de credits total: {total} received: {received}")
             if total is not None and 0 < total <= received:
                 top_10 = self.get_result(client_id)
                 result_message = {
