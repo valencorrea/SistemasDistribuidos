@@ -1,3 +1,4 @@
+from collections import defaultdict
 import signal
 import threading
 import logging
@@ -24,8 +25,15 @@ class ClientDecodifier(Worker):
 
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
-        self.results_received = 0
+        self.results_received_per_client = defaultdict(int)
         self.shutdown_event = threading.Event()
+
+    def close_client_socket(self, client_id):
+        with self.client_sockets_lock:
+            client_socket = self.client_sockets.get(client_id)
+            if client_socket:
+                client_socket.close()
+                self.client_sockets.pop(client_id)
 
     def process_connection(self, client_socket):
         movie_producer = Producer("movie_main_filter")
@@ -140,10 +148,10 @@ class ClientDecodifier(Worker):
         self.close()
 
     def wait_for_result(self, query_result):
-        self.results_received += 1
-        logger.info(f"[INFO] Resultado {self.results_received} recibido: {query_result}")
-
         client_id = query_result.get("client_id")
+        self.results_received_per_client[client_id] += 1
+        logger.info(f"[INFO] Resultado {self.results_received_per_client[client_id]} recibido: {query_result} de cliente {client_id}")
+
         if not client_id:
             logger.warning("Error getting client_id")
             return
@@ -158,6 +166,9 @@ class ClientDecodifier(Worker):
                 result = str(query_result) + "\n"
                 client_socket.sendall(result.encode("utf-8"))
                 logger.info(f"Resultado enviado a cliente {client_id}")
+                if self.results_received_per_client[client_id] == 5:
+                    logger.info(f"se cierra connexion con cliente {client_id}")
+                    self.close_client_socket(client_id)
             except Exception as e:
                 logger.error(f"Error enviando resultado a cliente {client_id}: {e}")
         else:

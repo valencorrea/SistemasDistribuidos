@@ -25,6 +25,11 @@ class CSVSender:
         self.timeout = timeout
         logger.info(f"CSVSender inicializado con host={host}, port={port}, timeout={timeout}s")
 
+    def close(self):
+        if self.socket:
+            self.socket.close()
+            self.socket = None
+
     def connect(self) -> bool:
         max_retries = 3
         retry_delay = 2

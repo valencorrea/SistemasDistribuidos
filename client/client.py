@@ -15,7 +15,8 @@ class Client:
             host=os.getenv("DECODIFIER_HOST", "localhost"),
             port=int(os.getenv("DECODIFIER_PORT", 50000))
         )
-
+    def close(self):
+        self.sender.close()
     def start(self):
         logger.info("Comenzando envío de archivos")
         success = False
@@ -45,6 +46,7 @@ class Client:
             raise Exception(f"No se pudo enviar los archivos después de 3 intentos")
 
         self.sender.receive_results(expected_results=5)
+        self.sender.close()
 
 
 if __name__ == '__main__':
