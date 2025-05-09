@@ -7,6 +7,10 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
 class MainMovieFilter(Worker):
@@ -30,13 +34,19 @@ class MainMovieFilter(Worker):
         movies = convert_data_for_main_movie_filter(message)
 
         print(f"[MAIN] Peliculas: {len(movies)}")
+        total_batches = message.get("total_batches", 0)
+        client_id = message.get("client_id")
 
         batch_message = {
             "movies": [movie.to_dict() for movie in movies],
             "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
+            "total_batches": total_batches,
+            "type": "batch_result",
+            "client_id": client_id
         }
+
+        if total_batches != 0:
+            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         self.movie_producer.enqueue(batch_message)
         self.movie_2_producer.enqueue(batch_message)

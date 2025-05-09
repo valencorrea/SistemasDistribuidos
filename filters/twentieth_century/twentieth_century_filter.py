@@ -7,23 +7,23 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 
-class TwentiethCenturyArgProductionFilter(Worker):
+class TwentiethCenturyFilter(Worker):
     def __init__(self):
         super().__init__()
         self.consumer = Consumer("movie", _message_handler=self.handle_message)
-        self.esp_production_producer = Producer("arg_españa_production")
-        self.rating_joiner_producer = Producer("rating_joiner")
-        self.partial_aggregator_producer = Producer("credits_joiner")
+        self.producer = Producer("twentieth_century")
 
     def close(self):
         logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
-            self.esp_production_producer.close()
-            self.partial_aggregator_producer.close()
-            self.rating_joiner_producer.close()
+            self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
             logger.error(f"Error al cerrar conexiones: {e}")
@@ -35,24 +35,31 @@ class TwentiethCenturyArgProductionFilter(Worker):
     def handle_message(self, message):
 
         movies = convert_data(message)
+        logger.info(f"Mensaje de peliculas sin filtrar recibido: {len(movies)} peliculas")
         filtered_movies = self.apply_filter(movies)
+        logger.info(f"Se encontraron {len(filtered_movies)} peliculas de la decada de los 2000")
+
+        total_batches = message.get("total_batches", 0)
+        client_id = message.get("client_id")
+
+        if total_batches != 0:
+            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         result = {
             "movies": [movie.to_dict() for movie in filtered_movies],
             "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
-            "type": "batch_result"
+            "total_batches": total_batches,
+            "type": "batch_result",
+            "client_id": client_id
         }
 
-        self.esp_production_producer.enqueue(result)
-        self.partial_aggregator_producer.enqueue(result)
-        self.rating_joiner_producer.enqueue(result)
+        self.producer.enqueue(result)
 
     @staticmethod
     def apply_filter(movies):
-        return [movie for movie in movies if movie.released_in_or_after_2000_argentina()]
+        return [movie for movie in movies if movie.released_in_or_after_2000()]
 
 
 if __name__ == '__main__':
-    worker = TwentiethCenturyArgProductionFilter()
+    worker = TwentiethCenturyFilter()
     worker.start()

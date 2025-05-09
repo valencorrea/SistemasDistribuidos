@@ -1,11 +1,7 @@
-FROM python:3.9-slim
-COPY client/client.py /root/client/client.py
-COPY middleware/consumer/consumer.py /root/middleware/consumer/consumer.py
-COPY middleware/producer/producer.py /root/middleware/producer/producer.py
-COPY files/movies_metadata.csv /root/files/movies_metadata.csv
-COPY files/credits.csv /root/files/credits.csv
-COPY files/ratings.csv /root/files/ratings.csv
-COPY worker/worker.py /root/worker/worker.py
-RUN pip install pika
-ENV PYTHONPATH="/root"
-CMD ["python", "/root/client/client.py"]
+FROM python:3.9-alpine
+
+COPY client/client.py .
+
+ENV PYTHONPATH="/app"
+
+CMD ["python", "client.py"]

@@ -1,13 +1,12 @@
-import signal
-import logging
-from transformers import pipeline
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import os
-import langid
-import time
 import ast
-import timeit
+import logging
+import signal
+import time
+
+import langid
+import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
+from transformers import pipeline
+
 from middleware.consumer.consumer import Consumer
 from worker.worker import Worker
 
@@ -17,8 +16,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
-class Client(Worker):
+class TestClass(Worker):
     def __init__(self):
         logger.info("Iniciando Cliente...")
         self.result = {}
@@ -247,5 +250,5 @@ def dictionary_to_list(dictionary_str):
     except (ValueError, SyntaxError):
         return [] 
 if __name__ == '__main__':
-    client = Client()
-    client.start()
+    TestClass = TestClass()
+    TestClass.start()

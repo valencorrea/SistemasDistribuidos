@@ -26,7 +26,6 @@ def convert_data_for_main_movie_filter(data):
             row["production_countries"] and
             row["release_date"] and 
             row["title"] and 
-            row["production_countries"] != "[]" and
             row["budget"] and
             row["overview"] and
             row["revenue"]):
@@ -36,7 +35,7 @@ def convert_data_for_main_movie_filter(data):
                 production_countries=parse_production_countries(row["production_countries"]),
                 release_date=parse_release_date(row["release_date"]),
                 type="movie",
-                genres=parse_genres(row["genres"]),
+                genres=row["genres"],
                 overview=row["overview"],
                 revenue=row["revenue"],
                 budget=row["budget"]
@@ -79,8 +78,6 @@ def convert_data_for_second_filter(data):
     # data debe ser una lista de strings (líneas), no un string completo
     lines = data.get("movies", [])  # extrae lista de líneas desde el dict
     
-
-    # ir sumando los campos a medida que se usan
     result = []
     for row in lines:
         result.append({

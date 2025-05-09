@@ -1,9 +1,8 @@
+import ast
 import csv
 
 from model.actor import Actor
-from model.movie import Movie
-import ast
-import json
+
 
 def convert_data(data):
     # data debe ser una lista de strings (líneas), no un string completo
@@ -20,7 +19,7 @@ def convert_data(data):
 
     for row in reader:
         cast = row["cast"]
-        cast_list = ast.literal_eval(cast) # todo hace falta?
+        cast_list = ast.literal_eval(cast)
 
         for actor in cast_list:
             result.append(Actor(

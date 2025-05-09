@@ -9,6 +9,10 @@ from worker.worker import Worker
 
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class SentimentAnalyzerFilter(Worker):
     def __init__(self):
@@ -39,7 +43,8 @@ class SentimentAnalyzerFilter(Worker):
                 "movies": filtered_movies,
                 "batch_size": message.get("batch_size", 0),
                 "total_batches": message.get("total_batches", 0),
-                "type": "batch_result"
+                "type": "batch_result",
+                "client_id": message.get("client_id")
             }
             self.producer.enqueue(batch_message)
         except Exception as e:
@@ -65,8 +70,6 @@ class SentimentAnalyzerFilter(Worker):
             self.consumer.start_consuming()
         except Exception as e:
             logger.error(f"Error en análisis de sentimiento: {e}")
-        finally:
-            self.close()
 
     def analyze_sentiments(self, movies):
         result = []
