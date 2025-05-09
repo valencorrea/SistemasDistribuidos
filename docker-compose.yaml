@@ -18,6 +18,14 @@ services:
     image: arg_production_filter:latest
     links:
     - rabbitmq
+  arg_production_filter_2:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: arg_production_filter:latest
+    links:
+    - rabbitmq
   best_and_worst_ratings_aggregator:
     build:
       context: .
@@ -28,23 +36,6 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  client_1:
-    build:
-      context: .
-      dockerfile: client/client.dockerfile
-    container_name: client_1
-    depends_on:
-    - client_decodifier
-    environment:
-    - PYTHONUNBUFFERED=1
-    - DECODIFIER_HOST=client_decodifier
-    - DECODIFIER_PORT=50000
-    - CLIENT_ID=1
-    volumes:
-    - ./files/long/client_1/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/long/client_1/credits.csv:/root/files/credits.csv
-    - ./files/long/client_1/ratings.csv:/root/files/ratings.csv
-    - ./middleware:/app/middleware
   client_2:
     build:
       context: .
@@ -93,6 +84,14 @@ services:
     image: credits_joiner:latest
     links:
     - rabbitmq
+  credits_joiner_2:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: credits_joiner:latest
+    links:
+    - rabbitmq
   esp_production_filter:
     build:
       context: .
@@ -105,6 +104,14 @@ services:
     links:
     - rabbitmq
   esp_production_filter_1:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: esp_production_filter:latest
+    links:
+    - rabbitmq
+  esp_production_filter_2:
     depends_on:
     - rabbitmq
     environment:
@@ -131,6 +138,14 @@ services:
     image: main_movie_filter:latest
     links:
     - rabbitmq
+  main_movie_filter_2:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: main_movie_filter:latest
+    links:
+    - rabbitmq
   no_colab_productions_filter:
     build:
       context: .
@@ -143,6 +158,14 @@ services:
     links:
     - rabbitmq
   no_colab_productions_filter_1:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: no_colab_productions_filter:latest
+    links:
+    - rabbitmq
+  no_colab_productions_filter_2:
     depends_on:
     - rabbitmq
     environment:
@@ -279,6 +302,14 @@ services:
     links:
     - rabbitmq
   twentieth_century_filter_1:
+    depends_on:
+    - rabbitmq
+    environment:
+    - PYTHONUNBUFFERED=1
+    image: twentieth_century_filter:latest
+    links:
+    - rabbitmq
+  twentieth_century_filter_2:
     depends_on:
     - rabbitmq
     environment:

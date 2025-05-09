@@ -1,19 +1,18 @@
 output_file: docker-compose.yaml
 
 clients:
-  - id: 1
-    files_path: ./files/long/client_1
+
   - id: 2
     files_path: ./files/long/client_2
 
 workers:
-  twentieth_century: 2
-  main_movie: 2
-  esp_production: 2
-  no_colab_productions: 2
+  twentieth_century: 3
+  main_movie: 3
+  esp_production: 3
+  no_colab_productions: 3
   sentiment: 3
-  arg_production: 2
-  credits: 2
+  arg_production: 3
+  credits: 3
   ratings: 3
 
-test: false
+test: true

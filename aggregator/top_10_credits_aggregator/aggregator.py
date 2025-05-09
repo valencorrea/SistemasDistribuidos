@@ -58,9 +58,9 @@ class Aggregator(Worker):
                 "client_id": client_id
             })
             logger.info("Top 10 actores agregados y enviados.")
-            self.actor_counter_per_client[client_id] = Counter()
-            self.received_batches_per_client[client_id] = 0
-            self.total_batches_per_client[client_id] = 0
+            self.actor_counter_per_client.pop(client_id)
+            self.received_batches_per_client.pop(client_id)
+            self.total_batches_per_client.pop(client_id)
 
 
     def start(self):
