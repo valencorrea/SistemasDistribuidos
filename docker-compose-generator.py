@@ -38,6 +38,7 @@ def generate_docker_yaml(config):
     for client in clients:
         cid = client["id"]
         path = client["files_path"]
+        results_path = client["files_path"].replace("files", "results")
         name = f"client_{cid}"
         template["services"][name] = {
             "container_name": name,
@@ -56,6 +57,7 @@ def generate_docker_yaml(config):
                 f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
                 f"{path}/credits.csv:/root/files/credits.csv",
                 f"{path}/ratings.csv:/root/files/ratings.csv",
+                f"{results_path}/results.json:/root/results/results.json",
                 "./middleware:/app/middleware"
             ]
         }

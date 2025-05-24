@@ -10,22 +10,6 @@ services:
     image: arg_production_filter:latest
     links:
     - rabbitmq
-  arg_production_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: arg_production_filter:latest
-    links:
-    - rabbitmq
-  arg_production_filter_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: arg_production_filter:latest
-    links:
-    - rabbitmq
   best_and_worst_ratings_aggregator:
     build:
       context: .
@@ -36,22 +20,23 @@ services:
     - PYTHONUNBUFFERED=1
     links:
     - rabbitmq
-  client_2:
+  client_1:
     build:
       context: .
       dockerfile: client/client.dockerfile
-    container_name: client_2
+    container_name: client_1
     depends_on:
     - client_decodifier
     environment:
     - PYTHONUNBUFFERED=1
     - DECODIFIER_HOST=client_decodifier
     - DECODIFIER_PORT=50000
-    - CLIENT_ID=2
+    - CLIENT_ID=1
     volumes:
-    - ./files/long/client_2/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/long/client_2/credits.csv:/root/files/credits.csv
-    - ./files/long/client_2/ratings.csv:/root/files/ratings.csv
+    - ./files/mini/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/mini/credits.csv:/root/files/credits.csv
+    - ./files/mini/ratings.csv:/root/files/ratings.csv
+    - ./results/mini/movies_metadata.csv:/root/results/movies_metadata.csv
     - ./middleware:/app/middleware
   client_decodifier:
     build:
@@ -76,42 +61,10 @@ services:
     - rabbitmq
     volumes:
     - ./files:/root/files
-  credits_joiner_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: credits_joiner:latest
-    links:
-    - rabbitmq
-  credits_joiner_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: credits_joiner:latest
-    links:
-    - rabbitmq
   esp_production_filter:
     build:
       context: .
       dockerfile: filters/esp_production/esp_production_filter.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: esp_production_filter:latest
-    links:
-    - rabbitmq
-  esp_production_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: esp_production_filter:latest
-    links:
-    - rabbitmq
-  esp_production_filter_2:
     depends_on:
     - rabbitmq
     environment:
@@ -130,42 +83,10 @@ services:
     image: main_movie_filter:latest
     links:
     - rabbitmq
-  main_movie_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: main_movie_filter:latest
-    links:
-    - rabbitmq
-  main_movie_filter_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: main_movie_filter:latest
-    links:
-    - rabbitmq
   no_colab_productions_filter:
     build:
       context: .
       dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: no_colab_productions_filter:latest
-    links:
-    - rabbitmq
-  no_colab_productions_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: no_colab_productions_filter:latest
-    links:
-    - rabbitmq
-  no_colab_productions_filter_2:
     depends_on:
     - rabbitmq
     environment:
@@ -197,22 +118,6 @@ services:
     image: ratings_joiner:latest
     links:
     - rabbitmq
-  ratings_joiner_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: ratings_joiner:latest
-    links:
-    - rabbitmq
-  ratings_joiner_2:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: ratings_joiner:latest
-    links:
-    - rabbitmq
   sentiment_aggregator:
     build:
       context: .
@@ -227,22 +132,6 @@ services:
     build:
       context: .
       dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: sentiment_filter:latest
-    links:
-    - rabbitmq
-  sentiment_filter_2:
     depends_on:
     - rabbitmq
     environment:
@@ -294,22 +183,6 @@ services:
     build:
       context: .
       dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: twentieth_century_filter:latest
-    links:
-    - rabbitmq
-  twentieth_century_filter_1:
-    depends_on:
-    - rabbitmq
-    environment:
-    - PYTHONUNBUFFERED=1
-    image: twentieth_century_filter:latest
-    links:
-    - rabbitmq
-  twentieth_century_filter_2:
     depends_on:
     - rabbitmq
     environment:

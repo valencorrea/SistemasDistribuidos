@@ -1,0 +1,73 @@
+{
+  "1": [
+    {
+      "title": "Burnt Money",
+      "genres": "['Crime']"
+    },
+    {
+      "title": "Rolling Family",
+      "genres": "['Drama', 'Comedy']"
+    },
+    {
+      "title": "Liverpool",
+      "genres": "['Drama']"
+    },
+    {
+      "title": "The Headless Woman",
+      "genres": "['Drama', 'Mystery', 'Thriller']"
+    },
+    {
+      "title": "Cleopatra",
+      "genres": "['Drama', 'Comedy', 'Foreign']"
+    }
+  ],
+  "2": {
+    "United States of America": 38413247192,
+    "France": 453957568,
+    "United Kingdom": 381492397,
+    "Germany": 163915108,
+    "Japan": 132967928
+  },
+  "3": [
+    {
+      "id": 27092,
+      "title": "Burnt Money",
+      "rating": 3.5555555555555554
+    },
+    {
+      "id": 71114,
+      "title": "Cleopatra",
+      "rating": 2.0
+    }
+  ],
+  "4": {
+    "name": {
+      "15": "Leonardo Sbaraglia",
+      "0": "Abian Vainstein",
+      "1": "Bernardo Forteza",
+      "2": "Carlos Resta",
+      "3": "Claudia Cantero",
+      "4": "C\u00e9sar Bord\u00f3n",
+      "5": "Daniel Hendler",
+      "6": "Eduardo Noriega",
+      "7": "El\u00edas Vi\u00f1oles",
+      "8": "Federico Luppi"
+    },
+    "count": {
+      "15": 2,
+      "0": 1,
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 1,
+      "8": 1
+    }
+  },
+  "5": {
+    "NEGATIVE": 17.33303282549283,
+    "POSITIVE": 15286.601761000395
+  }
+}
