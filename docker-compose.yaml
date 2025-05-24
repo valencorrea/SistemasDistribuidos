@@ -36,7 +36,7 @@ services:
     - ./files/mini/movies_metadata.csv:/root/files/movies_metadata.csv
     - ./files/mini/credits.csv:/root/files/credits.csv
     - ./files/mini/ratings.csv:/root/files/ratings.csv
-    - ./results/mini/movies_metadata.csv:/root/results/movies_metadata.csv
+    - ./results/mini/results.json:/root/results/results.json
     - ./middleware:/app/middleware
   client_decodifier:
     build:
@@ -44,6 +44,7 @@ services:
       dockerfile: client_decodifier/client_decodifier.dockerfile
     depends_on:
     - rabbitmq
+    - worker
     ports:
     - 50000:50000
     volumes:
@@ -190,3 +191,8 @@ services:
     image: twentieth_century_filter:latest
     links:
     - rabbitmq
+  worker:
+    build:
+      context: .
+      dockerfile: worker/worker.dockerfile
+    image: worker:latest

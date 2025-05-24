@@ -8,6 +8,13 @@ def generate_docker_yaml(config):
     clients = config["clients"]
     template = {
         "services": {
+            "worker": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "worker/worker.dockerfile",
+                },
+                "image": "worker:latest"
+            },
             "rabbitmq": {
                 "build": {
                     "context": "./rabbitmq",
@@ -27,7 +34,7 @@ def generate_docker_yaml(config):
                     "context": ".",
                     "dockerfile": "client_decodifier/client_decodifier.dockerfile",
                 },
-                "depends_on": ["rabbitmq"],
+                "depends_on": ["rabbitmq", "worker"],
                 "ports": ["50000:50000"],
                 "volumes": ["./middleware:/app/middleware"]
             },
