@@ -133,6 +133,37 @@ def generate_docker_yaml(config):
             "environment": ["PYTHONUNBUFFERED=1"]
         }
 
+    template["services"]["monitor"] = {
+        "build": {
+            "context": ".",
+            "dockerfile": "monitor/monitor.dockerfile"
+        },
+        "ports": ["50001:50001"],
+        "environment": [
+            "PYTHONUNBUFFERED=1",
+            "MONITOR_PORT=50001",
+            "HEARTBEAT_INTERVAL=5000",
+            "HEARTBEAT_TIMEOUT=15000"
+        ],
+        "volumes": ["/var/run/docker.sock:/var/run/docker.sock"]
+    }
+    
+    for service_name in template["services"]:
+        if service_name != "monitor" and service_name != "rabbitmq":
+            if "environment" not in template["services"][service_name]:
+                template["services"][service_name]["environment"] = []
+            
+            template["services"][service_name]["environment"].extend([
+                "MONITOR_HOST=monitor",
+                "MONITOR_PORT=50001",
+                "HEARTBEAT_INTERVAL=5000",
+                f"SERVICE_NAME={service_name}"
+            ])
+            
+            if "depends_on" not in template["services"][service_name]:
+                template["services"][service_name]["depends_on"] = []
+            template["services"][service_name]["depends_on"].append("monitor")
+    
     return template
 
 
