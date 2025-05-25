@@ -4,7 +4,10 @@ services:
       context: .
       dockerfile: filters/arg_production/arg_production_filter.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: arg_production_filter:latest
@@ -15,7 +18,10 @@ services:
       context: .
       dockerfile: aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -33,41 +39,44 @@ services:
     - DECODIFIER_PORT=50000
     - CLIENT_ID=1
     volumes:
-    - ./files/mini/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/mini/credits.csv:/root/files/credits.csv
-    - ./files/mini/ratings.csv:/root/files/ratings.csv
-    - ./results/mini/results.json:/root/results/results.json
-    - ./middleware:/app/middleware
+    - ./files/short//movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/short//credits.csv:/root/files/credits.csv
+    - ./files/short//ratings.csv:/root/files/ratings.csv
+    - ./results/short//results.json:/root/results/results.json
   client_decodifier:
     build:
       context: .
       dockerfile: client_decodifier/client_decodifier.dockerfile
     depends_on:
-    - rabbitmq
-    - worker
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     ports:
     - 50000:50000
-    volumes:
-    - ./middleware:/app/middleware
   credits_joiner:
     build:
       context: .
       dockerfile: joiner/credits/credits_joiner.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: credits_joiner:latest
     links:
     - rabbitmq
-    volumes:
-    - ./files:/root/files
   esp_production_filter:
     build:
       context: .
       dockerfile: filters/esp_production/esp_production_filter.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: esp_production_filter:latest
@@ -78,7 +87,10 @@ services:
       context: .
       dockerfile: filters/main_movie_filter/main_movie_filter.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: main_movie_filter:latest
@@ -89,7 +101,10 @@ services:
       context: .
       dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: no_colab_productions_filter:latest
@@ -102,7 +117,7 @@ services:
     healthcheck:
       interval: 10s
       retries: 10
-      test: CMD curl -f http://localhost:15672
+      test: rabbitmq-diagnostics check_port_connectivity
       timeout: 5s
     ports:
     - 15672:15672
@@ -113,7 +128,10 @@ services:
       context: .
       dockerfile: joiner/ratings/ratings_joiner.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: ratings_joiner:latest
@@ -124,7 +142,10 @@ services:
       context: .
       dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -134,7 +155,10 @@ services:
       context: .
       dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: sentiment_filter:latest
@@ -145,7 +169,10 @@ services:
       context: .
       dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -155,7 +182,10 @@ services:
       context: .
       dockerfile: aggregator/top_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -165,7 +195,10 @@ services:
       context: .
       dockerfile: aggregator/twentieth_century_arg_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -175,7 +208,10 @@ services:
       context: .
       dockerfile: aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     links:
@@ -185,7 +221,10 @@ services:
       context: .
       dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
     depends_on:
-    - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
     image: twentieth_century_filter:latest

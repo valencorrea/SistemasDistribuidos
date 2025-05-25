@@ -2,18 +2,16 @@ output_file: docker-compose.yaml
 
 clients:
   - id: 1
-    files_path: ./files/short/client_1
-  - id: 2
-    files_path: ./files/short/client_2
+    files_path: ./files/short/
 
 workers:
   twentieth_century: 1
   main_movie: 1
-  esp_production: 0
+  esp_production: 1
   no_colab_productions: 1
-  sentiment: 0
+  sentiment: 1
   arg_production: 1
-  credits: 0
+  credits: 1
   ratings: 1
 
 test: false

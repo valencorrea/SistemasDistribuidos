@@ -1,7 +1,8 @@
 import logging
-from middleware.file_consuming.file_consuming import CSVSender
 import os
 import time
+
+from middleware.file_consuming.file_consuming import CSVSender
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -51,7 +52,4 @@ class Client:
 
 if __name__ == '__main__':
     client = Client()
-    for i in range(6):
-        time.sleep(i)
     client.start()
-    time.sleep(10*60)
