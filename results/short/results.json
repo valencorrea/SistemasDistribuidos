@@ -1,0 +1,149 @@
+{
+  "1": [
+    {
+      "title": "La Cienaga",
+      "genres": "['Comedy', 'Drama']"
+    },
+    {
+      "title": "Burnt Money",
+      "genres": "['Crime']"
+    },
+    {
+      "title": "The City of No Limits",
+      "genres": "['Thriller', 'Drama']"
+    },
+    {
+      "title": "Nicotina",
+      "genres": "['Drama', 'Action', 'Comedy', 'Thriller']"
+    },
+    {
+      "title": "Lost Embrace",
+      "genres": "['Drama', 'Foreign']"
+    },
+    {
+      "title": "Whisky",
+      "genres": "['Comedy', 'Drama', 'Foreign']"
+    },
+    {
+      "title": "The Holy Girl",
+      "genres": "['Drama', 'Foreign']"
+    },
+    {
+      "title": "The Aura",
+      "genres": "['Crime', 'Drama', 'Thriller']"
+    },
+    {
+      "title": "Bomb\u00f3n: The Dog",
+      "genres": "['Drama']"
+    },
+    {
+      "title": "Rolling Family",
+      "genres": "['Drama', 'Comedy']"
+    },
+    {
+      "title": "The Method",
+      "genres": "['Drama', 'Thriller']"
+    },
+    {
+      "title": "Every Stewardess Goes to Heaven",
+      "genres": "['Drama', 'Romance', 'Foreign']"
+    },
+    {
+      "title": "Tetro",
+      "genres": "['Drama', 'Mystery']"
+    },
+    {
+      "title": "The Secret in Their Eyes",
+      "genres": "['Crime', 'Drama', 'Mystery', 'Romance']"
+    },
+    {
+      "title": "Liverpool",
+      "genres": "['Drama']"
+    },
+    {
+      "title": "The Headless Woman",
+      "genres": "['Drama', 'Mystery', 'Thriller']"
+    },
+    {
+      "title": "The Last Summer of La Boyita",
+      "genres": "['Drama']"
+    },
+    {
+      "title": "The Appeared",
+      "genres": "['Horror', 'Thriller', 'Mystery']"
+    },
+    {
+      "title": "The Fish Child",
+      "genres": "['Drama', 'Thriller', 'Romance', 'Foreign']"
+    },
+    {
+      "title": "Cleopatra",
+      "genres": "['Drama', 'Comedy', 'Foreign']"
+    },
+    {
+      "title": "Roma",
+      "genres": "['Drama', 'Foreign']"
+    },
+    {
+      "title": "Conversations with Mother",
+      "genres": "['Comedy', 'Drama', 'Foreign']"
+    },
+    {
+      "title": "The Education of Fairies",
+      "genres": "['Drama']"
+    },
+    {
+      "title": "The Good Life",
+      "genres": "['Drama']"
+    }
+  ],
+  "2": {
+    "United States of America": 120153886644,
+    "France": 2256831838,
+    "United Kingdom": 1611604610,
+    "India": 1169682797,
+    "Japan": 832585873
+  },
+  "3": [
+    {
+      "id": 80717,
+      "title": "Violeta Went to Heaven",
+      "rating": 5.0
+    },
+    {
+      "id": 69278,
+      "title": "Phase 7",
+      "rating": 2.75
+    }
+  ],
+  "4": {
+    "name": {
+      "1010": "Ricardo Dar\u00edn",
+      "47": "Alejandro Awada",
+      "489": "In\u00e9s Efron",
+      "664": "Leonardo Sbaraglia",
+      "1125": "Valeria Bertuccelli",
+      "111": "Arturo Goetz",
+      "285": "Diego Peretti",
+      "948": "Pablo Echarri",
+      "998": "Rafael Spregelburd",
+      "1033": "Rodrigo de la Serna"
+    },
+    "count": {
+      "1010": 17,
+      "47": 7,
+      "489": 7,
+      "664": 7,
+      "1125": 7,
+      "111": 6,
+      "285": 6,
+      "948": 6,
+      "998": 6,
+      "1033": 6
+    }
+  },
+  "5": {
+    "NEGATIVE": 5453.397594954434,
+    "POSITIVE": 5668.650541494208
+  }
+}

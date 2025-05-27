@@ -2,7 +2,7 @@ output_file: docker-compose.yaml
 
 clients:
   - id: 1
-    files_path: ./files/short/
+    files_path: ./files/mini
 
 workers:
   twentieth_century: 1
