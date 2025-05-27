@@ -1,7 +1,8 @@
 import logging
-from middleware.file_consuming.file_consuming import CSVSender
 import os
 import time
+
+from middleware.file_consuming.file_consuming import CSVSender
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -22,9 +23,9 @@ class Client:
         success = False
 
         files_to_send = [
-            ("root/files/ratings.csv", "rating"),
-            ("root/files/movies_metadata.csv", "movie"),
-            ("root/files/credits.csv", "credit"),
+            ("/root/files/ratings.csv", "rating"),
+            ("/root/files/movies_metadata.csv", "movie"),
+            ("/root/files/credits.csv", "credit"),
         ]
 
         for retry in range(3):
@@ -51,7 +52,4 @@ class Client:
 
 if __name__ == '__main__':
     client = Client()
-    for i in range(6):
-        time.sleep(i)
     client.start()
-    time.sleep(10*60)

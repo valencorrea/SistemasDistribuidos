@@ -7,7 +7,6 @@ from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data_for_fifth_filter
 from worker.worker import Worker
 
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',

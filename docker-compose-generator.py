@@ -8,6 +8,13 @@ def generate_docker_yaml(config):
     clients = config["clients"]
     template = {
         "services": {
+            "worker": {
+                "build": {
+                    "context": ".",
+                    "dockerfile": "worker/worker.dockerfile",
+                },
+                "image": "worker:latest"
+            },
             "rabbitmq": {
                 "build": {
                     "context": "./rabbitmq",
@@ -15,7 +22,7 @@ def generate_docker_yaml(config):
                 },
                 "ports": ["15672:15672"],
                 "healthcheck": {
-                    "test": "CMD curl -f http://localhost:15672",
+                    "test": "rabbitmq-diagnostics check_port_connectivity",
                     "interval": "10s",
                     "timeout": "5s",
                     "retries": 10
@@ -27,9 +34,15 @@ def generate_docker_yaml(config):
                     "context": ".",
                     "dockerfile": "client_decodifier/client_decodifier.dockerfile",
                 },
-                "depends_on": ["rabbitmq"],
-                "ports": ["50000:50000"],
-                "volumes": ["./middleware:/app/middleware"]
+                "depends_on": {
+                    "rabbitmq": {
+                        "condition": "service_healthy"
+                    },
+                    "worker": {
+                        "condition": "service_started"
+                    }
+                },
+                "ports": ["50000:50000"]
             },
         }
     }
@@ -38,6 +51,7 @@ def generate_docker_yaml(config):
     for client in clients:
         cid = client["id"]
         path = client["files_path"]
+        results_path = client["files_path"].replace("files", "results")
         name = f"client_{cid}"
         template["services"][name] = {
             "container_name": name,
@@ -56,22 +70,22 @@ def generate_docker_yaml(config):
                 f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
                 f"{path}/credits.csv:/root/files/credits.csv",
                 f"{path}/ratings.csv:/root/files/ratings.csv",
-                "./middleware:/app/middleware"
+                f"{results_path}/results.json:/root/results/results.json"
             ]
         }
-        if not test_set and config["test"] != False:
-            template["services"]["test"] = {
-                "build": {
-                    "context": ".",
-                    "dockerfile": "test/integration.dockerfile"
-                },
-                "volumes": [
-                      f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
-                     f"{path}/credits.csv:/root/files/credits.csv",
-                    f"{path}/ratings.csv:/root/files/ratings.csv"
-                ]
-            }
-            test_set = True
+        # if not test_set and config["test"] != False:
+        #     template["services"]["test"] = {
+        #         "build": {
+        #             "context": ".",
+        #             "dockerfile": "test/integration.dockerfile"
+        #         },
+        #         "volumes": [
+        #               f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
+        #              f"{path}/credits.csv:/root/files/credits.csv",
+        #             f"{path}/ratings.csv:/root/files/ratings.csv"
+        #         ]
+        #     }
+        #     test_set = True
 
     # Worker definitions
     worker_definitions = {
@@ -96,19 +110,33 @@ def generate_docker_yaml(config):
                 "context": ".",
                 "dockerfile": dockerfile
             },
-            "depends_on": ["rabbitmq"],
+            "depends_on": {
+                "rabbitmq": {
+                    "condition": "service_healthy"
+                },
+                "worker": {
+                    "condition": "service_started"
+                }
+            },
             "links": ["rabbitmq"],
             "environment": ["PYTHONUNBUFFERED=1"],
             "image": f"{name}:latest"
         }
 
-        if name == "credits_joiner":
-            template["services"][name]["volumes"] = ["./files:/root/files"]
+        # if name == "credits_joiner":
+        #     template["services"][name]["volumes"] = ["./files:/root/files"]
 
         for i in range(1, count):
             template["services"][f"{name}_{i}"] = {
                 "image": f"{name}:latest",
-                "depends_on": ["rabbitmq"],
+                "depends_on": {
+                    "rabbitmq": {
+                        "condition": "service_healthy"
+                    },
+                    "worker": {
+                        "condition": "service_started"
+                    }
+                },
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
             }
@@ -128,7 +156,14 @@ def generate_docker_yaml(config):
                 "context": ".",
                 "dockerfile": dockerfile
             },
-            "depends_on": ["rabbitmq"],
+            "depends_on": {
+                "rabbitmq": {
+                    "condition": "service_healthy"
+                },
+                "worker": {
+                    "condition": "service_started"
+                }
+            },
             "links": ["rabbitmq"],
             "environment": ["PYTHONUNBUFFERED=1"]
         }

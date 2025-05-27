@@ -58,7 +58,7 @@ class Worker(ABC):
         self.close()
 
     @staticmethod
-    def wait_for_rabbitmq(max_retries: int = 30, retry_interval: float = 8.0) -> bool:
+    def wait_for_rabbitmq(max_retries: int = 10, retry_interval: float = 10.0) -> bool:
         for i in range(max_retries):
             time.sleep(retry_interval)
             try:
