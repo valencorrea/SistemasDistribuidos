@@ -2,9 +2,11 @@ import logging
 import signal
 import threading
 import time
+import os
 from abc import ABC, abstractmethod
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
+from middleware.heartbeat.heartbeat_sender import HeartbeatSender
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -21,10 +23,17 @@ class Worker(ABC):
         logging.getLogger("pika").setLevel(logging.WARNING)
         self.shutdown_event = threading.Event()
         signal.signal(signal.SIGTERM, self.signal_handler)
+        
+        # Inicializar el heartbeat sender
+        service_name = os.getenv('SERVICE_NAME', self.__class__.__name__.lower())
+        self.heartbeat_sender = HeartbeatSender(service_name)
+        self.heartbeat_sender.start()  # Iniciar el heartbeat sender
+        
         if not self.wait_for_rabbitmq():
             logger.error("Error al intentar conectar con rabbitMQ. No se va a iniciar el worker")
             self._close()
             return
+            
         self.shutdown_consumer = Consumer(
             queue_name="shutdown",
             _message_handler=self.handle_shutdown,
@@ -45,6 +54,7 @@ class Worker(ABC):
 
     def _close(self):
         self.shutdown_event.set()
+        self.heartbeat_sender.stop()  # Detener el heartbeat sender
         self.close()
 
     @staticmethod
