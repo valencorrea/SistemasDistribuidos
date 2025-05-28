@@ -196,8 +196,14 @@ def generate_docker_yaml(config):
             ])
             
             if "depends_on" not in template["services"][service_name]:
-                template["services"][service_name]["depends_on"] = []
-            template["services"][service_name]["depends_on"].append("monitor")
+                template["services"][service_name]["depends_on"] = {}
+
+            if isinstance(template["services"][service_name]["depends_on"], list):
+                template["services"][service_name]["depends_on"].append("monitor")
+            else:
+                template["services"][service_name]["depends_on"]["monitor"] = {
+                    "condition": "service_started"
+                }
     
     return template
 

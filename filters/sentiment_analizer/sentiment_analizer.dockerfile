@@ -9,6 +9,7 @@ COPY middleware /app/middleware
 COPY worker/worker.py /app/worker/worker.py
 COPY filters/sentiment_analizer/sentiment_analizer_filter.py /app/filters/sentiment_analizer/sentiment_analizer_filter.py
 COPY model/movie.py /app/model/movie.py
+COPY utils /app/utils
 COPY utils/parsers/movie_parser.py /app/utils/parsers/movie_parser.py
 
 ENV PYTHONPATH="/app"

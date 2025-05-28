@@ -4,6 +4,7 @@ RUN pip install --upgrade pip
 RUN pip install pika
 
 COPY middleware /app/middleware
+COPY utils /app/utils
 COPY worker/worker.py /app/worker/worker.py
 
 ENV PYTHONPATH="/app"
