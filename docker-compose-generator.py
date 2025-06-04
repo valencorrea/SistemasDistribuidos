@@ -42,12 +42,17 @@ def generate_docker_yaml(config):
                         "condition": "service_started"
                     }
                 },
-                "ports": ["50000:50000"]
+                "ports": ["50000:50000"],
+                "healthcheck": {
+                    "test": 'netstat -ltn | grep -c 5000',
+                    "interval": "5s",
+                    "timeout": "2s",
+                    "retries": 10
+                }
             },
         }
     }
-    test_set = False
-    # Add multiple clients
+
     for client in clients:
         cid = client["id"]
         path = client["files_path"]
@@ -65,7 +70,11 @@ def generate_docker_yaml(config):
                 "DECODIFIER_PORT=50000",
                 f"CLIENT_ID={cid}"
             ],
-            "depends_on": ["client_decodifier"],
+            "depends_on": {
+                    "client_decodifier": {
+                        "condition": "service_healthy"
+                    }
+                },
             "volumes": [
                 f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
                 f"{path}/credits.csv:/root/files/credits.csv",
@@ -73,21 +82,7 @@ def generate_docker_yaml(config):
                 f"{results_path}/results.json:/root/results/results.json"
             ]
         }
-        # if not test_set and config["test"] != False:
-        #     template["services"]["test"] = {
-        #         "build": {
-        #             "context": ".",
-        #             "dockerfile": "test/integration.dockerfile"
-        #         },
-        #         "volumes": [
-        #               f"{path}/movies_metadata.csv:/root/files/movies_metadata.csv",
-        #              f"{path}/credits.csv:/root/files/credits.csv",
-        #             f"{path}/ratings.csv:/root/files/ratings.csv"
-        #         ]
-        #     }
-        #     test_set = True
 
-    # Worker definitions
     worker_definitions = {
         "twentieth_century_filter": "filters/twentieth_century/twentieth_century_filter.dockerfile",
         "arg_production_filter": "filters/arg_production/arg_production_filter.dockerfile",
@@ -122,9 +117,6 @@ def generate_docker_yaml(config):
             "environment": ["PYTHONUNBUFFERED=1"],
             "image": f"{name}:latest"
         }
-
-        # if name == "credits_joiner":
-        #     template["services"][name]["volumes"] = ["./files:/root/files"]
 
         for i in range(1, count):
             template["services"][f"{name}_{i}"] = {
