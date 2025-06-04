@@ -78,7 +78,8 @@ services:
       dockerfile: client/client.dockerfile
     container_name: client_2
     depends_on:
-    - client_decodifier
+      client_decodifier:
+        condition: service_healthy
     - monitor
     environment:
     - PYTHONUNBUFFERED=1
@@ -105,6 +106,11 @@ services:
         condition: service_healthy
       worker:
         condition: service_started
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: netstat -ltn | grep -c 5000
+      timeout: 2s
     environment:
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
