@@ -111,4 +111,4 @@ def generate_reduced_valid_dataset(output_dir: str):
 
 
 if __name__ == '__main__':
-    generate_reduced_valid_dataset("./files/mini")
+    generate_reduced_valid_dataset("./files")
