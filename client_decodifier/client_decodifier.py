@@ -7,6 +7,7 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from middleware.file_consuming.file_consuming import CSVReceiver
 from worker.worker import Worker
+import json
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -163,7 +164,7 @@ class ClientDecodifier(Worker):
 
         if client_socket:
             try:
-                result = str(query_result) + "\n"
+                result = json.dumps(query_result) + "\n"
                 client_socket.sendall(result.encode("utf-8"))
                 logger.info(f"Resultado enviado a cliente {client_id}")
                 if self.results_received_per_client[client_id] == 5:

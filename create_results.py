@@ -1,7 +1,6 @@
 import json
 import logging
 import signal
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -80,12 +79,23 @@ class Processor:
         ]
         self.result[1] = q1[["title", "genres"]].to_dict(orient="records")
 
-        # Q2
-        solo_country_df = movies_df_cleaned[movies_df_cleaned['production_countries'].apply(lambda x: len(eval(x)) == 1)].copy()
-        solo_country_df['country'] = solo_country_df['production_countries'].apply(lambda x: eval(x)[0])
+        def extract_iso(value):
+            try:
+                countries = eval(value)
+                if isinstance(countries, list) and len(countries) == 1 and 'iso_3166_1' in countries[0]:
+                    return countries[0]['iso_3166_1']
+            except Exception:
+                pass
+            return None
+
+        # Use the original movies_df for Q2
+        solo_country_df = movies_df.dropna(subset=['production_countries', 'budget']).copy()
+        solo_country_df = solo_country_df[solo_country_df['production_countries'].apply(lambda x: len(eval(x)) == 1)]
+        solo_country_df['country'] = solo_country_df['production_countries'].apply(extract_iso)
+        solo_country_df = solo_country_df[solo_country_df['country'].notnull()]
+        solo_country_df['budget'] = pd.to_numeric(solo_country_df['budget'], errors='coerce')
         investment_by_country = solo_country_df.groupby('country')['budget'].sum().sort_values(ascending=False)
         self.result[2] = investment_by_country.head(5).to_dict()
-
         # Q3
         movies_argentina_post_2000_df = movies_df_cleaned[
             (movies_df_cleaned['production_countries'].str.contains('Argentina', case=False, na=False)) &

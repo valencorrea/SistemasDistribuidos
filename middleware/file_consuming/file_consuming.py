@@ -31,26 +31,19 @@ class CSVSender:
             self.socket = None
 
     def connect(self) -> bool:
-        max_retries = 3
-        retry_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Intentando conectar a {self.host}:{self.port} (intento {attempt + 1})")
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(self.timeout)
-                self.socket.connect((self.host, self.port))
-                logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
-                return True
-            except Exception as e:
-                logger.error(f"Error conectando (intento {attempt + 1}): {e}")
-                if self.socket:
-                    self.socket.close()
-                self.socket = None
-                if attempt < max_retries - 1:
-                    logger.info(f"Reintentando en {retry_delay} segundos...")
-                    time.sleep(retry_delay)
-        return False
+        try:
+            logger.info(f"Intentando conectar a {self.host}:{self.port}")
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(self.timeout)
+            self.socket.connect((self.host, self.port))
+            logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
+            return True
+        except Exception as e:
+            logger.error(f"Error conectando: {e}")
+            if self.socket:
+                self.socket.close()
+            self.socket = None
+            return False
 
     def _send_all(self, data: bytes) -> bool:
         total_sent = 0
@@ -149,7 +142,6 @@ class CSVSender:
         if not self.socket:
             logger.error("No hay socket activo para recibir resultados")
             return
-
         try:
             logger.info("Esperando resultados del servidor...")
             buffer = b""
@@ -165,20 +157,17 @@ class CSVSender:
                     line, buffer = buffer.split(b'\n', 1)
                     try:
                         decoded_line = line.decode('utf-8')
-                        logger.info(f"Resultado recibido del servidor: {decoded_line}")
+                        yield decoded_line
                         received_count += 1
                     except UnicodeDecodeError as e:
                         logger.warning(f"Error decodificando línea: {e}")
 
                     if received_count >= expected_results:
-                        logger.info(f"Se recibieron los {expected_results} resultados esperados.")
                         return
-
         except socket.timeout:
             logger.warning("Timeout esperando resultados")
         except Exception as e:
             logger.error(f"Error recibiendo resultados: {e}")
-
 
 class CSVReceiver:
     def __init__(self, host: str = "0.0.0.0", port: int = 50000, timeout: int = 30):
