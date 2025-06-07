@@ -6,7 +6,7 @@ import os
 from abc import ABC, abstractmethod
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
-from middleware.heartbeat.heartbeat_sender import HeartbeatSender
+from middleware.heartbeat.heartbeat_sender_cluster import HeartbeatSenderCluster
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -26,7 +26,7 @@ class Worker(ABC):
         
         # Inicializar el heartbeat sender
         service_name = os.getenv('SERVICE_NAME', self.__class__.__name__.lower())
-        self.heartbeat_sender = HeartbeatSender(service_name)
+        self.heartbeat_sender = HeartbeatSenderCluster(service_name)
         self.heartbeat_sender.start()  # Iniciar el heartbeat sender
         
         if not self.wait_for_rabbitmq():

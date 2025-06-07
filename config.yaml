@@ -6,13 +6,13 @@ clients:
     files_path: ./files/long/client_2
 
 workers:
-  twentieth_century: 3
-  main_movie: 3
-  esp_production: 3
-  no_colab_productions: 3
-  sentiment: 3
-  arg_production: 3
-  credits: 3
-  ratings: 3
+  twentieth_century: 1
+  main_movie: 1
+  esp_production: 1
+  no_colab_productions: 1
+  sentiment: 1
+  arg_production: 1
+  credits: 1
+  ratings: 1
 
-test: true
+test: false
