@@ -4,11 +4,6 @@ import logging
 import pika
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
-
 
 class Publisher:
     def __init__(self, exchange_name: str = 'default'):
@@ -25,6 +20,6 @@ class Publisher:
         try:
             if self.connection and not self.connection.is_closed:
                 self.connection.close()
-                logger.info("✅ Conexión cerrada correctamente")
+                logger.debug("✅ Conexión cerrada correctamente")
         except Exception as e:
             logger.error(f"❌ Error al cerrar conexión: {e}")

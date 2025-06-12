@@ -1,15 +1,8 @@
 from collections import defaultdict
-import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
 
 
 class Aggregator(Worker):
@@ -23,28 +16,28 @@ class Aggregator(Worker):
         self.movies_ratings = defaultdict(dict)
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
-        logger.info(f"Mensaje de ratings recibido: {message}")
+        self.logger.info(f"Mensaje de ratings recibido: {message}")
         ratings = message.get("ratings")
-        logger.info(f"Se obtuvieron {len(ratings)} ratings: {ratings}.")
+        self.logger.info(f"Se obtuvieron {len(ratings)} ratings: {ratings}.")
         batch_size = int(message.get("processed_batches", 0))
         total_batches = int(message.get("total_batches", 0))
         client_id = message.get("client_id", None)
         if batch_size != 0:
             self.received_batches_per_client[client_id] += batch_size
-            logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
+            self.logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
         if total_batches != 0:
             self.total_batches_per_client[client_id] = total_batches
-            logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches_per_client[client_id]}.")
+            self.logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches_per_client[client_id]}.")
 
         for movie_id, data in ratings.items():
             if movie_id in self.movies_ratings[client_id]:
@@ -68,7 +61,7 @@ class Aggregator(Worker):
             self.movies_ratings.pop(client_id)
             self.received_batches_per_client.pop(client_id)
             self.total_batches_per_client.pop(client_id)
-            logger.info("Resultado de mejor y peor pelicula enviado.")
+            self.logger.info("Resultado de mejor y peor pelicula enviado.")
 
     def obtain_result(self, client_id):
         max_rating = float('-inf')
@@ -103,7 +96,7 @@ class Aggregator(Worker):
         }
 
     def start(self):
-        logger.info("Iniciando agregador")
+        self.logger.info("Iniciando agregador")
         try:
             self.consumer.start_consuming()
         finally:

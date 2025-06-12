@@ -10,11 +10,6 @@ import pika
 import datetime
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
-
 
 class Consumer(threading.Thread):
     def __init__(self, queue_name: str,
@@ -72,11 +67,11 @@ class Consumer(threading.Thread):
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            #logger.info(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
+            logger.debug(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            #logger.info(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
+            logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error: {e}")
@@ -113,7 +108,7 @@ class Consumer(threading.Thread):
             logger.error(f"Error closing connection: {e}")
     
     def run(self):
-        logger.info(f"🟢 Starting direct consumer '{self._queue_name}'")
+        logger.debug(f"🟢 Starting direct consumer '{self._queue_name}'")
         self.start_consuming()
 
 
