@@ -6,11 +6,7 @@ from utils.parsers.movie_parser import convert_data_for_main_movie_filter
 from worker.worker import Worker
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 
 class MainMovieFilter(Worker):
@@ -28,7 +24,7 @@ class MainMovieFilter(Worker):
             self.movie_2_producer.close()
             self.movie_3_producer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar las conexiones: {e}")
+            self.logger.error(f"Error al cerrar las conexiones: {e}")
 
     def handle_message(self, message):
         movies = convert_data_for_main_movie_filter(message)
@@ -46,7 +42,7 @@ class MainMovieFilter(Worker):
         }
 
         if total_batches != 0:
-            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
+            self.logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         self.movie_producer.enqueue(batch_message)
         self.movie_2_producer.enqueue(batch_message)
@@ -55,7 +51,7 @@ class MainMovieFilter(Worker):
         return batch_message
 
     def start(self):
-        logger.info("Iniciando filtro de entradas de error")
+        self.logger.info("Iniciando filtro de entradas de error")
         try:
             self.consumer.start_consuming()
         finally:

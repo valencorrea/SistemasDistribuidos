@@ -6,11 +6,7 @@ from utils.parsers.movie_parser import convert_data
 from worker.worker import Worker
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 
 class ArgProductionFilter(Worker):
@@ -21,22 +17,22 @@ class ArgProductionFilter(Worker):
         self.batch_results_producer = Producer("20_century_batch_results")
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.esp_production_producer.close()
             self.batch_results_producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def start(self):
-        logger.info("Iniciando filtro de películas de produccion argentina")
+        self.logger.info("Iniciando filtro de películas de produccion argentina")
         self.consumer.start_consuming()
 
     def handle_message(self, message):
         client_id = message.get("client_id")
-        logger.info(f"Mensaje de batch de peliculas 2000 filtradas recibido: {len(message.get('movies', None))} peliculas del cliente {client_id}")
+        self.logger.info(f"Mensaje de batch de peliculas 2000 filtradas recibido: {len(message.get('movies', None))} peliculas del cliente {client_id}")
         movies = convert_data(message)
         filtered_movies = self.apply_filter(movies)
         total_batches = message.get("total_batches", 0)
@@ -49,7 +45,7 @@ class ArgProductionFilter(Worker):
         }
 
         if total_batches != 0:
-            logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
+            self.logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
         self.esp_production_producer.enqueue(result)
         self.batch_results_producer.enqueue(result)

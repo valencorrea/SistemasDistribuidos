@@ -6,11 +6,7 @@ from utils.parsers.movie_parser import convert_data_for_second_filter
 from worker.worker import Worker
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 class NoColabProductionsFilter(Worker):
     def __init__(self):
@@ -19,13 +15,13 @@ class NoColabProductionsFilter(Worker):
         self.producer = Producer("aggregate_consulta_2")
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar las conexiones: {e}")
+            self.logger.error(f"Error al cerrar las conexiones: {e}")
 
     def handle_message(self, message):
         movies = convert_data_for_second_filter(message)
@@ -41,7 +37,7 @@ class NoColabProductionsFilter(Worker):
         self.producer.enqueue(batch_message)
 
     def start(self):
-        logger.info("Iniciando filtro de películas top 5 local")
+        self.logger.info("Iniciando filtro de películas top 5 local")
         try:
             self.consumer.start_consuming()
         finally:

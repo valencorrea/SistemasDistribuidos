@@ -12,6 +12,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -32,6 +33,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -58,10 +60,10 @@ services:
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=client_1
     volumes:
-    - ./files/short//movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/short//credits.csv:/root/files/credits.csv
-    - ./files/short//ratings.csv:/root/files/ratings.csv
-    - ./results/short//results.json:/root/results/results.json
+    - ./files/short/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/short/credits.csv:/root/files/credits.csv
+    - ./files/short/ratings.csv:/root/files/ratings.csv
+    - ./results/short/results.json:/root/results/results.json
   client_decodifier:
     build:
       context: .
@@ -98,6 +100,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -118,6 +121,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -138,6 +142,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -171,6 +176,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -204,6 +210,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -224,6 +231,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -243,6 +251,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -263,6 +272,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -282,6 +292,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -301,6 +312,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -320,6 +332,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000
@@ -339,6 +352,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOST=monitor
     - MONITOR_PORT=50001
     - HEARTBEAT_INTERVAL=5000

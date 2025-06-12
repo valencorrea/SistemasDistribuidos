@@ -7,11 +7,7 @@ from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data_for_fifth_filter
 from worker.worker import Worker
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 class SentimentAnalyzerFilter(Worker):
     def __init__(self):
@@ -24,13 +20,13 @@ class SentimentAnalyzerFilter(Worker):
                 truncation=True)
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
         try:
@@ -47,7 +43,7 @@ class SentimentAnalyzerFilter(Worker):
             }
             self.producer.enqueue(batch_message)
         except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
+            self.logger.error(f"Error en análisis de sentimiento: {e}")
 
     def analyze_sentiment(self, text: str) -> str:
         if not text:
@@ -61,20 +57,20 @@ class SentimentAnalyzerFilter(Worker):
             result = self.sentiment_analyzer(text)
             return result[0]["label"].upper()
         except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
+            self.logger.error(f"Error en análisis de sentimiento: {e}")
             return "NEUTRAL"
 
     def start(self):
         try:
             self.consumer.start_consuming()
         except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
+            self.logger.error(f"Error en análisis de sentimiento: {e}")
 
     def analyze_sentiments(self, movies):
         result = []
         for movie in movies:
             if movie.get("budget") is None or movie.get("budget") == 0 or movie.get("revenue") is None or movie.get("revenue") == 0:
-                logger.info(f"Skipped")
+                self.logger.info(f"Skipped")
                 continue
             sentiment = self.analyze_sentiment(movie.get("overview", ""))
             result.append({"sentiment": sentiment, "budget": movie.get("budget"), "revenue": movie.get("revenue")})
