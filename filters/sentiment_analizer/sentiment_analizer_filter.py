@@ -73,6 +73,9 @@ class SentimentAnalyzerFilter(Worker):
     def analyze_sentiments(self, movies):
         result = []
         for movie in movies:
+            if movie.get("budget") is None or movie.get("budget") == 0 or movie.get("revenue") is None or movie.get("revenue") == 0:
+                logger.info(f"Skipped")
+                continue
             sentiment = self.analyze_sentiment(movie.get("overview", ""))
             result.append({"sentiment": sentiment, "budget": movie.get("budget"), "revenue": movie.get("revenue")})
         return result
