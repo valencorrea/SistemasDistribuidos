@@ -1,18 +1,69 @@
 output_file: docker-compose.yaml
 
 clients:
-
-  - id: 2
-    files_path: ./files/long/client_2
+  - id: 1
+    files_path: ./files/long
 
 workers:
-  twentieth_century: 1
-  main_movie: 1
-  esp_production: 1
-  no_colab_productions: 1
-  sentiment: 1
-  arg_production: 1
-  credits: 1
-  ratings: 1
+  twentieth_century:
+    count: 1
+    log_level: INFO
+    kill: true
+  main_movie:
+    count: 1
+    log_level: INFO
+    kill: true
+  esp_production:
+    count: 1
+    log_level: INFO
+    kill: true
+  no_colab_productions:
+    count: 1
+    log_level: INFO
+    kill: true
+  sentiment:
+    count: 1
+    log_level: INFO
+    kill: true
+  arg_production:
+    count: 1
+    log_level: INFO
+    kill: true
+  credits:
+    count: 1
+    log_level: INFO
+    kill: true
+  ratings:
+    count: 1
+    log_level: INFO
+    kill: true
 
-test: false
+aggregators:
+  twentieth_century_arg_esp:
+    generate: true
+    log_level: INFO
+    kill: true
+  twentieth_century_arg:
+    generate: true
+    log_level: INFO
+    kill: true
+  top_5_countries:
+    generate: true
+    log_level: INFO
+    kill: true
+  top_10_credits:
+    generate: true
+    log_level: INFO
+    kill: true
+  best_and_worst_ratings:
+    generate: true
+    log_level: INFO
+    kill: true
+  sentiment:
+    generate: true
+    log_level: INFO
+    kill: false
+
+test:
+  random: true
+  interval: 5
