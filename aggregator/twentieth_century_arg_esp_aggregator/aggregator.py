@@ -5,11 +5,7 @@ from middleware.producer.producer import Producer
 from worker.worker import Worker
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 class Aggregator(Worker):
     def __init__(self):
@@ -22,13 +18,13 @@ class Aggregator(Worker):
         self.total_batches_per_client = {}
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
         if message.get("type") == "batch_result":
@@ -44,7 +40,7 @@ class Aggregator(Worker):
             if message.get("total_batches"):
                 self.total_batches_per_client[client_id] = message.get("total_batches")
 
-            logger.info(f"Batch procesado. Películas acumuladas: {len(self.results[client_id])} cliente {client_id}")
+            self.logger.info(f"Batch procesado. Películas acumuladas: {len(self.results[client_id])} cliente {client_id}")
 
             # Sí hemos recibido todos los batches, enviar el resultado final
             if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
@@ -56,13 +52,13 @@ class Aggregator(Worker):
                     "client_id": message.get("client_id")
                 }
                 if self.producer.enqueue(result_message):
-                    logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
+                    self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
                     self.results.pop(client_id)
                     self.control_batches_per_client.pop(client_id)
                     self.total_batches_per_client.pop(client_id)
 
     def start(self):
-        logger.info("Iniciando agregador")
+        self.logger.info("Iniciando agregador")
         self.consumer.start_consuming()
 
 if __name__ == '__main__':

@@ -15,16 +15,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 
 class TestClass(Worker):
     def __init__(self):
-        logger.info("Iniciando Cliente...")
+        self.logger.info("Iniciando Cliente...")
         self.result = {}
         self.result_consumed = {}
         self.result_consumer = Consumer("result_comparator", _message_handler=self._handle_message)
@@ -34,23 +30,23 @@ class TestClass(Worker):
         self.close()
 
     def close(self):
-        logger.info(f"Closing worker")
+        self.logger.info(f"Closing worker")
         self.result_consumer.close()
 
     def start(self):
-        logger.info("Comenzando procesamiento de datos...")
-        logger.info("Cargando archivos CSV...")
+        self.logger.info("Comenzando procesamiento de datos...")
+        self.logger.info("Cargando archivos CSV...")
         movies_df = pd.read_csv('/root/files/movies_metadata.csv', low_memory=False)
-        logger.info(f"Archivo movies_metadata.csv cargado. Dimensiones: {movies_df.shape}")
+        self.logger.info(f"Archivo movies_metadata.csv cargado. Dimensiones: {movies_df.shape}")
 
         ratings_df = pd.read_csv('/root/files/ratings.csv')
-        logger.info(f"Archivo ratings.csv cargado. Dimensiones: {ratings_df.shape}")
+        self.logger.info(f"Archivo ratings.csv cargado. Dimensiones: {ratings_df.shape}")
 
         credits_df = pd.read_csv('/root/files/credits.csv')
-        logger.info(f"Archivo credits.csv cargado. Dimensiones: {credits_df.shape}")
+        self.logger.info(f"Archivo credits.csv cargado. Dimensiones: {credits_df.shape}")
 
         # Agregar más logs en puntos importantes del procesamiento
-        logger.info("Comenzando limpieza de datos...")
+        self.logger.info("Comenzando limpieza de datos...")
 
         movies_df_columns = ["id", "title", "genres", "release_date", "overview", "production_countries",
                              "spoken_languages", "budget", "revenue"]
@@ -106,21 +102,21 @@ class TestClass(Worker):
         cast_per_movie_quantities = cast_and_movie_arg_post_2000_df.groupby(["name"]).count().reset_index().rename(
             columns={"id": "count"})
         self.result[4] = cast_per_movie_quantities.nlargest(10, 'count').to_dict()
-        logger.info(f"Cast per movie quantities: {cast_per_movie_quantities}")
+        self.logger.info(f"Cast per movie quantities: {cast_per_movie_quantities}")
         q5_input_df = movies_df_cleaned.copy()
         q5_input_df = q5_input_df.loc[q5_input_df['budget'] != 0]
         q5_input_df = q5_input_df.loc[q5_input_df['revenue'] != 0]
-        logger.info("Iniciando análisis de sentimiento...")
+        self.logger.info("Iniciando análisis de sentimiento...")
         sentiment_analyzer = pipeline('sentiment-analysis',
                                       model='distilbert-base-uncased-finetuned-sst-2-english',
                                       max_length=512,
                                       truncation=True)
 
         start_time = time.time()
-        logger.info("Procesando sentimientos de las descripciones...")
+        self.logger.info("Procesando sentimientos de las descripciones...")
         q5_input_df['sentiment'] = q5_input_df['overview'].fillna('').apply(lambda x: sentiment_analyzer(x)[0]['label'])
         elapsed_time = time.time() - start_time
-        logger.info(f"Análisis de sentimiento completado en {elapsed_time:.2f} segundos")
+        self.logger.info(f"Análisis de sentimiento completado en {elapsed_time:.2f} segundos")
         q5_input_df["rate_revenue_budget"] = q5_input_df["revenue"] / q5_input_df["budget"]
         average_rate_by_sentiment = q5_input_df.groupby("sentiment")["rate_revenue_budget"].mean()
         self.result[5] = average_rate_by_sentiment.to_dict()
@@ -128,21 +124,21 @@ class TestClass(Worker):
 
     def _handle_message(self, message):
         """Handler para procesar cada mensaje recibido"""
-        logger.info(f"Mensaje recibido: {message.get('result_number')}")
+        self.logger.info(f"Mensaje recibido: {message.get('result_number')}")
         self.result_consumed[message.get("result_number")] = message.get("result")
         if len(self.result_consumed.keys()) == 5:
-            logger.info("Todos los resultados recibidos. Comenzando comparación...")
+            self.logger.info("Todos los resultados recibidos. Comenzando comparación...")
             self.compare_results()
             # Cerramos la conexión ya que hemos recibido todos los resultados
             self.result_consumer.close()
 
     def wait_for_result(self):
         """Inicia el consumo de mensajes"""
-        logger.info("Esperando resultados...")
+        self.logger.info("Esperando resultados...")
         self.result_consumer.start_consuming()
 
     def compare_results(self):
-        logger.info("Comparando resultados...")
+        self.logger.info("Comparando resultados...")
         for key, value in self.result.items():
             print(f"""
             Result {key}: {value}
@@ -153,10 +149,10 @@ class TestClass(Worker):
         self.compare_results_flexible()
 
     def compare_results_flexible(self):
-        logger.info("\n=== Análisis de Diferencias ===")
+        self.logger.info("\n=== Análisis de Diferencias ===")
 
         # Comparación Resultado 1 (Películas Argentina-España 2000s)
-        logger.info("\n1. Películas Argentina-España 2000s:")
+        self.logger.info("\n1. Películas Argentina-España 2000s:")
         # Convertir los géneros calculados de string a lista para comparación justa
         calc_movies_clean = [
             {'title': m['title'], 'genres': eval(m['genres']) if isinstance(m['genres'], str) else m['genres']}
@@ -167,22 +163,22 @@ class TestClass(Worker):
         for calc_movie in calc_movies_clean:
             cons_movie = next((m for m in self.result_consumed[1] if m['title'] == calc_movie['title']), None)
             if cons_movie is None:
-                logger.info(f"❌ Película falta en resultado consumido: {calc_movie['title']}")
+                self.logger.info(f"❌ Película falta en resultado consumido: {calc_movie['title']}")
                 continue
 
             if set(calc_movie['genres']) != set(cons_movie['genres']):
-                logger.info(f"❌ Diferencia en géneros para {calc_movie['title']}:")
-                logger.info(f"   Calculado: {sorted(calc_movie['genres'])}")
-                logger.info(f"   Consumido: {sorted(cons_movie['genres'])}")
+                self.logger.info(f"❌ Diferencia en géneros para {calc_movie['title']}:")
+                self.logger.info(f"   Calculado: {sorted(calc_movie['genres'])}")
+                self.logger.info(f"   Consumido: {sorted(cons_movie['genres'])}")
 
         # Verificar películas extra en el resultado consumido
         extra_movies = [m['title'] for m in self.result_consumed[1]
                         if not any(cm['title'] == m['title'] for cm in calc_movies_clean)]
         if extra_movies:
-            logger.info(f"❌ Películas extra en resultado consumido: {extra_movies}")
+            self.logger.info(f"❌ Películas extra en resultado consumido: {extra_movies}")
 
         # Comparación Resultado 2 (Presupuesto por país)
-        logger.info("\n2. Presupuesto por país:")
+        self.logger.info("\n2. Presupuesto por país:")
         country_codes = {
             'US': 'United States of America',
             'FR': 'France',
@@ -197,31 +193,31 @@ class TestClass(Worker):
             calc_budget = self.result[2].get(country_name)
             if calc_budget:
                 diff_percent = abs(calc_budget - budget) / calc_budget * 100
-                logger.info(f"{country_name}: Diferencia del {diff_percent:.2f}%")
+                self.logger.info(f"{country_name}: Diferencia del {diff_percent:.2f}%")
 
         # Comparación Resultado 3 (Mejor y peor película)
-        logger.info("\n3. Mejor y peor película:")
+        self.logger.info("\n3. Mejor y peor película:")
         calc_best = self.result[3][0]
         cons_best = self.result_consumed[3]['best']
         calc_worst = self.result[3][1]
         cons_worst = self.result_consumed[3]['worst']
 
-        logger.info("Mejor película:")
+        self.logger.info("Mejor película:")
         if calc_best['title'] == cons_best['title'] and abs(calc_best['rating'] - cons_best['rating']) < 0.1:
-            logger.info("✅ Coinciden")
+            self.logger.info("✅ Coinciden")
         else:
-            logger.info(f"Calculado: {calc_best['title']} ({calc_best['rating']})")
-            logger.info(f"Consumido: {cons_best['title']} ({cons_best['rating']})")
+            self.logger.info(f"Calculado: {calc_best['title']} ({calc_best['rating']})")
+            self.logger.info(f"Consumido: {cons_best['title']} ({cons_best['rating']})")
 
-        logger.info("Peor película:")
+        self.logger.info("Peor película:")
         if calc_worst['title'] == cons_worst['title'] and abs(calc_worst['rating'] - cons_worst['rating']) < 0.1:
-            logger.info("✅ Coinciden")
+            self.logger.info("✅ Coinciden")
         else:
-            logger.info(f"Calculado: {calc_worst['title']} ({calc_worst['rating']})")
-            logger.info(f"Consumido: {cons_worst['title']} ({cons_worst['rating']})")
+            self.logger.info(f"Calculado: {calc_worst['title']} ({calc_worst['rating']})")
+            self.logger.info(f"Consumido: {cons_worst['title']} ({cons_worst['rating']})")
 
         # Comparación Resultado 4 (Actores más frecuentes)
-        logger.info("\n4. Actores más frecuentes:")
+        self.logger.info("\n4. Actores más frecuentes:")
         calc_actors = {name: count for name, count in
                        zip(self.result[4]['name'].values(), self.result[4]['count'].values())}
         cons_actors = {actor[1]['name']: actor[1]['count'] for actor in self.result_consumed[4]}
@@ -230,26 +226,26 @@ class TestClass(Worker):
             calc_count = calc_actors.get(actor, 0)
             cons_count = cons_actors.get(actor, 0)
             if abs(calc_count - cons_count) > 0:
-                logger.info(f"{actor}: Calculado({calc_count}) vs Consumido({cons_count})")
+                self.logger.info(f"{actor}: Calculado({calc_count}) vs Consumido({cons_count})")
 
         # Comparación Resultado 5 (Análisis de sentimiento) - CONTEO ABSOLUTO
-        logger.info("\n5. Análisis de sentimiento (valores absolutos):")
+        self.logger.info("\n5. Análisis de sentimiento (valores absolutos):")
         calc_pos = self.result[5]['POSITIVE']
         calc_neg = self.result[5]['NEGATIVE']
         cons_pos = self.result_consumed[5]['POSITIVE']['revenue']
         cons_neg = self.result_consumed[5]['NEGATIVE']['revenue']
 
-        logger.info("Valores calculados:")
-        logger.info(f"POSITIVE: {calc_pos:.2f}")
-        logger.info(f"NEGATIVE: {calc_neg:.2f}")
+        self.logger.info("Valores calculados:")
+        self.logger.info(f"POSITIVE: {calc_pos:.2f}")
+        self.logger.info(f"NEGATIVE: {calc_neg:.2f}")
 
-        logger.info("\nValores consumidos:")
-        logger.info(f"POSITIVE: {cons_pos:.2f}")
-        logger.info(f"NEGATIVE: {cons_neg:.2f}")
+        self.logger.info("\nValores consumidos:")
+        self.logger.info(f"POSITIVE: {cons_pos:.2f}")
+        self.logger.info(f"NEGATIVE: {cons_neg:.2f}")
 
-        logger.info("\nDiferencias absolutas:")
-        logger.info(f"POSITIVE: {abs(calc_pos - cons_pos):.2f}")
-        logger.info(f"NEGATIVE: {abs(calc_neg - cons_neg):.2f}")
+        self.logger.info("\nDiferencias absolutas:")
+        self.logger.info(f"POSITIVE: {abs(calc_pos - cons_pos):.2f}")
+        self.logger.info(f"NEGATIVE: {abs(calc_neg - cons_neg):.2f}")
 
 
 def dictionary_to_list(dictionary_str):

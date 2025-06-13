@@ -2,16 +2,51 @@ output_file: docker-compose.yaml
 
 clients:
   - id: 1
-    files_path: ./files/short/
+    files_path: ./files/short
 
 workers:
-  twentieth_century: 1
-  main_movie: 1
-  esp_production: 1
-  no_colab_productions: 1
-  sentiment: 1
-  arg_production: 1
-  credits: 1
-  ratings: 1
+  twentieth_century:
+    count: 1
+    log_level: INFO
+  main_movie:
+    count: 1
+    log_level: INFO
+  esp_production:
+    count: 1
+    log_level: INFO
+  no_colab_productions:
+    count: 1
+    log_level: INFO
+  sentiment:
+    count: 1
+    log_level: INFO
+  arg_production:
+    count: 1
+    log_level: INFO
+  credits:
+    count: 1
+    log_level: INFO
+  ratings:
+    count: 1
+    log_level: INFO
 
+aggregators:
+  twentieth_century_arg_esp:
+    generate: true
+    log_level: INFO
+  twentieth_century_arg:
+    generate: true
+    log_level: INFO
+  top_5_countries:
+    generate: true
+    log_level: INFO
+  top_10_credits:
+    generate: true
+    log_level: INFO
+  best_and_worst_ratings:
+    generate: true
+    log_level: INFO
+  sentiment:
+    generate: true
+    log_level: INFO
 test: false

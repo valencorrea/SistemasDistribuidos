@@ -6,11 +6,7 @@ from utils.parsers.movie_parser import parse_genres
 from worker.worker import Worker
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
+
 
 
 class ArgEspProductionFilter(Worker):
@@ -20,13 +16,13 @@ class ArgEspProductionFilter(Worker):
         self.producer = Producer("aggregate_consulta_1")
 
     def close(self):
-        logger.info("Cerrando conexiones del worker...")
+        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+            self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
         filtered_movies = self.apply_filter(message.get("movies"))
@@ -40,7 +36,7 @@ class ArgEspProductionFilter(Worker):
         self.producer.enqueue(batch_message)
 
     def start(self):
-        logger.info("Iniciando filtro de películas españolas")
+        self.logger.info("Iniciando filtro de películas españolas")
         self.consumer.start_consuming()
 
     @staticmethod

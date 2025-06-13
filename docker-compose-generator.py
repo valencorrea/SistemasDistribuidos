@@ -6,6 +6,8 @@ import yaml
 def generate_docker_yaml(config):
     workers = config["workers"]
     clients = config["clients"]
+    aggregators = config["aggregators"]
+
     template = {
         "services": {
             "worker": {
@@ -97,6 +99,14 @@ def generate_docker_yaml(config):
     for name, dockerfile in worker_definitions.items():
         count = workers.get(name.split('_filter')[0] if '_filter' in name else name.split('_joiner')[0], 1)
 
+        worker_conf = workers.get(name.split('_filter')[0] if '_filter' in name else name.split('_joiner')[0], 1)
+        if isinstance(worker_conf, dict):
+            count = worker_conf.get("count", 1)
+            log_level = worker_conf.get("log_level", "INFO")
+        else:
+            count = worker_conf
+            log_level = "INFO"
+
         if count == 0:
             continue
 
@@ -114,7 +124,7 @@ def generate_docker_yaml(config):
                 }
             },
             "links": ["rabbitmq"],
-            "environment": ["PYTHONUNBUFFERED=1"],
+            "environment": ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"],
             "image": f"{name}:latest"
         }
 
@@ -143,6 +153,12 @@ def generate_docker_yaml(config):
     }
 
     for name, dockerfile in aggregator_services.items():
+        config_key = name.replace("_aggregator", "")
+        agg_conf = aggregators.get(config_key, {})
+        generate = agg_conf.get("generate", False)
+        if not generate:
+            continue
+        log_level = agg_conf.get("log_level", "INFO")
         template["services"][name] = {
             "build": {
                 "context": ".",
@@ -157,7 +173,10 @@ def generate_docker_yaml(config):
                 }
             },
             "links": ["rabbitmq"],
-            "environment": ["PYTHONUNBUFFERED=1"]
+            "environment": [
+                "PYTHONUNBUFFERED=1",
+                f"LOG_LEVEL={log_level}"
+            ]
         }
 
     # Crear 3 instancias de monitor cluster

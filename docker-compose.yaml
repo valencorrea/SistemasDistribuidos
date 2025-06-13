@@ -16,6 +16,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -40,6 +41,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -118,6 +120,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -142,6 +145,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -166,6 +170,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -278,6 +283,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -325,6 +331,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -349,6 +356,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -372,6 +380,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -395,6 +404,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -418,6 +428,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
@@ -441,6 +452,7 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
