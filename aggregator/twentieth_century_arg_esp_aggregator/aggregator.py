@@ -1,10 +1,13 @@
+import json
 import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
+import os
 
-
+TRANSACTION_LOG = "transaction_log.txt"
+PARTIAL_RESULTS = "partial_results.json"
 
 
 class Aggregator(Worker):
@@ -13,9 +16,12 @@ class Aggregator(Worker):
         self.consumer = Consumer("aggregate_consulta_1",
                                  _message_handler=self.handle_message)
         self.producer = Producer("result")
-        self.results = {}
+        self.results = {} # {cliente:movies}
         self.control_batches_per_client = {}
         self.total_batches_per_client = {}
+
+        self.log_file = "resultados.log"
+        self.processed_batch_ids = self.load_processed_batches(self.log_file)
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -27,39 +33,68 @@ class Aggregator(Worker):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
-        if message.get("type") == "batch_result":
-            client_id = message.get("client_id")
-            if client_id not in self.results.keys():
-                self.results[client_id] = []
-                self.control_batches_per_client[client_id] = 0
+        if message.get("type") != "batch_result":
+            return
 
-            # Acumular las películas del batch
-            self.results[client_id].extend(message.get("movies", []))
-            self.control_batches_per_client[client_id] += message.get("batch_size", 0)
+        client_id = message.get("client_id")
+        batch_id = str(message.get("batch_id"))
 
-            if message.get("total_batches"):
-                self.total_batches_per_client[client_id] = message.get("total_batches")
+        if batch_id in self.processed_batch_ids:
+            self.logger.info(f"Batch {batch_id} ya procesado. Enviando ACK sin reprocesar.")
+            # todo mandar ack a rabbit
+            return
 
-            self.logger.info(f"Batch procesado. Películas acumuladas: {len(self.results[client_id])} cliente {client_id}")
+        if client_id not in self.results.keys():
+            self.results[client_id] = []
+            self.control_batches_per_client[client_id] = 0
 
-            # Sí hemos recibido todos los batches, enviar el resultado final
-            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
-                result_message = {
-                    "result_number": 1,
-                    "type": "query_1_arg_esp_2000",
-                    "result": self.results[client_id],
-                    "total_movies": len(self.results[client_id]),
-                    "client_id": message.get("client_id")
-                }
-                if self.producer.enqueue(result_message):
-                    self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
-                    self.results.pop(client_id)
-                    self.control_batches_per_client.pop(client_id)
-                    self.total_batches_per_client.pop(client_id)
+        # Acumular las películas del batch
+        self.results[client_id].extend(message.get("movies", []))
+        self.control_batches_per_client[client_id] += message.get("batch_size", 0)
+
+        if message.get("total_batches"):
+            self.total_batches_per_client[client_id] = message.get("total_batches")
+
+        self.logger.info(f"Batch procesado. Películas acumuladas: {len(self.results[client_id])} cliente {client_id}")
+
+        with open(self.log_file, "a") as f:
+            serialized_movies = json.dumps(message.get("movies", []))
+            f.write(f"BEGIN_TRANSACTION;{batch_id};{serialized_movies}\n")
+            f.write(f"END_TRANSACTION;{batch_id}\n")
+
+        self.processed_batch_ids.add(batch_id)
+
+        # Sí hemos recibido todos los batches, enviar el resultado final
+        if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
+            result_message = {
+                "result_number": 1,
+                "type": "query_1_arg_esp_2000",
+                "result": self.results[client_id],
+                "total_movies": len(self.results[client_id]),
+                "client_id": message.get("client_id")
+            }
+            if self.producer.enqueue(result_message):
+                self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")
+                self.results.pop(client_id)
+                self.control_batches_per_client.pop(client_id)
+                self.total_batches_per_client.pop(client_id)
+
+        # todo ack a rabbit
 
     def start(self):
         self.logger.info("Iniciando agregador")
         self.consumer.start_consuming()
+
+    def load_processed_batches(self, log_file="resultados.log"):
+        processed = set()
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                for line in f:
+                    parts = line.strip().split(";")
+                    if parts[0] == "END_TRANSACTION" and len(parts) == 2:
+                        processed.add(parts[1])
+        return processed
+
 
 if __name__ == '__main__':
     aggregator = Aggregator()
