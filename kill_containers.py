@@ -1,0 +1,62 @@
+import docker
+import signal
+import sys
+import yaml
+import os
+import time
+import random
+
+def main():
+
+    os.environ['DOCKER_HOST'] = 'unix:///home/salvador/.docker/desktop/docker.sock'
+    print(docker.__path__)
+
+    with open(sys.argv[1], "r") as f:
+        config = yaml.safe_load(f)
+
+    whitelist = []
+    random_opt = config["test"].get("random", False)
+    interval = config["test"].get("interval", False)
+
+    for name, data in config.get("workers", {}).items():
+        if data.get("kill", False):
+            whitelist.append(name)
+
+    for name, data in config.get("aggregators", {}).items():
+        if data.get("kill", False):
+            whitelist.append(name)
+
+    print("Whitelist of containers to kill:", whitelist)
+
+    client = docker.from_env()
+    containers = client.containers.list(filters={"status": "running"})
+
+    matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
+
+    if not matching:
+        print("No se encontraron contenedores para terminar.")
+        return
+
+    if random_opt:
+        print("Random mode enabled. Killing containers randomly.")
+        while matching:
+            try:
+                time.sleep(interval)
+                container = random.choice(matching)
+                print(f"SIGKILL container: {container.name}")
+                container.kill(signal=signal.SIGKILL)
+                matching.remove(container)
+                containers = client.containers.list(filters={"status": "running"})
+                matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
+            except Exception as e:
+                print(f"Error killing container: {e}")
+    else:
+        print("Killing selected containers once.")
+        for container in matching:
+            time.sleep(interval)
+            print(f"SIGKILL container: {container.name}")
+            container.kill(signal=signal.SIGKILL)
+
+
+if __name__ == "__main__":
+    main()
