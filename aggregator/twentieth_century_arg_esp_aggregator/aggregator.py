@@ -6,10 +6,6 @@ from middleware.producer.producer import Producer
 from worker.worker import Worker
 import os
 
-TRANSACTION_LOG = "transaction_log.txt"
-PARTIAL_RESULTS = "partial_results.json"
-
-
 class Aggregator(Worker):
     def __init__(self):
         super().__init__()
@@ -41,7 +37,7 @@ class Aggregator(Worker):
 
         if batch_id in self.processed_batch_ids:
             self.logger.info(f"Batch {batch_id} ya procesado. Enviando ACK sin reprocesar.")
-            # todo mandar ack a rabbit
+            self.consumer.ack(batch_id)
             return
 
         if client_id not in self.results.keys():
@@ -79,11 +75,11 @@ class Aggregator(Worker):
                 self.control_batches_per_client.pop(client_id)
                 self.total_batches_per_client.pop(client_id)
 
-        # todo ack a rabbit
+        self.consumer.ack(batch_id)
 
     def start(self):
         self.logger.info("Iniciando agregador")
-        self.consumer.start_consuming()
+        self.consumer.start_consuming_2()
 
     def load_processed_batches(self, log_file="resultados.log"):
         processed = set()
