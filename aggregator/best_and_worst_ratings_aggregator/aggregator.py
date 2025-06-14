@@ -31,6 +31,7 @@ class Aggregator(Worker):
         batch_size = int(message.get("processed_batches", 0))
         total_batches = int(message.get("total_batches", 0))
         client_id = message.get("client_id", None)
+        batch_id = message.get("batch_id")
         if batch_size != 0:
             self.received_batches_per_client[client_id] += batch_size
             self.logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")

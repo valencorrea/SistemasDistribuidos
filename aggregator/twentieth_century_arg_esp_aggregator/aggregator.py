@@ -67,7 +67,8 @@ class Aggregator(Worker):
                 "type": "query_1_arg_esp_2000",
                 "result": self.results[client_id],
                 "total_movies": len(self.results[client_id]),
-                "client_id": message.get("client_id")
+                "client_id": message.get("client_id"),
+                "batch_id": batch_id
             }
             if self.producer.enqueue(result_message):
                 self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas")

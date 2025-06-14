@@ -2,6 +2,7 @@ import json
 import signal
 import threading
 import time
+import uuid
 from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
@@ -69,10 +70,11 @@ class ClientDecodifier(Worker):
                     "cola": batch,
                     "batch_size": len(batch),
                     "total_batches": total_batches + len(batch) if is_last else 0,
-                    "client_id": client_id
+                    "client_id": client_id,
+                    "batch_id": str(uuid.uuid4())
                 }
 
-                self.logger.debug(f"Enviando {metadata.type} de {client_id}")
+                self.logger.debug(f"Enviando {metadata.type} de {client_id} con batch_id {message['batch_id']}")
 
                 if is_last:
                     self.logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")

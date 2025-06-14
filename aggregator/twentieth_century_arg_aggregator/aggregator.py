@@ -30,6 +30,7 @@ class Aggregator(Worker):
 
     def handle_message(self, message):
         client_id = message.get("client_id")
+        batch_id = message.get("batch_id")
         self.logger.info(f"Mensaje de batch de peliculas filtradas recibido: {len(message.get('movies', None))} peliculas del cliente {client_id}")
         if message.get("type") == "batch_result":
             # Acumular las películas del batch
@@ -50,7 +51,8 @@ class Aggregator(Worker):
                     "type": "20_century_arg_total_result",
                     "movies": self.filtered_movies_per_client[client_id],
                     "total_movies": len(self.filtered_movies_per_client[client_id]),
-                    "client_id": client_id
+                    "client_id": client_id,
+                    "batch_id": batch_id
                 }
                 if self.producer.enqueue(result_message):
                     self.logger.info(f"Resultado final enviado con {len(self.filtered_movies_per_client[client_id])} películas")
