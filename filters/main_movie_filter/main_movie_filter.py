@@ -50,6 +50,8 @@ class MainMovieFilter(Worker):
         self.movie_2_producer.enqueue(batch_message)
         self.movie_3_producer.enqueue(batch_message)
 
+        self.logger.info("Fue enviado el mensaje con id: " + batch_id + " a las colas de movie, movie_2 y movie_3")
+
         return batch_message
 
     def start(self):
