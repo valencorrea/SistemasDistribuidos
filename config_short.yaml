@@ -3,6 +3,8 @@ output_file: docker-compose.yaml
 clients:
   - id: 1
     files_path: ./files/short
+  - id: 2
+    files_path: ./files/short
 
 workers:
   twentieth_century:
@@ -11,8 +13,8 @@ workers:
     kill: true
   main_movie:
     count: 1
-    log_level: INFO
     kill: true
+    log_level: DEBUG
   esp_production:
     count: 1
     log_level: INFO
@@ -30,37 +32,37 @@ workers:
     log_level: INFO
     kill: true
   credits:
-    count: 1
+    count: 0
     log_level: INFO
     kill: true
   ratings:
-    count: 1
+    count: 0
     log_level: INFO
     kill: true
 
 aggregators:
   twentieth_century_arg_esp:
-    generate: true
+    generate: false
     log_level: INFO
     kill: true
   twentieth_century_arg:
-    generate: true
+    generate: false
     log_level: INFO
     kill: true
   top_5_countries:
-    generate: true
+    generate: false
     log_level: INFO
     kill: true
   top_10_credits:
-    generate: true
+    generate: false
     log_level: INFO
     kill: true
   best_and_worst_ratings:
-    generate: true
+    generate: false
     log_level: INFO
     kill: true
   sentiment:
-    generate: true
+    generate: false
     log_level: INFO
     kill: false
 
