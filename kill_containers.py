@@ -29,29 +29,29 @@ def main():
     print("Whitelist of containers to kill:", whitelist)
 
     client = docker.from_env()
-    containers = client.containers.list(filters={"status": "running"})
-
-    matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
-
-    if not matching:
-        print("No se encontraron contenedores para terminar.")
-        return
 
     if random_opt:
         print("Random mode enabled. Killing containers randomly.")
-        while matching:
+        while True:
             try:
+                containers = client.containers.list(filters={"status": "running"})
+                matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
                 time.sleep(interval)
+                if not matching:
+                    print("No se encontraron contenedores para terminar.")
+                    continue
+                else:
+                    print(f"Found matching containers: {matching}")
                 container = random.choice(matching)
                 print(f"SIGKILL container: {container.name}")
                 container.kill(signal=signal.SIGKILL)
                 matching.remove(container)
-                containers = client.containers.list(filters={"status": "running"})
-                matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
             except Exception as e:
                 print(f"Error killing container: {e}")
     else:
-        print("Killing selected containers once.")
+        containers = client.containers.list(filters={"status": "running"})
+        matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
+        print(f"Killing selected containers: {matching} every {interval} seconds.")
         for container in matching:
             time.sleep(interval)
             print(f"SIGKILL container: {container.name}")
