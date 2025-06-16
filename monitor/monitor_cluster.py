@@ -41,6 +41,7 @@ class MonitorCluster:
 
         self.total_nodes = len(self.cluster_nodes) + 1
 
+        self.expected_services = self._get_expected_services()
         self.services: Dict[str, float] = {}
         self.monitor_heartbeats: Dict[int, float] = {}
         self.lock = threading.Lock()
@@ -49,6 +50,75 @@ class MonitorCluster:
 
         logger.info(f"🚀 Monitor {self.node_id} iniciado en puerto {self.port}, cluster en puerto {self.cluster_port}")
         logger.info(f"📋 Nodos del cluster: {self.cluster_nodes}, total nodos: {self.total_nodes}")
+        logger.info(f"🔧 Servicios esperados: {self.expected_services}")
+
+    def _get_expected_services(self) -> List[str]:
+        """Obtiene la lista de servicios que deben estar ejecutándose desde variables de entorno"""
+        services_env = os.getenv('EXPECTED_SERVICES', '')
+        if services_env:
+            services = [service.strip() for service in services_env.split(',') if service.strip()]
+            # Filtrar servicios que no deben ser monitoreados
+            filtered_services = self._filter_services(services)
+            logger.info(f"📋 Servicios configurados desde docker-compose: {services}")
+            logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
+            return filtered_services
+        else:
+            # Fallback: obtener servicios del docker-compose dinámicamente
+            try:
+                services = self._discover_services_from_compose()
+                filtered_services = self._filter_services(services)
+                logger.info(f"🔍 Servicios descubiertos dinámicamente: {services}")
+                logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
+                return filtered_services
+            except Exception as e:
+                logger.warning(f"❌ No se pudieron descubrir servicios dinámicamente: {e}")
+                # Lista por defecto basada en el docker-compose (ya filtrada)
+                default_services = [
+                    'arg_production_filter', 'best_and_worst_ratings_aggregator', 
+                    'credits_joiner', 'esp_production_filter', 'main_movie_filter', 
+                    'no_colab_productions_filter', 'ratings_joiner', 
+                    'sentiment_aggregator', 'sentiment_filter', 
+                    'top_10_credits_aggregator', 'top_5_countries_aggregator',
+                    'twentieth_century_arg_aggregator', 'twentieth_century_arg_esp_aggregator',
+                    'twentieth_century_filter'
+                ]
+                logger.info(f"📋 Usando lista por defecto de servicios filtrados: {default_services}")
+                return default_services
+
+    def _filter_services(self, services: List[str]) -> List[str]:
+        """Filtra la lista de servicios excluyendo worker y client_*"""
+        excluded_services = {'worker', 'client_decodifier'}
+        
+        # Agregar todos los servicios que empiecen con 'client_'
+        client_services = [service for service in services if service.startswith('client_')]
+        excluded_services.update(client_services)
+        
+        # Filtrar servicios excluidos
+        filtered_services = [service for service in services if service not in excluded_services]
+        
+        logger.info(f"🚫 Servicios excluidos del monitoreo: {list(excluded_services)}")
+        
+        return filtered_services
+
+    def _discover_services_from_compose(self) -> List[str]:
+        """Descubre servicios del docker-compose dinámicamente"""
+        try:
+            # Obtener todos los contenedores del proyecto
+            containers = self.docker_client.containers.list(all=True)
+            services = set()
+            
+            for container in containers:
+                # Obtener labels del contenedor para identificar el servicio
+                labels = container.labels
+                service_name = labels.get('com.docker.compose.service')
+                
+                if service_name and service_name not in ['monitor_1', 'monitor_2', 'monitor_3', 'rabbitmq']:
+                    services.add(service_name)
+            
+            return list(services)
+        except Exception as e:
+            logger.error(f"Error descubriendo servicios: {e}")
+            return []
 
     def _get_cluster_nodes(self) -> List[Tuple[str, int]]:
         nodes_env = os.getenv('MONITOR_CLUSTER_NODES', 'monitor_1,monitor_2,monitor_3')
@@ -430,8 +500,21 @@ class MonitorCluster:
             
         logger.info(f"👑 Monitor {self.node_id} ahora es el LÍDER (término {term})")
         
+        self._initialize_expected_services()
+        
         self._announce_leadership()
         self._send_heartbeat_to_all()
+
+    def _initialize_expected_services(self):
+        """Inicializa el tracking de servicios esperados cuando se convierte en líder"""
+        logger.info(f"🔧 Monitor {self.node_id} inicializando tracking de {len(self.expected_services)} servicios esperados")
+        
+        with self.lock:
+            # Marcar todos los servicios esperados como no reportados inicialmente
+            for service_name in self.expected_services:
+                if service_name not in self.services:
+                    # No establecer timestamp inicial, esperar primer heartbeat
+                    logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de {service_name}")
 
     def _announce_leadership(self):
         msg = json.dumps({
@@ -482,41 +565,49 @@ class MonitorCluster:
                     if self.state == MonitorState.LEADER:
                         now = time.time() * 1000
                         restart = []
+                        
                         with self.lock:
+                            # Verificar servicios que han reportado heartbeat
                             for name, ts in list(self.services.items()):
                                 if now - ts > self.heartbeat_timeout:
                                     restart.append(name)
                                     del self.services[name]
+                            
+                            # Verificar servicios esperados que nunca han reportado
+                            for service_name in self.expected_services:
+                                if service_name not in self.services:
+                                    # Si nunca ha reportado, verificar si existe el contenedor
+                                    if self._should_restart_service(service_name):
+                                        restart.append(service_name)
+                                        logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat, se intentará levantar")
+                        
                         for name in restart:
                             self._restart_service(name)
+                            
                 time.sleep(self.heartbeat_interval / 1000)
             except Exception as e:
                 logger.error(f"Error heartbeat check: {e}")
 
-    def _check_monitor_heartbeats(self):
-        while True:
-            try:
-                with self.state_lock:
-                    if self.state == MonitorState.LEADER:
-                        now = time.time() * 1000
-                        restart = []
-                        with self.lock:
-                            for node_id in self.expected_node_ids:
-                                if node_id == self.node_id:
-                                    continue
-
-                                last_beat = self.monitor_heartbeats.get(node_id)
-                                if last_beat is None or (now - last_beat) > self.heartbeat_timeout:
-                                    logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
-                                    restart.append(node_id)
-                                    self.monitor_heartbeats.pop(node_id, None)
-
-                        for node_id in restart:
-                            self._restart_monitor_container(node_id)
-
-                time.sleep(self.heartbeat_interval / 1000)
-            except Exception as e:
-                logger.error(f"Error monitor heartbeat check: {e}")
+    def _should_restart_service(self, service_name: str) -> bool:
+        """Determina si un servicio debe ser reiniciado basado en su estado actual"""
+        try:
+            containers = self.docker_client.containers.list(all=True)
+            matching = [c for c in containers if service_name in c.name]
+            
+            if not matching:
+                logger.warning(f"❌ Contenedor para {service_name} no encontrado")
+                return True
+                
+            container = matching[0]
+            container.reload()
+            status = container.status
+            
+            # Solo reiniciar si está detenido, muerto o pausado
+            return status in ["exited", "dead", "paused"]
+            
+        except Exception as e:
+            logger.error(f"❌ Error verificando estado de {service_name}: {e}")
+            return False
 
     def _restart_service(self, name: str):
         try:
@@ -548,6 +639,31 @@ class MonitorCluster:
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando {name}: {e}")
+
+    def _check_monitor_heartbeats(self):
+        while True:
+            try:
+                with self.state_lock:
+                    if self.state == MonitorState.LEADER:
+                        now = time.time() * 1000
+                        restart = []
+                        with self.lock:
+                            for node_id in self.expected_node_ids:
+                                if node_id == self.node_id:
+                                    continue
+
+                                last_beat = self.monitor_heartbeats.get(node_id)
+                                if last_beat is None or (now - last_beat) > self.heartbeat_timeout:
+                                    logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
+                                    restart.append(node_id)
+                                    self.monitor_heartbeats.pop(node_id, None)
+
+                        for node_id in restart:
+                            self._restart_monitor_container(node_id)
+
+                time.sleep(self.heartbeat_interval / 1000)
+            except Exception as e:
+                logger.error(f"Error monitor heartbeat check: {e}")
 
     def _restart_monitor_container(self, node_id: int):
         try:
