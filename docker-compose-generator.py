@@ -55,6 +55,9 @@ def generate_docker_yaml(config):
         }
     }
 
+    # Lista para rastrear todos los servicios que se van a generar
+    all_services = ["worker", "client_decodifier"]
+
     for client in clients:
         cid = client["id"]
         path = client["files_path"]
@@ -84,6 +87,7 @@ def generate_docker_yaml(config):
                 f"{results_path}/results.json:/root/results/results.json"
             ]
         }
+        all_services.append(name)
 
     worker_definitions = {
         "twentieth_century_filter": "filters/twentieth_century/twentieth_century_filter.dockerfile",
@@ -127,9 +131,11 @@ def generate_docker_yaml(config):
             "environment": ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"],
             "image": f"{name}:latest"
         }
+        all_services.append(name)
 
         for i in range(1, count):
-            template["services"][f"{name}_{i}"] = {
+            replica_name = f"{name}_{i}"
+            template["services"][replica_name] = {
                 "image": f"{name}:latest",
                 "depends_on": {
                     "rabbitmq": {
@@ -142,6 +148,7 @@ def generate_docker_yaml(config):
                 "links": ["rabbitmq"],
                 "environment": ["PYTHONUNBUFFERED=1"]
             }
+            all_services.append(replica_name)
 
     aggregator_services = {
         "twentieth_century_arg_esp_aggregator": "aggregator/twentieth_century_arg_esp_aggregator/aggregator.dockerfile",
@@ -178,10 +185,14 @@ def generate_docker_yaml(config):
                 f"LOG_LEVEL={log_level}"
             ]
         }
+        all_services.append(name)
 
     # Crear 3 instancias de monitor cluster
     monitor_cluster_nodes = ["monitor_1", "monitor_2", "monitor_3"]
     monitor_service_ports = []
+    
+    # Generar la lista de servicios esperados para los monitores
+    expected_services_str = ",".join(all_services)
     
     for i in range(1, 4):
         monitor_name = f"monitor_{i}"
@@ -205,7 +216,8 @@ def generate_docker_yaml(config):
                 "HEARTBEAT_INTERVAL=5000",
                 "HEARTBEAT_TIMEOUT=15000",
                 f"MONITOR_NODE_ID={i}",
-                f"MONITOR_CLUSTER_NODES={','.join(monitor_cluster_nodes)}"
+                f"MONITOR_CLUSTER_NODES={','.join(monitor_cluster_nodes)}",
+                f"EXPECTED_SERVICES={expected_services_str}"
             ],
             "volumes": ["/var/run/docker.sock:/var/run/docker.sock"]
         }

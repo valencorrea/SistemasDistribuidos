@@ -6,15 +6,15 @@ clients:
 
 workers:
   twentieth_century:
-    count: 1
+    count: 2
     log_level: INFO
     kill: true
   main_movie:
-    count: 1
+    count: 2
     log_level: INFO
     kill: true
   esp_production:
-    count: 1
+    count: 2
     log_level: INFO
     kill: true
   no_colab_productions:
