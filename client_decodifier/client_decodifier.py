@@ -1,7 +1,10 @@
 import json
+import random
 import signal
+import string
 import threading
 import time
+import uuid
 from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
@@ -69,10 +72,11 @@ class ClientDecodifier(Worker):
                     "cola": batch,
                     "batch_size": len(batch),
                     "total_batches": total_batches + len(batch) if is_last else 0,
-                    "client_id": client_id
+                    "client_id": client_id,
+                    "batch_id": self.generate_batch_id(client_id, metadata.type, total_batches, is_last),
                 }
 
-                self.logger.debug(f"Enviando {metadata.type} de {client_id}")
+                self.logger.debug(f"Enviando {metadata.type} de {client_id} con batch_id {message['batch_id']}")
 
                 if is_last:
                     self.logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
@@ -91,6 +95,11 @@ class ClientDecodifier(Worker):
             actor_producer.close()
             rating_producer.close()
 
+    @staticmethod
+    def generate_batch_id(client_id, metadata_type, order_number, is_total: bool):
+        rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
+        order_str = f"{order_number:04d}"
+        return f"{client_id}-{metadata_type}-{order_str}-{'Y' if is_total else 'N'}-{rand_str}"
 
     def start(self):
 

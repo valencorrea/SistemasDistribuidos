@@ -29,6 +29,7 @@ class Aggregator(Worker):
     def handle_message(self, message):
         self.logger.info(f"Mensaje de top 10 parcial recibido {message}")
         client_id = message.get("client_id")
+        batch_id = message.get("batch_id")
         actors = message.get("actors")
         self.logger.info(f"Se obtuvieron {len(actors)}: {actors} actores.")
 
@@ -51,7 +52,8 @@ class Aggregator(Worker):
                 "result_number": 4,
                 "type": "top_10_actors",
                 "actors": final_top_10,
-                "client_id": client_id
+                "client_id": client_id,
+                "batch_id": batch_id
             })
             self.logger.info("Top 10 actores agregados y enviados.")
             self.actor_counter_per_client.pop(client_id)

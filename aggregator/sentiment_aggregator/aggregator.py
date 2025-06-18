@@ -59,6 +59,7 @@ class Aggregator(Worker):
     def handle_message(self, message):
         if message.get("type") == "batch_result":
             client_id = message.get("client_id")
+            batch_id = message.get("batch_id")
 
             if client_id not in self.control_batches_per_client:
                 self.control_batches_per_client[client_id] = 0
@@ -77,7 +78,8 @@ class Aggregator(Worker):
                     "result_number": 5,
                     "type": "query_5_sentiments",
                     "result": rate_revenue_budget,
-                    "client_id": message.get("client_id")
+                    "client_id": message.get("client_id"),
+                    "batch_id": batch_id
                 }
                 self.logger.info(f"4")
                 if self.producer.enqueue(result_message):

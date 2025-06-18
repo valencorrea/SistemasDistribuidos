@@ -36,12 +36,14 @@ class ArgProductionFilter(Worker):
         movies = convert_data(message)
         filtered_movies = self.apply_filter(movies)
         total_batches = message.get("total_batches", 0)
+        batch_id = message.get("batch_id")
         result = {
             "movies": [movie.to_dict() for movie in filtered_movies],
             "batch_size": message.get("batch_size", 0),
             "total_batches": total_batches,
             "type": "batch_result",
-            "client_id": client_id
+            "client_id": client_id,
+            "batch_id": batch_id
         }
 
         if total_batches != 0:

@@ -32,13 +32,15 @@ class MainMovieFilter(Worker):
         print(f"[MAIN] Peliculas: {len(movies)}")
         total_batches = message.get("total_batches", 0)
         client_id = message.get("client_id")
+        batch_id = message.get("batch_id")
 
         batch_message = {
             "movies": [movie.to_dict() for movie in movies],
             "batch_size": message.get("batch_size", 0),
             "total_batches": total_batches,
             "type": "batch_result",
-            "client_id": client_id
+            "client_id": client_id,
+            "batch_id": batch_id
         }
 
         if total_batches != 0:
@@ -47,6 +49,8 @@ class MainMovieFilter(Worker):
         self.movie_producer.enqueue(batch_message)
         self.movie_2_producer.enqueue(batch_message)
         self.movie_3_producer.enqueue(batch_message)
+
+        self.logger.info("Fue enviado el mensaje con id: " + batch_id + " a las colas de movie, movie_2 y movie_3")
 
         return batch_message
 

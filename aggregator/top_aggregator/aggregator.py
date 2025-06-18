@@ -67,6 +67,7 @@ class Aggregator(Worker):
     def handle_message(self, message):
         if message.get("type") == "batch_result":
             client_id = message.get("client_id")
+            batch_id = message.get("batch_id")
             print(f"client_id: {client_id}")
             self.process_country_budget(message.get("movies", []),client_id)
             if client_id not in self.control_batches_per_client.keys():
@@ -85,7 +86,8 @@ class Aggregator(Worker):
                     "result_number": 2,
                     "type": "query_2_top_5",
                     "result": top_5_countries,
-                    "client_id": message.get("client_id")
+                    "client_id": message.get("client_id"),
+                    "batch_id": batch_id
                 }
                 if self.producer.enqueue(result_message):
                     self.logger.info("Resultado final enviado con top 5 países")
