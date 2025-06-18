@@ -8,7 +8,7 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-
+# TODO modificar para poder hacer configurables los productores y consumidores
 class AbstractAggregator(Worker):
     def __init__(self):
         super().__init__()
@@ -16,11 +16,13 @@ class AbstractAggregator(Worker):
         self.received_batches_per_client = defaultdict(int)
         self.processed_batch_ids = set()
         self.log_file = "resultados.log"
+        self.results = {}
+        self.producer = Producer("result")
+        # Es importante que se procese antes de comenzar a leer de nuevo
+        # TODO revisar el caso borde del ultimo batch si es que se vuelve de una recuperacion
+        self.load_processed_batches()
         self.consumer = Consumer(self.get_consumer_name(),
                                  _message_handler=self.handle_message)
-        self.producer = Producer("result")
-        self.results = {}
-        self.load_processed_batches()
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -67,7 +69,7 @@ class AbstractAggregator(Worker):
             self.received_batches_per_client[client_id] = 0
 
         self.received_batches_per_client[client_id] += batch_size
-        self.logger.info(f"Se actualiza la cantidad recibida: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
+        self.logger.info(f"Se actualiza la cantidad recibida del cliente {client_id}: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
         if total_batches:
             self.total_batches_per_client[client_id] = total_batches
@@ -121,9 +123,6 @@ class AbstractAggregator(Worker):
 
     def load_processed_batches(self):
         self.logger.debug("Iniciando proceso de recuperación.")
-        self.results = {}
-        self.received_batches_per_client = {}
-        self.total_batches_per_client = {}
 
         if not os.path.exists(self.log_file):
             return
