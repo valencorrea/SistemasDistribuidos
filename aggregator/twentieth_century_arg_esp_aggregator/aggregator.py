@@ -1,11 +1,16 @@
+from middleware.consumer.consumer import Consumer
+from middleware.producer.producer import Producer
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 class Aggregator(AbstractAggregator):
     def __init__(self):
         super().__init__()
 
-    def get_consumer_name(self):
-        return "aggregate_consulta_1"
+    def create_consumer(self):
+        return Consumer("aggregate_consulta_1", _message_handler=self.handle_message)
+
+    def create_producer(self):
+        return Producer("result")
 
     def process_message(self, client_id, message):
         return message.get("movies", [])

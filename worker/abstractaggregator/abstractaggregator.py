@@ -1,14 +1,11 @@
 import json
 import os
-import time
 from abc import abstractmethod
 from collections import defaultdict
 
-from middleware.consumer.consumer import Consumer
-from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-# TODO modificar para poder hacer configurables los productores y consumidores
+
 class AbstractAggregator(Worker):
     def __init__(self):
         super().__init__()
@@ -17,12 +14,11 @@ class AbstractAggregator(Worker):
         self.processed_batch_ids = set()
         self.log_file = "resultados.log"
         self.results = {}
-        self.producer = Producer("result")
+        self.producer = self.create_producer()
         # Es importante que se procese antes de comenzar a leer de nuevo
         # TODO revisar el caso borde del ultimo batch si es que se vuelve de una recuperacion
         self.load_processed_batches()
-        self.consumer = Consumer(self.get_consumer_name(),
-                                 _message_handler=self.handle_message)
+        self.consumer = self.create_consumer()
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -35,7 +31,6 @@ class AbstractAggregator(Worker):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_message(self, message):
-        time.sleep(1)
         batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches")
         client_id = message.get("client_id", None)
@@ -90,7 +85,6 @@ class AbstractAggregator(Worker):
             self.logger.info(f"Se envio el resultado para el cliente {client_id}.")
             self.delete_client(client_id)
 
-        time.sleep(1)
         self.logger.info(f"Fue procesado el mensaje {batch_id} del cliente {client_id}")
 
     def client_has_sent_all(self, client_id):
@@ -118,7 +112,6 @@ class AbstractAggregator(Worker):
             if total_batches is not None:
                 payload["total_batches"] = total_batches
             f.write(f"BEGIN_TRANSACTION;{batch_id};{json.dumps(payload)}\n")
-            time.sleep(4)
             f.write(f"END_TRANSACTION;{batch_id}\n")
 
     def load_processed_batches(self):
@@ -210,5 +203,10 @@ class AbstractAggregator(Worker):
 
     @staticmethod
     @abstractmethod
-    def get_consumer_name():
+    def create_consumer():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def create_producer():
         pass
