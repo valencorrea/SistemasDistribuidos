@@ -1,11 +1,8 @@
-import logging
 from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
-
-
 
 
 class Aggregator(Worker):

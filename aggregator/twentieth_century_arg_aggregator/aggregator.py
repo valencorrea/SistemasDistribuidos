@@ -1,12 +1,8 @@
-import logging
+from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
-from collections import defaultdict
-from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
 from worker.worker import Worker
-
-
 
 
 class Aggregator(Worker):
@@ -17,7 +13,7 @@ class Aggregator(Worker):
         self.producer = Publisher("20_century_arg_result")
         self.filtered_movies_per_client = defaultdict(list)
         self.total_batches_per_client = defaultdict(int)
-        self.received_batches_per_client = defaultdict(int)
+        self.control_batches_per_client = defaultdict(int)
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -35,7 +31,7 @@ class Aggregator(Worker):
         if message.get("type") == "batch_result":
             # Acumular las películas del batch
             self.filtered_movies_per_client[client_id].extend(message.get("movies", []))
-            self.received_batches_per_client[client_id] += message.get("batch_size", 0)
+            self.control_batches_per_client[client_id] += message.get("batch_size", 0)
             total_batches = message.get("total_batches", 0)
 
             if total_batches != 0:
@@ -43,10 +39,10 @@ class Aggregator(Worker):
                 self.logger.info(f"Recibida la cant total: {total_batches} del cliente {client_id}")
 
             self.logger.info(f"Batch procesado. Películas acumuladas: {len(self.filtered_movies_per_client[client_id])}")
-            self.logger.info(f"Batches recibidos: {self.received_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]}")
+            self.logger.info(f"Batches recibidos: {self.control_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]}")
 
             # Sí hemos recibido todos los batches, enviar el resultado final
-            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.received_batches_per_client[client_id]:
+            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
                 result_message = {
                     "type": "20_century_arg_total_result",
                     "movies": self.filtered_movies_per_client[client_id],
@@ -57,7 +53,7 @@ class Aggregator(Worker):
                 if self.producer.enqueue(result_message):
                     self.logger.info(f"Resultado final enviado con {len(self.filtered_movies_per_client[client_id])} películas")
                     self.filtered_movies_per_client[client_id] = []
-                    self.received_batches_per_client[client_id] = 0
+                    self.control_batches_per_client[client_id] = 0
                     self.total_batches_per_client[client_id] = 0
 
     def start(self):
