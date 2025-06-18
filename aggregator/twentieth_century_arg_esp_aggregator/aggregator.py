@@ -28,10 +28,6 @@ class Aggregator(AbstractAggregator):
             "batch_id": batch_id
         }
 
-    def start(self):
-        self.logger.info("Iniciando agregador")
-        self.consumer.start_consuming_2()
-
 if __name__ == '__main__':
     aggregator = Aggregator()
     aggregator.start() 

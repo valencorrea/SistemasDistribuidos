@@ -1,12 +1,7 @@
-import logging
-
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data_for_main_movie_filter
 from worker.worker import Worker
-
-
-
 
 
 class MainMovieFilter(Worker):
@@ -46,6 +41,7 @@ class MainMovieFilter(Worker):
         if total_batches != 0:
             self.logger.info(f"Este es el mensaje con total_batches: {total_batches} del cliente {client_id}")
 
+        # TODO que pasa en caso que muera entre uno de estos envios?
         self.movie_producer.enqueue(batch_message)
         self.movie_2_producer.enqueue(batch_message)
         self.movie_3_producer.enqueue(batch_message)

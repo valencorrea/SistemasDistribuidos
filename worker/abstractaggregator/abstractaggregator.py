@@ -30,6 +30,10 @@ class AbstractAggregator(Worker):
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
+    def start(self):
+        self.logger.info("Iniciando agregador")
+        self.consumer.start_consuming_2()
+
     def handle_message(self, message):
         batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches")

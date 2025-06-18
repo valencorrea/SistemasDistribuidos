@@ -48,7 +48,7 @@ aggregators:
   twentieth_century_arg:
     generate: true
     log_level: INFO
-    kill: false
+    kill: true
   top_5_countries:
     generate: false
     log_level: INFO
