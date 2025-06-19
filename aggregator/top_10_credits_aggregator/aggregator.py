@@ -1,4 +1,8 @@
 import logging
+import socket
+import threading
+import os
+import json
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
@@ -16,6 +20,49 @@ class Aggregator(Worker):
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.actor_counter_per_client = defaultdict(Counter)
+        self.tcp_host = os.environ.get("AGGREGATOR_TCP_HOST", "0.0.0.0")
+        self.tcp_port = int(os.environ.get("AGGREGATOR_TCP_PORT", 60000))
+        self.batches_by_joiner = defaultdict(set)
+        self.tcp_server_thread = threading.Thread(target=self.tcp_server, daemon=True)
+        self.tcp_server_thread.start()
+
+    def tcp_server(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_socket.bind((self.tcp_host, self.tcp_port))
+            server_socket.listen(5)
+            self.logger.info(f"[TCP] Servidor escuchando en {self.tcp_host}:{self.tcp_port}")
+            while True:
+                client_socket, addr = server_socket.accept()
+                self.logger.info(f"[TCP] Conexión aceptada de {addr}")
+                threading.Thread(target=self.handle_tcp_client, args=(client_socket, addr), daemon=True).start()
+
+    def handle_tcp_client(self, client_socket, addr):
+        with client_socket:
+            buffer = b""
+            while True:
+                data = client_socket.recv(4096)
+                if not data:
+                    break
+                buffer += data
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    try:
+                        msg = line.decode('utf-8').strip()
+                        if not msg:
+                            continue
+                        self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
+                        data_json = json.loads(msg)
+                        if data_json.get("type") != "batch_id":
+                            continue
+                        batch_id = data_json.get("batch_id")
+                        joiner_instance_id = data_json.get("joiner_instance_id")
+                        if batch_id is None or joiner_instance_id is None:
+                            self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
+                            continue
+                        self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+                    except Exception as e:
+                        self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")

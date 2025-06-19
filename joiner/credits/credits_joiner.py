@@ -2,6 +2,8 @@ import json
 import logging
 import os
 from collections import defaultdict
+import socket
+import time
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
@@ -37,6 +39,26 @@ class CreditsJoiner(Worker):
         self.amounts_control_producer = Publisher("credits_amounts")
         self.amounts_control_consumer = Subscriber("credits_amounts",
                                                    message_handler=self.handle_amounts)
+        self.aggregator_host = os.environ.get("AGGREGATOR_TCP_HOST", "localhost")
+        self.aggregator_port = int(os.environ.get("AGGREGATOR_TCP_PORT", 60000))
+        self.joiner_instance_id = os.environ.get("SERVICE_NAME", "unknown_joiner")
+        self.aggregator_socket = None
+        self.connect_to_aggregator()
+
+    def connect_to_aggregator(self):
+        if self.aggregator_socket:
+            try:
+                self.aggregator_socket.close()
+            except Exception:
+                pass
+        while True:
+            try:
+                self.aggregator_socket = socket.create_connection((self.aggregator_host, self.aggregator_port), timeout=10)
+                self.logger.info(f"Conectado a aggregator TCP en {self.aggregator_host}:{self.aggregator_port}")
+                break
+            except Exception as e:
+                self.logger.error(f"No se pudo conectar a aggregator TCP: {e}. Reintentando en 2s...")
+                time.sleep(2)
 
     def handle_amounts(self, message):
         try:
@@ -114,6 +136,9 @@ class CreditsJoiner(Worker):
                         self.actor_counts[client_id][actor_id]["count"] += 1
             total_batches = message.get("total_batches")
             batch_size = message.get("batch_size")
+            batch_id = message.get("batch_id")
+            if batch_id is not None:
+                self.send_batch_id_to_aggregator(batch_id)
             if total_batches != 0: # Mensaje que contiene el total. Uno por cliente.
                 self.logger.info(f"Se envia la cantidad total de batches: {total_batches}.")
                 self.amounts_control_producer.enqueue({"type": "total_batches","amount": total_batches, "client_id": client_id})
@@ -140,6 +165,9 @@ class CreditsJoiner(Worker):
 
     def process_movie_message(self, message):
         client_id = message.get("client_id")
+        batch_id = message.get("batch_id")
+        if batch_id is not None:
+            self.send_batch_id_to_aggregator(batch_id)
         self.movies[client_id] = {movie["id"] for movie in message.get("movies")}
         self.logger.info(f"Obtenidas {message.get('total_movies')} películas")
 
@@ -175,6 +203,37 @@ class CreditsJoiner(Worker):
             self.shutdown_event.wait()
         finally:
             self.close()
+
+    def send_batch_id_to_aggregator(self, batch_id):
+        msg_dict = {
+            "type": "batch_id",
+            "batch_id": batch_id,
+            "joiner_instance_id": self.joiner_instance_id
+        }
+        msg = json.dumps(msg_dict) + '\n'
+        try:
+            if not self._send_batch_id_message(msg):
+                return
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            self.logger.warning("Conexión TCP perdida, reintentando...")
+            self.connect_to_aggregator()
+            try:
+                self._send_batch_id_message(msg)
+            except Exception as e:
+                self.logger.error(f"Error enviando batch id tras reconexión: {e}")
+        except Exception as e:
+            self.logger.error(f"Error enviando batch id por TCP: {e}")
+
+    def _send_batch_id_message(self, msg):
+        if not self.aggregator_socket:
+            self.connect_to_aggregator()
+        if self.aggregator_socket:
+            self.aggregator_socket.sendall(msg.encode('utf-8'))
+            self.logger.info(f"Batch id enviado por TCP: {msg.strip()}")
+            return True
+        else:
+            self.logger.error("No se pudo establecer conexión TCP para enviar batch id.")
+            return False
 
 if __name__ == '__main__':
     worker = CreditsJoiner()
