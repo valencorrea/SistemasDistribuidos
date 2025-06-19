@@ -216,12 +216,12 @@ class JoinerRecoveryManager:
     def _persist_batch_result(self, client_id, batch_id, message, state_data):
         """Persiste resultado del batch"""
         batch_file = os.path.join(self.batch_persistence_dir, f"{client_id}_{batch_id}.json")
+        
         batch_data = {
             "client_id": client_id,
             "batch_id": batch_id,
             "timestamp": time.time(),
-            "message": message,
-            "state_data": state_data
+            "message": message
         }
         
         with open(batch_file, "w") as f:
