@@ -2,6 +2,7 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
+
 class Aggregator(AbstractAggregator):
     def __init__(self):
         super().__init__()
@@ -16,7 +17,10 @@ class Aggregator(AbstractAggregator):
         return message.get("movies", [])
 
     def aggregate_message(self, client_id, result):
-        self.results[client_id].extend(result)
+        if not self.results.get(client_id):
+            self.results[client_id] = result
+        else:
+            self.results[client_id].extend(result)
 
     def create_final_result(self, client_id, batch_id):
         return {
@@ -28,6 +32,7 @@ class Aggregator(AbstractAggregator):
             "batch_id": batch_id
         }
 
+
 if __name__ == '__main__':
     aggregator = Aggregator()
-    aggregator.start() 
+    aggregator.start()

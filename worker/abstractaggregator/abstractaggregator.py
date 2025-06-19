@@ -32,7 +32,7 @@ class AbstractAggregator(Worker):
 
     def start(self):
         self.logger.info("Iniciando agregador")
-        self.consumer.start_consuming_2()
+        self.consumer.start_consuming()
 
     def handle_message(self, message):
         batch_size = message.get("batch_size", None)
@@ -49,22 +49,22 @@ class AbstractAggregator(Worker):
             self.logger.error(f"Mensaje malformado: falta batch_id")
 
         if message.get("type") != "batch_result":
-            self.consumer.ack(batch_id)
+            # self.consumer.ack(batch_id)
             return
 
         if not client_id or not batch_size:
             self.logger.error(f"Mensaje malformado: falta client_id o batch_size en batch {batch_id}")
-            self.consumer.ack(batch_id)
+            # self.consumer.ack(batch_id)
             return
 
         if batch_id in self.processed_batch_ids:
             self.logger.info(f"Batch {batch_id} ya procesado. Enviando ACK sin reprocesar.")
-            self.consumer.ack(batch_id)
+            # self.consumer.ack(batch_id)
             return
 
         if client_id not in self.results:
             self.logger.info(f"Se recibio un nuevo cliente con id {client_id}.")
-            self.results[client_id] = []
+            # self.results[client_id] = []
             self.received_batches_per_client[client_id] = 0
 
         self.received_batches_per_client[client_id] += batch_size
@@ -82,7 +82,7 @@ class AbstractAggregator(Worker):
 
         self.processed_batch_ids.add(batch_id)
 
-        self.consumer.ack(batch_id)
+        # self.consumer.ack(batch_id)
         if self.client_has_sent_all(client_id):
             self.logger.info(f"Se va a enviar todo para el cliente {client_id}.")
             self.send_aggregated_result(client_id, batch_id)
@@ -187,6 +187,7 @@ class AbstractAggregator(Worker):
 
     def send_aggregated_result(self, client_id, batch_id):
         result_message = self.create_final_result(client_id, batch_id)
+        self.logger.info(f"Enviando resultado final para el cliente {client_id} con batch_id {batch_id} por la cola {self.producer.getname()}")
         if self.producer.enqueue(result_message):
             self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas al cliente {client_id}")
         else:
@@ -205,12 +206,10 @@ class AbstractAggregator(Worker):
     def create_final_result(self, client_id, batch_id):
         pass
 
-    @staticmethod
     @abstractmethod
-    def create_consumer():
+    def create_consumer(self):
         pass
 
-    @staticmethod
     @abstractmethod
-    def create_producer():
+    def create_producer(self):
         pass

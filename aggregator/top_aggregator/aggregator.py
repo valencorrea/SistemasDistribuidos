@@ -2,49 +2,55 @@ from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
-from worker.worker import Worker
+from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 
-class Aggregator(Worker):
+class Aggregator(AbstractAggregator):
     def __init__(self):
         super().__init__()
         self.consumer = Consumer("aggregate_consulta_2",
                                  _message_handler=self.handle_message)
-        self.producer = Producer("result")
-        self.results = {}
-        self.control_batches_per_client = {}
-        self.total_batches_per_client = {}
 
-    def close(self):
-        self.logger.info("Cerrando conexiones del worker...")
-        try:
-            self.consumer.close()
-            self.producer.close()
-            self.shutdown_consumer.close()
-        except Exception as e:
-            self.logger.error(f"Error al cerrar conexiones: {e}")
+    def create_consumer(self):
+        return Consumer("aggregate_consulta_2", _message_handler=self.handle_message)
 
-    def process_country_budget(self, movies, client_id):
+    def create_producer(self):
+        return Producer("result")
+
+    def process_message(self, client_id, message):
+        movies = message.get("movies", [])
+        partial_results = defaultdict(float)
         for movie in movies:
-            if not movie:
-                continue
-            try:
-                print(f"movie: {movie}")
-                country = movie.get("country", "")
-                budget = float(movie.get("budget", 0))
+            if movie:
+                try:
+                    country = movie.get("country", "")
+                    budget = float(movie.get("budget", 0))
+                    if country and budget:
+                        partial_results[country] += budget
+                    else:
+                        self.logger.debug(f"Pelicula sin pais o presupuesto: {movie}")
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"Error procesando película: {e}")
+                    continue
 
-                if country:
-                    if client_id not in self.results.keys():
-                        print(f"self.results: {self.results}")
-                        self.results[client_id] = defaultdict(float)
-                        print(f"self.results: {self.results}")
-                    self.results[client_id][country] += budget
-                    print(f"self.results: {self.results}")
-                if not country:
-                    print(f"Pelicula sin pais: {movie}")
-            except (ValueError, TypeError) as e:
-                self.logger.warning(f"Error procesando película: {e}")
-                continue
+        return partial_results
+
+    def aggregate_message(self, client_id, result):
+        if not self.results.get(client_id):
+            self.results[client_id] = result
+        else:
+            for country, budget in result.items():
+                self.results[client_id][country] += budget
+
+    def create_final_result(self, client_id, batch_id):
+        top_5_countries = self._get_top_5_countries(client_id)
+        return {
+            "result_number": 2,
+            "type": "query_2_top_5",
+            "result": top_5_countries,
+            "client_id": client_id,
+            "batch_id": batch_id
+        }
 
     def _get_top_5_countries(self, client_id):
         sorted_countries = sorted(
@@ -60,41 +66,6 @@ class Aggregator(Worker):
             }
             for country, budget in top_5
         ]
-
-    def handle_message(self, message):
-        if message.get("type") == "batch_result":
-            client_id = message.get("client_id")
-            batch_id = message.get("batch_id")
-            print(f"client_id: {client_id}")
-            self.process_country_budget(message.get("movies", []),client_id)
-            if client_id not in self.control_batches_per_client.keys():
-                self.control_batches_per_client[client_id] = 0
-            self.control_batches_per_client[client_id] += message.get("batch_size", 0)
-
-            if message.get("total_batches"):
-                self.total_batches_per_client[client_id] = message.get("total_batches")
-
-            self.logger.info(f"Batch procesado. Países acumulados: {len(self.results[client_id])}")
-            self.logger.info(f"Batches recibidos: {self.control_batches_per_client[client_id]}/{self.total_batches_per_client[client_id]}")
-
-            if self.total_batches_per_client[client_id] and 0 < self.total_batches_per_client[client_id] <= self.control_batches_per_client[client_id]:
-                top_5_countries = self._get_top_5_countries(client_id)
-                result_message = {
-                    "result_number": 2,
-                    "type": "query_2_top_5",
-                    "result": top_5_countries,
-                    "client_id": message.get("client_id"),
-                    "batch_id": batch_id
-                }
-                if self.producer.enqueue(result_message):
-                    self.logger.info("Resultado final enviado con top 5 países")
-                    self.results.pop(client_id)
-                    self.control_batches_per_client.pop(client_id)
-                    self.total_batches_per_client.pop(client_id)
-
-    def start(self):
-        self.logger.info("Iniciando agregador")
-        self.consumer.start_consuming()
 
 
 if __name__ == '__main__':

@@ -6,9 +6,6 @@ from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 class Aggregator(AbstractAggregator):
     def __init__(self):
         super().__init__()
-        self.consumer = Consumer("20_century_batch_results",
-                                 _message_handler=self.handle_message)
-        self.producer = Publisher("20_century_arg_result")
 
     def create_consumer(self):
         return Consumer("20_century_batch_results", _message_handler=self.handle_message)
@@ -20,7 +17,10 @@ class Aggregator(AbstractAggregator):
         return message.get("movies", [])
 
     def aggregate_message(self, client_id, result):
-        self.results[client_id].extend(result)
+        if not self.results.get(client_id):
+            self.results[client_id] = result
+        else:
+            self.results[client_id].extend(result)
 
     def create_final_result(self, client_id, batch_id):
         return {
@@ -31,6 +31,7 @@ class Aggregator(AbstractAggregator):
             "batch_id": batch_id
         }
 
+
 if __name__ == '__main__':
     aggregator = Aggregator()
-    aggregator.start() 
+    aggregator.start()
