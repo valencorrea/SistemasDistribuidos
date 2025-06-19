@@ -11,6 +11,8 @@ COPY filters/sentiment_analizer/sentiment_analizer_filter.py /app/filters/sentim
 COPY model/movie.py /app/model/movie.py
 COPY utils /app/utils
 COPY utils/parsers/movie_parser.py /app/utils/parsers/movie_parser.py
+COPY worker/filter/filter.py /app/worker/filter/filter.py
+
 
 ENV PYTHONPATH="/app"
 
