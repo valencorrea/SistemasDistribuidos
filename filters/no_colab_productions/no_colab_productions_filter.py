@@ -32,7 +32,8 @@ class NoColabProductionsFilter(Worker):
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
             "type": "batch_result",
-            "client_id": message.get("client_id")
+            "client_id": message.get("client_id"),
+            "batch_id": message.get("batch_id"),
         }
         self.producer.enqueue(batch_message)
 

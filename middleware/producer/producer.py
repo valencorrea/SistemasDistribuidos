@@ -62,11 +62,12 @@ class Producer:
             logger.error(f"❌ Error al configurar productor")
             return False
 
-    def enqueue(self, message: Any, routing_key_override: Optional[str] = None) -> bool:
+    def enqueue(self, message, routing_key_override: Optional[str] = None) -> bool:
         logger.debug(f"Intentando enviar mensaje a la cola: {self._queue_name}")
         try:
             if not self._connection or self._connection.is_closed:
                 if not self.connect():
+                    logger.error(f"Se intento enviar un mensaje por la cola: {self._queue_name}, pero no esta conectada")
                     return False
 
             # Para fanout, el routing_key se ignora pero lo mantenemos por consistencia
@@ -86,6 +87,9 @@ class Producer:
         except Exception as e:
             logger.error(f"❌ Error al enviar mensaje: {e}")
             return False
+
+    def getname(self):
+        return self._queue_name
 
     def close(self):
         try:
