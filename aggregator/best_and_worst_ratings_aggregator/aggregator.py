@@ -1,8 +1,10 @@
 from collections import defaultdict
-
+import os
+import json
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPServer
 
 
 class Aggregator(Worker):
@@ -14,10 +16,31 @@ class Aggregator(Worker):
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.movies_ratings = defaultdict(dict)
+        self.batches_by_joiner = defaultdict(set)
+        
+        self.tcp_host = os.getenv("TCP_HOST", "0.0.0.0")
+        self.tcp_port = int(os.getenv("TCP_PORT", 60001))
+        self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+
+    def _handle_tcp_message(self, msg, addr):
+        try:
+            self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
+            data_json = json.loads(msg)
+            if data_json.get("type") != "batch_id":
+                return
+            batch_id = data_json.get("batch_id")
+            joiner_instance_id = data_json.get("joiner_instance_id")
+            if batch_id is None or joiner_instance_id is None:
+                self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
+                return
+            self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+        except Exception as e:
+            self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
+            self.server.stop()
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
@@ -98,6 +121,7 @@ class Aggregator(Worker):
 
     def start(self):
         self.logger.info("Iniciando agregador")
+        self.server.start()
         try:
             self.consumer.start_consuming()
         finally:

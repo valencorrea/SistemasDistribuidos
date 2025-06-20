@@ -25,6 +25,7 @@ services:
     links:
     - rabbitmq
   best_and_worst_ratings_aggregator:
+    container_name: best_and_worst_ratings_aggregator
     build:
       context: .
       dockerfile: aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile
@@ -48,6 +49,8 @@ services:
     - SERVICE_NAME=best_and_worst_ratings_aggregator
     links:
     - rabbitmq
+    ports:
+    - 60001:60001
   client_1:
     build:
       context: .
@@ -103,6 +106,7 @@ services:
       timeout: 2s
     ports:
     - 50000:50000
+    - 60000:60000
   credits_joiner:
     build:
       context: .
@@ -126,7 +130,7 @@ services:
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=credits_joiner
     - AGGREGATOR_HOST=aggregator_top_10
-    - AGGREGATOR_PORT=9000
+    - AGGREGATOR_PORT=60002
     image: credits_joiner:latest
     links:
     - rabbitmq
@@ -315,6 +319,8 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=ratings_joiner
+    - RATINGS_AGGREGATOR_HOST=best_and_worst_ratings_aggregator
+    - RATINGS_AGGREGATOR_PORT=60001
     image: ratings_joiner:latest
     links:
     - rabbitmq
@@ -393,7 +399,7 @@ services:
     links:
     - rabbitmq
     ports:
-    - 60000:60000
+    - 60002:60000
   top_5_countries_aggregator:
     build:
       context: .

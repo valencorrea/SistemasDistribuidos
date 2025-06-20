@@ -1,6 +1,7 @@
 import json
 import os
 from collections import defaultdict
+import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
@@ -8,10 +9,16 @@ from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
 from utils.parsers.ratings_parser import convert_data_for_rating_joiner
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 PENDING_MESSAGES = "/root/files/ratings_pending.jsonl"
 
-
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 class RatingsJoiner(Worker):
     def __init__(self):
@@ -35,6 +42,11 @@ class RatingsJoiner(Worker):
         self.amounts_control_consumer = Subscriber("ratings_amounts",
                                                    message_handler=self.handle_ratings_amounts)
 
+        self.joiner_instance_id = "joiner_ratings"
+        host = os.getenv("RATINGS_AGGREGATOR_HOST", "ratings_aggregator")
+        port = int(os.getenv("RATINGS_AGGREGATOR_PORT", 60001))
+        self.tcp_client = TCPClient(host, port)
+
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
@@ -42,8 +54,21 @@ class RatingsJoiner(Worker):
             self.movies_consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
+            self.tcp_client.close()
         except Exception as e:
             self.logger.exception(f"❌ Error al cerrar conexiones: {e}")
+    
+    def _send_batch_id_to_aggregator(self, batch_id):
+        msg_dict = {
+            "type": "batch_id",
+            "batch_id": batch_id,
+            "joiner_instance_id": self.joiner_instance_id
+        }
+        msg = json.dumps(msg_dict) + '\n'
+        if self.tcp_client.send(msg):
+            self.logger.info(f"Batch id {batch_id} enviado por TCP.")
+        else:
+            self.logger.error(f"No se pudo enviar batch id {batch_id} por TCP.")
 
     def handle_ratings_amounts(self, message):
         try:
@@ -100,6 +125,10 @@ class RatingsJoiner(Worker):
 
         client_id = message.get("client_id")
         movies = message.get("movies")
+
+        batch_id = message.get("batch_id")
+        if batch_id:
+            self._send_batch_id_to_aggregator(batch_id)
 
         if not client_id:
             self.logger.error("Mensaje sin client_id. Se descarta.")
@@ -161,6 +190,11 @@ class RatingsJoiner(Worker):
         try:
             self.logger.info(f"Mensaje de ratings recibido - cliente: " + str(message.get("client_id")))
             client_id = message.get("client_id")
+
+            batch_id = message.get("batch_id")
+            if batch_id:
+                self._send_batch_id_to_aggregator(batch_id)
+            
             if client_id not in self.movies_ratings:
                 os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
                 self.logger.info("client id " + client_id + " not ready for credits file. Saving locally")
@@ -176,7 +210,7 @@ class RatingsJoiner(Worker):
                 if not isinstance(rating, dict):
                     continue
                 movie_id = rating.get("movieId")
-                if int(movie_id) in self.movies_ratings[client_id].keys() or str(movie_id) in self.movies_ratings[client_id].keys():
+                if movie_id and (int(movie_id) in self.movies_ratings[client_id] or str(movie_id) in self.movies_ratings[client_id]):
                     self.logger.debug(f"Se agrega rating a la pelicula {movie_id}")
                     self.movies_ratings[client_id][movie_id]["rating_sum"] += float(rating.get("rating", 0))
                     self.movies_ratings[client_id][movie_id]["votes"] += 1
@@ -199,10 +233,10 @@ class RatingsJoiner(Worker):
             self.close()
 
     def start(self):
-        self.logger.debug("Iniciando joiner de ratings")
+        self.logger.info("Iniciando joiner de ratings")
         try:
-            self.amounts_control_consumer.start()
             self.movies_consumer.start()
+            self.amounts_control_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()
