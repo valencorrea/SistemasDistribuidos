@@ -180,6 +180,7 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=credits_joiner_1
+    - AGGREGATOR_PORT=60002
     image: credits_joiner:latest
     links:
     - rabbitmq

@@ -58,6 +58,10 @@ class RatingsJoiner(Worker):
         self.ratings_producer = Producer(
             queue_name="ratings",
             queue_type="direct")
+        self.joiner_instance_id = "joiner_ratings"
+        host = os.getenv("RATINGS_AGGREGATOR_HOST", "ratings_aggregator")
+        port = int(os.getenv("RATINGS_AGGREGATOR_PORT", 60001))
+        self.tcp_client = TCPClient(host, port)
         
         # Cargar estado inicial
         self._load_initial_state()

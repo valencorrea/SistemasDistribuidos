@@ -8,7 +8,7 @@ from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
-from middleware.tcp_protocol.tcp_protocol import TCPClient
+from middleware.tcp_protocol.tcp_protocol import TCPClient, TCPServer
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 
@@ -56,6 +56,10 @@ class CreditsJoinerSimple(Worker):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
+        self.joiner_instance_id = "joiner_credits"
+        host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
+        port = int(os.getenv("AGGREGATOR_PORT", 9000))
+        self.tcp_client = TCPClient(host, port)
         
         # Cargar estado inicial
         self._load_initial_state()

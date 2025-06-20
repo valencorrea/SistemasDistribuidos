@@ -18,8 +18,8 @@ class Aggregator(Worker):
         self.movies_ratings = defaultdict(dict)
         self.batches_by_joiner = defaultdict(set)
         
-        self.tcp_host = os.getenv("TCP_HOST", "0.0.0.0")
-        self.tcp_port = int(os.getenv("TCP_PORT", 60001))
+        self.tcp_host = os.getenv("AGGREGATOR_HOST", "best_and_worst_ratings_aggregator")
+        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60001))
         self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
 
     def _handle_tcp_message(self, msg, addr):

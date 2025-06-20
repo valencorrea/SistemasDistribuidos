@@ -28,8 +28,8 @@ class Aggregator(Worker):
         self.actor_counter_per_client = defaultdict(Counter)
         self.batches_by_joiner = defaultdict(set)
 
-        self.tcp_host = os.getenv("TCP_HOST", "0.0.0.0")
-        self.tcp_port = int(os.getenv("TCP_PORT", 9000))
+        self.tcp_host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
+        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60002))
         self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
 
     def _handle_tcp_message(self, msg, addr):
