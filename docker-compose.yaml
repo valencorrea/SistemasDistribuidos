@@ -76,6 +76,34 @@ services:
     - ./files/short/credits.csv:/root/files/credits.csv
     - ./files/short/ratings.csv:/root/files/ratings.csv
     - ./results/short/results.json:/root/results/results.json
+  client_2:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    container_name: client_2
+    depends_on:
+      client_decodifier:
+        condition: service_healthy
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    - CLIENT_ID=2
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=client_2
+    volumes:
+    - ./files/long/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/long/credits.csv:/root/files/credits.csv
+    - ./files/long/ratings.csv:/root/files/ratings.csv
+    - ./results/long/results.json:/root/results/results.json
   client_decodifier:
     build:
       context: .

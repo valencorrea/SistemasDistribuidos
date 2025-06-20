@@ -58,7 +58,8 @@ class CreditsJoinerSimple(Worker):
         state_data = {
             'restore_state': self._restore_state,
             'save_state': self._save_state,
-            'log_state': self._log_state
+            'log_state': self._log_state,
+            'process_message': self.process_credits_message
         }
         self.recovery_manager.load_checkpoint_and_recover(state_data)
     
@@ -211,6 +212,10 @@ class CreditsJoinerSimple(Worker):
             # Iniciar consumer de credits si ya tenemos movies del checkpoint
             if len(self.movies.keys()) > 0:
                 self.logger.info(f"Tengo {len(self.movies.keys())} clientes con movies, iniciando consumer...")
+                
+                # ✅ AGREGAR: Reprocesar mensajes pendientes después del recovery
+                self._reprocess_pending_messages_after_recovery()
+                
                 self.credits_consumer.start_consuming_2()
                 self.logger.info("Thread de consumo de credits empezado desde checkpoint")
                 
@@ -225,6 +230,30 @@ class CreditsJoinerSimple(Worker):
             self.shutdown_event.wait()
         finally:
             self.close()
+
+    def _reprocess_pending_messages_after_recovery(self):
+        """Reprocesa mensajes pendientes después del recovery"""
+        if os.path.exists(PENDING_MESSAGES):
+            self.logger.info("Reprocesando mensajes pendientes después del recovery...")
+            temp_path = PENDING_MESSAGES + ".tmp"
+            
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        self.logger.warning("Invalid file line.")
+                        continue
+
+                    client_id = msg.get("client_id")
+                    if client_id in self.movies:
+                        self.logger.info(f"Reprocesando mensaje pendiente para cliente {client_id}")
+                        self.credits_producer.enqueue(msg)
+                    else:
+                        writing_file.write(line)
+
+            os.replace(temp_path, PENDING_MESSAGES)
+            self.logger.info("Reprocesamiento de mensajes pendientes completado")
 
 
 if __name__ == '__main__':

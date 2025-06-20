@@ -68,7 +68,8 @@ class RatingsJoiner(Worker):
             'aggregator_port': 50000,
             'restore_state': self._restore_state,
             'save_state': self._save_state,
-            'log_state': self._log_state
+            'log_state': self._log_state,
+            'process_message': self.process_ratings_message
         }
         self.recovery_manager.load_checkpoint_and_recover(state_data)
     
@@ -229,8 +230,13 @@ class RatingsJoiner(Worker):
         try:
             self.movies_consumer.start()
             
-            # ✅ AGREGAR: Iniciar consumer de ratings si ya tenemos movies del checkpoint
+            # Iniciar consumer de ratings si ya tenemos movies del checkpoint
             if len(self.movies.keys()) > 0:
+                self.logger.info(f"Tengo {len(self.movies.keys())} clientes con movies, iniciando consumer...")
+                
+                # ✅ AGREGAR: Reprocesar mensajes pendientes después del recovery
+                self._reprocess_pending_messages_after_recovery()
+                
                 self.ratings_consumer.start_consuming_2()
                 self.logger.info("Thread de consumo de ratings empezado desde checkpoint")
             else:
@@ -239,6 +245,30 @@ class RatingsJoiner(Worker):
             self.shutdown_event.wait()
         finally:
             self.close()
+
+    def _reprocess_pending_messages_after_recovery(self):
+        """Reprocesa mensajes pendientes después del recovery"""
+        if os.path.exists(PENDING_MESSAGES):
+            self.logger.info("Reprocesando mensajes pendientes después del recovery...")
+            temp_path = PENDING_MESSAGES + ".tmp"
+            
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        self.logger.warning("Línea inválida en archivo pendiente.")
+                        continue
+
+                client_id = msg.get("client_id")
+                if client_id in self.movies:
+                    self.logger.info(f"Reprocesando mensaje pendiente para cliente {client_id}")
+                    self.ratings_producer.enqueue(msg)
+                else:
+                    writing_file.write(line)
+
+            os.replace(temp_path, PENDING_MESSAGES)
+            self.logger.info("Reprocesamiento de mensajes pendientes completado")
 
 
 if __name__ == '__main__':
