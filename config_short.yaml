@@ -30,7 +30,7 @@ workers:
     log_level: INFO
     kill: false
   credits:
-    count: 1
+    count: 2
     log_level: INFO
     kill: false
   ratings:

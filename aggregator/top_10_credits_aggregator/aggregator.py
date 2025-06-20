@@ -3,14 +3,20 @@ import socket
 import threading
 import os
 import json
+import time
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
 
-
-
 from collections import Counter, defaultdict
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.DEBUG,
+    datefmt='%H:%M:%S')
 
 class Aggregator(Worker):
     def __init__(self):
@@ -20,29 +26,45 @@ class Aggregator(Worker):
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.actor_counter_per_client = defaultdict(Counter)
-        self.tcp_host = os.environ.get("AGGREGATOR_TCP_HOST", "0.0.0.0")
-        self.tcp_port = int(os.environ.get("AGGREGATOR_TCP_PORT", 60000))
         self.batches_by_joiner = defaultdict(set)
-        self.tcp_server_thread = threading.Thread(target=self.tcp_server, daemon=True)
-        self.tcp_server_thread.start()
 
-    def tcp_server(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind((self.tcp_host, self.tcp_port))
-            server_socket.listen(5)
+        self.tcp_host = "0.0.0.0"
+        self.tcp_port = 9000
+        self.tcp_socket = None
+        self.start_server()
+
+    def start_server(self):
+        try:
+            self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.tcp_socket.bind((self.tcp_host, self.tcp_port))
+            self.tcp_socket.listen(5)
             self.logger.info(f"[TCP] Servidor escuchando en {self.tcp_host}:{self.tcp_port}")
+            
             while True:
-                client_socket, addr = server_socket.accept()
-                self.logger.info(f"[TCP] Conexión aceptada de {addr}")
-                threading.Thread(target=self.handle_tcp_client, args=(client_socket, addr), daemon=True).start()
+                client_socket, addr = self.accept_connection()
+                if client_socket:
+                    self.logger.info(f"[TCP] Conexión aceptada de {addr}")
+                    threading.Thread(target=self.handle_tcp_client, args=(client_socket, addr), daemon=True).start()
+        except Exception as e:
+            self.logger.error(f"[TCP] Error en servidor TCP: {e}")
+
+    def accept_connection(self):
+        try:
+            if self.tcp_socket:
+                client_socket, addr = self.tcp_socket.accept()
+                return client_socket, addr[0]
+        except Exception as e:
+            self.logger.error(f"[TCP] Error aceptando conexión: {e}")
+        return None, None
 
     def handle_tcp_client(self, client_socket, addr):
-        with client_socket:
+        try:
             buffer = b""
             while True:
                 data = client_socket.recv(4096)
                 if not data:
+                    self.logger.info(f"[TCP] Conexión cerrada por {addr}")
                     break
                 buffer += data
                 while b'\n' in buffer:
@@ -61,12 +83,24 @@ class Aggregator(Worker):
                             self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
                             continue
                         self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+                        self.logger.info(f"[TCP] Guardado batch_id {batch_id} para joiner {joiner_instance_id}. Total batches para este joiner: {len(self.batches_by_joiner[joiner_instance_id])}")
                     except Exception as e:
                         self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
+        except Exception as e:
+            self.logger.error(f"[TCP] Error procesando conexión de {addr}: {e}")
+        finally:
+            try:
+                client_socket.close()
+            except Exception:
+                pass
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
+            if self.socket:
+                self.socket.close()
+                self.socket = None
+
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
