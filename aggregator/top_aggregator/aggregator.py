@@ -40,16 +40,17 @@ class Aggregator(AbstractAggregator):
             self.results[client_id] = result
         else:
             for country, budget in result.items():
+                if country not in self.results[client_id]:
+                    self.results[client_id][country] = 0.0
                 self.results[client_id][country] += budget
 
-    def create_final_result(self, client_id, batch_id):
+    def create_final_result(self, client_id):
         top_5_countries = self._get_top_5_countries(client_id)
         return {
             "result_number": 2,
             "type": "query_2_top_5",
             "result": top_5_countries,
-            "client_id": client_id,
-            "batch_id": batch_id
+            "client_id": client_id
         }
 
     def _get_top_5_countries(self, client_id):

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class Publisher:
     def __init__(self, exchange_name: str = 'default'):
         self.exchange_name = exchange_name
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq', heartbeat=600, blocked_connection_timeout=300))
         self.channel = self.connection.channel()
         self.channel.exchange_declare(exchange=exchange_name, exchange_type='fanout')
 

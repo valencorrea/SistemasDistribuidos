@@ -22,13 +22,12 @@ class Aggregator(AbstractAggregator):
         else:
             self.results[client_id].extend(result)
 
-    def create_final_result(self, client_id, batch_id):
+    def create_final_result(self, client_id):
         return {
             "type": "20_century_arg_total_result",
             "movies": self.results[client_id],
             "total_movies": len(self.results[client_id]),
-            "client_id": client_id,
-            "batch_id": batch_id
+            "client_id": client_id
         }
 
 
