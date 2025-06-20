@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-import threading
+import socket
 from collections import defaultdict
 
 from middleware.producer.producer import Producer
@@ -24,6 +24,10 @@ class JoinerRecoveryManager:
         self.checkpoint_interval = config.get('checkpoint_interval', 500)
         self.log_interval = config.get('log_interval', 100)
         
+        # Configuración TCP para consulta al aggregator
+        self.aggregator_host = config.get('aggregator_host', 'localhost')
+        self.aggregator_port = config.get('aggregator_port', 50000)
+        
         # Estado
         self.processed_messages = set()
         self.batch_processed_counts = defaultdict(int)
@@ -35,10 +39,6 @@ class JoinerRecoveryManager:
         self.aggregator_consumer = Subscriber(self.aggregator_response_queue, 
                                              message_handler=self._handle_aggregator_response)
         
-        # Variables para recuperación
-        self.pending_aggregator_queries = {}
-        self.query_timeout = 30
-        
         # Crear directorio de persistencia
         os.makedirs(self.batch_persistence_dir, exist_ok=True)
     
@@ -48,12 +48,18 @@ class JoinerRecoveryManager:
         self.logger.info("Consumer del aggregator iniciado")
     
     def close(self):
-        """Cierra conexiones"""
+        """Cierra conexiones de forma segura"""
         try:
-            self.aggregator_consumer.close()
-            self.aggregator_producer.close()
+            if hasattr(self, 'aggregator_consumer') and self.aggregator_consumer:
+                self.aggregator_consumer.close()
         except Exception as e:
-            self.logger.error(f"Error cerrando conexiones: {e}")
+            self.logger.error(f"Error cerrando consumer: {e}")
+        
+        try:
+            if hasattr(self, 'aggregator_producer') and self.aggregator_producer:
+                self.aggregator_producer.close()
+        except Exception as e:
+            self.logger.error(f"Error cerrando producer: {e}")
     
     def load_checkpoint_and_recover(self, state_data):
         """Carga checkpoint y hace recuperación"""
@@ -116,68 +122,92 @@ class JoinerRecoveryManager:
                 end_trx_file = os.path.join(self.batch_persistence_dir, f"{client_id}_{batch_id}_END_TRX.json")
                 
                 if os.path.exists(end_trx_file):
-                    self.logger.info(f"Batch {message_id} tiene END_TRX, asumiendo procesado")
-                    self.processed_messages.add(message_id)
+                    # Si tiene END_TRX pero NO está en processed_messages, lo agrego
+                    if message_id not in self.processed_messages:
+                        self.logger.info(f"Batch {message_id} tiene END_TRX pero no está en checkpoint, agregando")
+                        self.processed_messages.add(message_id)
+                    else:
+                        self.logger.info(f"Batch {message_id} ya está en checkpoint")
                 else:
-                    self.logger.info(f"Batch {message_id} sin END_TRX, consultando al aggregator...")
-                    self._query_aggregator_for_batch(client_id, batch_id, batch_file)
+                    # Sin END_TRX, consultar al aggregator via TCP
+                    self.logger.info(f"Batch {message_id} sin END_TRX, consultando al aggregator via TCP...")
+                    self._query_aggregator_tcp(client_id, batch_id, batch_file)
                     
             except Exception as e:
                 self.logger.error(f"Error procesando archivo {batch_file}: {e}")
-        
-        self._wait_for_aggregator_responses()
     
-    def _query_aggregator_for_batch(self, client_id, batch_id, batch_file):
-        """Consulta al aggregator si ya procesó este batch"""
-        query_message = {
-            "type": "batch_status_query",
-            "client_id": client_id,
-            "batch_id": batch_id,
-            "joiner_id": self.joiner_id,
-            "batch_file": batch_file
-        }
-        
-        self.pending_aggregator_queries[f"{client_id}_{batch_id}"] = batch_file
-        self.aggregator_producer.enqueue(query_message)
-        self.logger.info(f"Consulta enviada al aggregator: {query_message}")
-    
-    def _wait_for_aggregator_responses(self):
-        """Espera las respuestas del aggregator"""
-        if not self.pending_aggregator_queries:
-            return
-        
-        self.logger.info(f"Esperando {len(self.pending_aggregator_queries)} respuestas del aggregator...")
-        
-        start_time = time.time()
-        while self.pending_aggregator_queries and (time.time() - start_time) < self.query_timeout:
-            time.sleep(1)
-        
-        if self.pending_aggregator_queries:
-            self.logger.warning(f"Timeout esperando respuestas del aggregator")
-    
-    def _handle_aggregator_response(self, message):
-        """Maneja respuestas del aggregator"""
+    def _query_aggregator_tcp(self, client_id, batch_id, batch_file):
+        """Consulta al aggregator via TCP si ya procesó este batch"""
         try:
-            response_type = message.get("type")
-            client_id = message.get("client_id")
-            batch_id = message.get("batch_id")
+            # Crear socket TCP
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)  # Timeout de 5 segundos
+            
+            # Conectar al aggregator
+            sock.connect((self.aggregator_host, self.aggregator_port))
+            
+            # Enviar consulta
+            query_message = {
+                "type": "batch_status_query",
+                "client_id": client_id,
+                "batch_id": batch_id,
+                "joiner_id": self.joiner_id,
+                "batch_file": batch_file
+            }
+            
+            sock.send(json.dumps(query_message).encode())
+            
+            # Recibir respuesta
+            response_data = sock.recv(1024)
+            if response_data:
+                response = json.loads(response_data.decode())
+                self._handle_aggregator_tcp_response(response, client_id, batch_id, batch_file)
+            else:
+                self.logger.warning(f"No se recibió respuesta del aggregator para {client_id}_{batch_id}")
+            
+            sock.close()
+            
+        except Exception as e:
+            self.logger.error(f"Error consultando aggregator via TCP para {client_id}_{batch_id}: {e}")
+    
+    def _handle_aggregator_tcp_response(self, response, client_id, batch_id, batch_file):
+        """Maneja respuesta TCP del aggregator"""
+        try:
+            response_type = response.get("type")
             message_id = f"{client_id}_{batch_id}"
             
-            self.logger.info(f"Respuesta del aggregator: {response_type} para {message_id}")
+            self.logger.info(f"Respuesta TCP del aggregator: {response_type} para {message_id}")
             
             if response_type == "batch_processed_by_me":
-                self.logger.info(f"Batch {message_id} fue procesado por mí")
+                self.logger.info(f"Batch {message_id} fue procesado por mí, agregando a processed_messages")
                 self.processed_messages.add(message_id)
-            elif response_type == "batch_processed_by_other":
-                self.logger.info(f"Batch {message_id} fue procesado por otro joiner")
-            
-            if message_id in self.pending_aggregator_queries:
-                del self.pending_aggregator_queries[message_id]
                 
+                # Crear END_TRX ya que el aggregator confirma que lo procesé
+                self._persist_end_transaction(client_id, batch_id)
+                
+            elif response_type == "batch_processed_by_other":
+                self.logger.info(f"Batch {message_id} fue procesado por otro joiner, descartando")
+                # No hacer nada, el mensaje ya fue procesado por otro joiner
+                
+            elif response_type == "batch_not_processed":
+                self.logger.info(f"Batch {message_id} no fue procesado, descartando archivo")
+                # Eliminar el archivo ya que no fue procesado
+                try:
+                    os.remove(os.path.join(self.batch_persistence_dir, batch_file))
+                    self.logger.info(f"Archivo {batch_file} eliminado")
+                except Exception as e:
+                    self.logger.error(f"Error eliminando archivo {batch_file}: {e}")
+                    
         except Exception as e:
-            self.logger.error(f"Error procesando respuesta del aggregator: {e}")
+            self.logger.error(f"Error procesando respuesta TCP del aggregator: {e}")
     
-    def process_message(self, message, state_data):
+    def _handle_aggregator_response(self, message):
+        """Maneja respuestas del aggregator (para compatibilidad)"""
+        # Este método se mantiene para compatibilidad con el sistema de colas
+        # pero la recuperación principal ahora usa TCP
+        pass
+    
+    def process_message(self, message, state_data, process_message_callback, send_ack_to_consumer):
         """Procesa un mensaje con recuperación y control"""
         # 1. Check O(1) si ya procesé
         message_id = f"{message.get('client_id')}_{message.get('batch_id', 'unknown')}"
@@ -189,12 +219,15 @@ class JoinerRecoveryManager:
         batch_id = message.get("batch_id", "unknown")
         
         try:
+            # 1.1. Procesar el mensaje
+            process_message_callback(message)
+            
             # 2. Persistir resultado
             self._persist_batch_result(client_id, batch_id, message, state_data)
             
             # 3. Actualizar contadores
             self.batch_processed_counts[client_id] += 1
-            
+            send_ack_to_consumer(batch_id)
             # 4. Enviar control al aggregator
             self._send_batch_processed(client_id, batch_id, message)
             
@@ -265,7 +298,7 @@ class JoinerRecoveryManager:
             self._log_current_state(state_data)
             self.messages_since_last_log = 0
         
-        # Checkpoint
+        # Checkpoint - REDUCIDO para guardar más frecuentemente
         self.messages_since_last_checkpoint += 1
         if self.messages_since_last_checkpoint >= self.checkpoint_interval:
             self._save_checkpoint(state_data)
@@ -282,7 +315,7 @@ class JoinerRecoveryManager:
         self.logger.info("=== FIN ESTADO ACTUAL ===")
     
     def _save_checkpoint(self, state_data):
-        """Guarda checkpoint"""
+        """Guarda checkpoint y limpia archivos de transacciones procesadas"""
         checkpoint_data = {
             "timestamp": time.time(),
             "processed_messages": list(self.processed_messages),
@@ -300,6 +333,65 @@ class JoinerRecoveryManager:
         
         os.replace(temp_checkpoint, self.checkpoint_file)
         self.logger.info(f"Checkpoint guardado: {self.checkpoint_file}")
+        
+        # Limpiar archivos de transacciones procesadas
+        self._cleanup_processed_transactions()
+    
+    def _cleanup_processed_transactions(self):
+        """Limpia archivos de transacciones que ya están en el checkpoint"""
+        if not os.path.exists(self.batch_persistence_dir):
+            return
+        
+        self.logger.info("Limpiando archivos de transacciones procesadas...")
+        cleaned_count = 0
+        
+        for filename in os.listdir(self.batch_persistence_dir):
+            if filename.endswith('.json'):
+                try:
+                    if filename.endswith('_END_TRX.json'):
+                        # Para archivos END_TRX, verificar si el batch correspondiente está procesado
+                        batch_filename = filename.replace('_END_TRX.json', '.json')
+                        parts = batch_filename.replace('.json', '').split('_')
+                        if len(parts) >= 2:
+                            batch_id = parts[-1]
+                            client_id = '_'.join(parts[:-1])
+                            message_id = f"{client_id}_{batch_id}"
+                            
+                            if message_id in self.processed_messages:
+                                # Eliminar tanto el archivo de batch como el END_TRX
+                                batch_file = os.path.join(self.batch_persistence_dir, batch_filename)
+                                end_trx_file = os.path.join(self.batch_persistence_dir, filename)
+                                
+                                # Verificar que los archivos existen antes de eliminarlos
+                                if os.path.exists(batch_file):
+                                    os.remove(batch_file)
+                                    cleaned_count += 1
+                                    self.logger.debug(f"Archivo eliminado: {batch_filename}")
+                                
+                                if os.path.exists(end_trx_file):
+                                    os.remove(end_trx_file)
+                                    cleaned_count += 1
+                                    self.logger.debug(f"Archivo eliminado: {filename}")
+                                
+                    else:
+                        # Para archivos de batch normales, verificar si están procesados
+                        parts = filename.replace('.json', '').split('_')
+                        if len(parts) >= 2:
+                            batch_id = parts[-1]
+                            client_id = '_'.join(parts[:-1])
+                            message_id = f"{client_id}_{batch_id}"
+                            
+                            if message_id in self.processed_messages:
+                                file_path = os.path.join(self.batch_persistence_dir, filename)
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
+                                    cleaned_count += 1
+                                    self.logger.debug(f"Archivo eliminado: {filename}")
+                                
+                except Exception as e:
+                    self.logger.error(f"Error limpiando archivo {filename}: {e}")
+        
+        self.logger.info(f"Limpieza completada: {cleaned_count} archivos eliminados")
     
     def save_final_checkpoint(self, state_data):
         """Guarda checkpoint final antes de cerrar"""

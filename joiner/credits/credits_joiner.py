@@ -33,8 +33,10 @@ class CreditsJoinerSimple(Worker):
             'aggregator_queue': 'credits_aggregator',
             'aggregator_response_queue': 'credits_joiner_response',
             'joiner_id': 'CreditsJoiner',
-            'checkpoint_interval': 500,
-            'log_interval': 100
+            'checkpoint_interval': 10,  # REDUCIDO: checkpoint cada 10 mensajes
+            'log_interval': 5,          # REDUCIDO: log cada 5 mensajes
+            'aggregator_host': 'credits_aggregator',
+            'aggregator_port': 50000
         }
         
         self.recovery_manager = JoinerRecoveryManager(config, self.logger)
@@ -87,6 +89,18 @@ class CreditsJoinerSimple(Worker):
             self.logger.info(f"Cliente {client_id} - Batches procesados: {self.recovery_manager.batch_processed_counts[client_id]}")
     
     def handle_credits_message(self, message):
+        # Usar recovery manager para el resto
+        state_data = {
+            'save_state': self._save_state,
+            'log_state': self._log_state
+        }
+        
+        if self.recovery_manager.process_message(message, state_data, self.process_credits_message, self.send_ack_to_consumer):
+            self.logger.info(f"Mensaje procesado exitosamente")
+        else:
+            self.logger.info(f"Mensaje ya procesado o error")
+    
+    def process_credits_message(self, message):
         """Handler para mensajes de credits"""
         # Verificar si tengo las movies del cliente
         client_id = message.get("client_id")
@@ -114,18 +128,9 @@ class CreditsJoinerSimple(Worker):
                     self.actor_counts[client_id][actor_id] = {"name": actor_name, "count": 1}
                 else:
                     self.actor_counts[client_id][actor_id]["count"] += 1
+    def send_ack_to_consumer(self, batch_id):
+        self.credits_consumer.ack(batch_id)
         
-        # Usar recovery manager para el resto
-        state_data = {
-            'save_state': self._save_state,
-            'log_state': self._log_state
-        }
-        
-        if self.recovery_manager.process_message(message, state_data):
-            self.logger.info(f"Mensaje procesado exitosamente")
-        else:
-            self.logger.info(f"Mensaje ya procesado o error")
-    
     def handle_movies_message(self, message):
         """Handler para mensajes de movies"""
         self.logger.info(f"Mensaje de movies recibido - cliente: {message.get('client_id')}")
@@ -161,10 +166,10 @@ class CreditsJoinerSimple(Worker):
         
         # Iniciar consumer de credits si no está vivo
         if not self.credits_consumer.is_alive():
-            self.credits_consumer.start()
+            self.credits_consumer.start_consuming_2()
             self.logger.info("Thread de consumo de credits empezado")
         else:
-            self.logger.info("Thread de consumo de credits no empezado, ya existe uno")
+            self.logger.info("Thread de consumo de credits ya está ejecutándose")
     
     def get_result(self, client_id):
         """Obtiene el top 10 de actores para un cliente"""
@@ -176,6 +181,8 @@ class CreditsJoinerSimple(Worker):
         """Cierra todas las conexiones"""
         self.logger.info("Cerrando conexiones del joiner...")
         try:
+            self.credits_consumer.close()
+            
             # Guardar checkpoint final
             state_data = {
                 'save_state': self._save_state,
@@ -188,7 +195,7 @@ class CreditsJoinerSimple(Worker):
             
             # Cerrar otras conexiones
             self.movies_consumer.close()
-            self.credits_consumer.close()
+            
             self.producer.close()
             self.credits_producer.close()
             
@@ -200,6 +207,21 @@ class CreditsJoinerSimple(Worker):
         self.logger.info("Iniciando joiner de credits")
         try:
             self.movies_consumer.start()
+            
+            # Iniciar consumer de credits si ya tenemos movies del checkpoint
+            if len(self.movies.keys()) > 0:
+                self.logger.info(f"Tengo {len(self.movies.keys())} clientes con movies, iniciando consumer...")
+                self.credits_consumer.start_consuming_2()
+                self.logger.info("Thread de consumo de credits empezado desde checkpoint")
+                
+                # Verificar que el thread esté vivo
+                if self.credits_consumer.is_alive():
+                    self.logger.info("✅ Consumer thread está vivo y funcionando")
+                else:
+                    self.logger.error("❌ Consumer thread no está vivo")
+            else:
+                self.logger.info("No hay movies para procesar, esperando mensaje de movies")
+            
             self.shutdown_event.wait()
         finally:
             self.close()

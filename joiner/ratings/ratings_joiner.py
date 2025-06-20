@@ -8,6 +8,7 @@ from middleware.producer.producer import Producer
 from worker.worker import Worker
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
+from utils.parsers.ratings_parser import convert_data_for_rating_joiner
 
 PENDING_MESSAGES = "/root/files/ratings_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/ratings_batches/"
@@ -32,14 +33,16 @@ class RatingsJoiner(Worker):
             'aggregator_queue': 'ratings_aggregator',
             'aggregator_response_queue': 'ratings_joiner_response',
             'joiner_id': 'RatingsJoiner',
-            'checkpoint_interval': 500,
-            'log_interval': 100
+            'checkpoint_interval': 10,  # REDUCIDO: checkpoint cada 10 mensajes
+            'log_interval': 5,          # REDUCIDO: log cada 5 mensajes
+            'aggregator_host': 'ratings_aggregator',
+            'aggregator_port': 50000
         }
         
         self.recovery_manager = JoinerRecoveryManager(config, self.logger)
         
         # Consumers y producers específicos del ratings joiner
-        self.movies_consumer = Subscriber("movies_result",
+        self.movies_consumer = Subscriber("20_century_arg_result",
                                         message_handler=self.handle_movies_message)
         self.ratings_consumer = Consumer("ratings",
                                         _message_handler=self.handle_ratings_message)
@@ -54,6 +57,15 @@ class RatingsJoiner(Worker):
     def _load_initial_state(self):
         """Carga estado inicial usando el recovery manager"""
         state_data = {
+            'checkpoint_file': CHECKPOINT_FILE,
+            'batch_persistence_dir': BATCH_PERSISTENCE_DIR,
+            'aggregator_queue': 'ratings_aggregator',
+            'aggregator_response_queue': 'ratings_joiner_response',
+            'joiner_id': 'RatingsJoiner',
+            'checkpoint_interval': 10,
+            'log_interval': 5,
+            'aggregator_host': 'ratings_aggregator',
+            'aggregator_port': 50000,
             'restore_state': self._restore_state,
             'save_state': self._save_state,
             'log_state': self._log_state
@@ -87,9 +99,22 @@ class RatingsJoiner(Worker):
             self.logger.info(f"Cliente {client_id} - Batches procesados: {self.recovery_manager.batch_processed_counts[client_id]}")
     
     def handle_ratings_message(self, message):
+        # Usar recovery manager para el resto
+        state_data = {
+            'save_state': self._save_state,
+            'log_state': self._log_state
+        }
+        
+        if self.recovery_manager.process_message(message, state_data, self.process_ratings_message, self.send_ack_to_consumer):
+            self.logger.info(f"Mensaje procesado exitosamente")
+        else:
+            self.logger.info(f"Mensaje ya procesado o error")
+    
+    def process_ratings_message(self, message):
         """Handler para mensajes de ratings"""
-        # Verificar si tengo las movies del cliente
         client_id = message.get("client_id")
+        
+        # Verificar si tengo las movies del cliente
         if client_id not in self.movies:
             os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
             self.logger.info(f"Client id {client_id} not ready for ratings file. Saving locally")
@@ -98,43 +123,41 @@ class RatingsJoiner(Worker):
             return
         
         # Procesar el mensaje (lógica específica del ratings joiner)
-        ratings = self._parse_ratings(message)  # Tu función específica
-        movies_per_client = self.movies.get(client_id, set())
+        ratings = self._parse_ratings(message)
         self.processed_rating_batches_per_client[client_id] += message.get("batch_size", 0)
         
-        # Procesar ratings
+        # Inicializar rating_counts si no existe
         if client_id not in self.rating_counts:
             self.rating_counts[client_id] = {}
         
+        # Procesar ratings
         for rating in ratings:
-            if rating.movie_id in movies_per_client:
-                rating_value = rating.value
+            if not isinstance(rating, dict):
+                continue
+            movie_id = rating.get("movieId")
+            rating_value = float(rating.get("rating", 0))
+            
+            # Verificar si la película está en las movies del cliente
+            if int(movie_id) in self.movies[client_id] or str(movie_id) in self.movies[client_id]:
+                self.logger.debug(f"Se agrega rating a la pelicula {movie_id}")
+                
+                # Contar ratings por valor
                 if rating_value not in self.rating_counts[client_id]:
                     self.rating_counts[client_id][rating_value] = {"count": 1}
                 else:
                     self.rating_counts[client_id][rating_value]["count"] += 1
-        
-        # Usar recovery manager para el resto
-        state_data = {
-            'save_state': self._save_state,
-            'log_state': self._log_state
-        }
-        
-        if self.recovery_manager.process_message(message, state_data):
-            self.logger.info(f"Mensaje procesado exitosamente")
-        else:
-            self.logger.info(f"Mensaje ya procesado o error")
+    
+    def send_ack_to_consumer(self, batch_id):
+        self.ratings_consumer.ack(batch_id)
     
     def _parse_ratings(self, message):
-        """Función específica para parsear ratings (ejemplo)"""
-        # Aquí iría tu lógica específica para parsear ratings
-        # Por ahora retorno una lista vacía como ejemplo
-        return []
+        """Función específica para parsear ratings"""
+        return convert_data_for_rating_joiner(message)
     
     def handle_movies_message(self, message):
         """Handler para mensajes de movies"""
         self.logger.info(f"Mensaje de movies recibido - cliente: {message.get('client_id')}")
-        if message.get("type") == "movies_total_result":
+        if message.get("type") == "20_century_arg_total_result":
             self.process_movie_message(message)
         else:
             self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
@@ -166,7 +189,7 @@ class RatingsJoiner(Worker):
         
         # Iniciar consumer de ratings si no está vivo
         if not self.ratings_consumer.is_alive():
-            self.ratings_consumer.start()
+            self.ratings_consumer.start_consuming_2()
             self.logger.info("Thread de consumo de ratings empezado")
         else:
             self.logger.info("Thread de consumo de ratings no empezado, ya existe uno")
@@ -205,6 +228,14 @@ class RatingsJoiner(Worker):
         self.logger.info("Iniciando joiner de ratings")
         try:
             self.movies_consumer.start()
+            
+            # ✅ AGREGAR: Iniciar consumer de ratings si ya tenemos movies del checkpoint
+            if len(self.movies.keys()) > 0:
+                self.ratings_consumer.start_consuming_2()
+                self.logger.info("Thread de consumo de ratings empezado desde checkpoint")
+            else:
+                self.logger.info("No hay movies para procesar, esperando mensaje de movies")
+            
             self.shutdown_event.wait()
         finally:
             self.close()
