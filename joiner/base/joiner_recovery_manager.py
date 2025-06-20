@@ -67,7 +67,7 @@ class JoinerRecoveryManager:
         self._load_checkpoint(state_data)
         
         # 2. Recuperar desde archivos de batch
-        self._recover_from_batch_files()
+        self._recover_from_batch_files(state_data['process_message'])
         
         # 3. Iniciar consumer del aggregator
         self.start()
@@ -97,8 +97,8 @@ class JoinerRecoveryManager:
         except Exception as e:
             self.logger.error(f"Error al cargar checkpoint: {e}")
     
-    def _recover_from_batch_files(self):
-        """Recupera estado consultando archivos de batch"""
+    def _recover_from_batch_files(self, process_message_callback):
+        """Recupera estado consultando archivos de batch únicos"""
         if not os.path.exists(self.batch_persistence_dir):
             self.logger.info("No hay archivos de batch para recuperar")
             return
@@ -106,33 +106,37 @@ class JoinerRecoveryManager:
         self.logger.info("Iniciando recuperación desde archivos de batch...")
         
         batch_files = [f for f in os.listdir(self.batch_persistence_dir) 
-                      if f.endswith('.json') and not f.endswith('_END_TRX.json')]
+                      if f.endswith('_batches.json')]
+        
+        self.logger.info(f"Encontrados {len(batch_files)} archivos de batch: {batch_files}")
         
         for batch_file in batch_files:
             try:
-                parts = batch_file.replace('.json', '').split('_')
-                if len(parts) < 2:
-                    continue
+                client_id = batch_file.replace('_batches.json', '')
+                self.logger.info(f"Procesando archivo de cliente {client_id}")
                 
-                batch_id = parts[-1]
-                client_id = '_'.join(parts[:-1])
-                message_id = f"{client_id}_{batch_id}"
+                with open(os.path.join(self.batch_persistence_dir, batch_file), "r") as f:
+                    batches_data = json.load(f)
                 
-                # Verificar END_TRX
-                end_trx_file = os.path.join(self.batch_persistence_dir, f"{client_id}_{batch_id}_END_TRX.json")
-                
-                if os.path.exists(end_trx_file):
-                    # Si tiene END_TRX pero NO está en processed_messages, lo agrego
-                    if message_id not in self.processed_messages:
-                        self.logger.info(f"Batch {message_id} tiene END_TRX pero no está en checkpoint, agregando")
-                        self.processed_messages.add(message_id)
-                    else:
-                        self.logger.info(f"Batch {message_id} ya está en checkpoint")
-                else:
-                    # Sin END_TRX, consultar al aggregator via TCP
-                    self.logger.info(f"Batch {message_id} sin END_TRX, consultando al aggregator via TCP...")
-                    self._query_aggregator_tcp(client_id, batch_id, batch_file)
+                # Procesar cada batch en el archivo
+                for batch_id, batch_info in batches_data["batches"].items():
+                    message_id = f"{client_id}_{batch_id}"
                     
+                    # Verificar si está en el checkpoint
+                    if message_id in self.processed_messages:
+                        self.logger.info(f"Cliente {client_id}: Batch {batch_id} ya está en checkpoint")
+                        continue
+                    
+                    # Si está marcado como completado pero no en checkpoint, agregarlo
+                    if batch_info["status"] == "completed":
+                        self.logger.info(f"Cliente {client_id}: Batch {batch_id} completado pero no en checkpoint, agregando")
+                        self.processed_messages.add(message_id)
+                        process_message_callback(batch_info["message"])
+                    else:
+                        # Batch no completado, consultar al aggregator
+                        self.logger.info(f"Cliente {client_id}: Batch {batch_id} sin completar, consultando al aggregator...")
+                        self._query_aggregator_tcp(client_id, batch_id, batch_file)
+                        
             except Exception as e:
                 self.logger.error(f"Error procesando archivo {batch_file}: {e}")
     
@@ -227,17 +231,25 @@ class JoinerRecoveryManager:
             
             # 3. Actualizar contadores
             self.batch_processed_counts[client_id] += 1
-            send_ack_to_consumer(batch_id)
-            # 4. Enviar control al aggregator
+            
+            # 4. Enviar ACK solo si el consumer está vivo
+            try:
+                send_ack_to_consumer(batch_id)
+            except Exception as e:
+                if "Channel is closed" in str(e):
+                    self.logger.warning(f"Canal cerrado durante ACK, ignorando")
+
+            
+            # 5. Enviar control al aggregator
             self._send_batch_processed(client_id, batch_id, message)
             
-            # 5. Marcar como procesado
+            # 6. Marcar como procesado
             self.processed_messages.add(message_id)
             
-            # 6. Persistir END_TRX
+            # 7. Persistir END_TRX
             self._persist_end_transaction(client_id, batch_id)
             
-            # 7. Logs y checkpoints
+            # 8. Logs y checkpoints
             self._handle_periodic_operations(state_data)
             
             return True
@@ -247,35 +259,56 @@ class JoinerRecoveryManager:
             return False
     
     def _persist_batch_result(self, client_id, batch_id, message, state_data):
-        """Persiste resultado del batch"""
-        batch_file = os.path.join(self.batch_persistence_dir, f"{client_id}_{batch_id}.json")
+        """Persiste resultado del batch en un único archivo por cliente"""
+        batch_file = os.path.join(self.batch_persistence_dir, f"{client_id}_batches.json")
         
-        batch_data = {
-            "client_id": client_id,
-            "batch_id": batch_id,
+        # Cargar datos existentes o crear nuevo
+        if os.path.exists(batch_file):
+            with open(batch_file, "r") as f:
+                batches_data = json.load(f)
+        else:
+            batches_data = {
+                "client_id": client_id,
+                "batches": {},
+                "last_updated": time.time()
+            }
+        
+        # Agregar el nuevo batch
+        batches_data["batches"][batch_id] = {
             "timestamp": time.time(),
-            "message": message
-        }
-        
-        with open(batch_file, "w") as f:
-            json.dump(batch_data, f, indent=2)
-        
-        self.logger.info(f"Batch persistido: {batch_file}")
-    
-    def _persist_end_transaction(self, client_id, batch_id):
-        """Persiste END_TRX"""
-        end_trx_file = os.path.join(self.batch_persistence_dir, f"{client_id}_{batch_id}_END_TRX.json")
-        end_trx_data = {
-            "client_id": client_id,
-            "batch_id": batch_id,
-            "timestamp": time.time(),
+            "message": message,
             "status": "completed"
         }
+        batches_data["last_updated"] = time.time()
         
-        with open(end_trx_file, "w") as f:
-            json.dump(end_trx_data, f, indent=2)
+        # Guardar de forma atómica
+        temp_file = batch_file + ".tmp"
+        with open(temp_file, "w") as f:
+            json.dump(batches_data, f, indent=2)
         
-        self.logger.info(f"END_TRX persistido: {end_trx_file}")
+        os.replace(temp_file, batch_file)
+        self.logger.info(f"Batch {batch_id} agregado a {batch_file}")
+    
+    def _persist_end_transaction(self, client_id, batch_id):
+        """Marca batch como completado en el archivo único"""
+        batch_file = os.path.join(self.batch_persistence_dir, f"{client_id}_batches.json")
+        
+        if os.path.exists(batch_file):
+            with open(batch_file, "r") as f:
+                batches_data = json.load(f)
+            
+            # Marcar como completado
+            if batch_id in batches_data["batches"]:
+                batches_data["batches"][batch_id]["status"] = "completed"
+                batches_data["last_updated"] = time.time()
+                
+                # Guardar de forma atómica
+                temp_file = batch_file + ".tmp"
+                with open(temp_file, "w") as f:
+                    json.dump(batches_data, f, indent=2)
+                
+                os.replace(temp_file, batch_file)
+                self.logger.info(f"Batch {batch_id} marcado como completado en {batch_file}")
     
     def _send_batch_processed(self, client_id, batch_id, message):
         """Envía mensaje de control al aggregator"""
@@ -308,6 +341,15 @@ class JoinerRecoveryManager:
         """Log de control"""
         self.logger.info("=== ESTADO ACTUAL DEL JOINER ===")
         self.logger.info(f"Total de mensajes procesados: {len(self.processed_messages)}")
+        
+        # Agregar desglose por cliente
+        client_counts = defaultdict(int)
+        for message_id in self.processed_messages:
+            client_id = message_id.split('_')[0]
+            client_counts[client_id] += 1
+        
+        for client_id, count in client_counts.items():
+            self.logger.info(f"Cliente {client_id}: {count} mensajes procesados")
         
         if 'log_state' in state_data:
             state_data['log_state']()

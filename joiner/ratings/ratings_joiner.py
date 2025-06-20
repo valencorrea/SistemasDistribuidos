@@ -1,11 +1,13 @@
 import json
 import os
 from collections import defaultdict
+import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 from utils.parsers.ratings_parser import convert_data_for_rating_joiner
@@ -14,6 +16,12 @@ PENDING_MESSAGES = "/root/files/ratings_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/ratings_batches/"
 CHECKPOINT_FILE = "/root/files/ratings_checkpoint.json"
 
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 class RatingsJoiner(Worker):
     """RatingsJoiner usando JoinerRecoveryManager"""
@@ -50,6 +58,10 @@ class RatingsJoiner(Worker):
         self.ratings_producer = Producer(
             queue_name="ratings",
             queue_type="direct")
+        self.joiner_instance_id = "joiner_ratings"
+        host = os.getenv("RATINGS_AGGREGATOR_HOST", "ratings_aggregator")
+        port = int(os.getenv("RATINGS_AGGREGATOR_PORT", 60001))
+        self.tcp_client = TCPClient(host, port)
         
         # Cargar estado inicial
         self._load_initial_state()
@@ -68,7 +80,8 @@ class RatingsJoiner(Worker):
             'aggregator_port': 50000,
             'restore_state': self._restore_state,
             'save_state': self._save_state,
-            'log_state': self._log_state
+            'log_state': self._log_state,
+            'process_message': self.process_ratings_message
         }
         self.recovery_manager.load_checkpoint_and_recover(state_data)
     
@@ -200,6 +213,14 @@ class RatingsJoiner(Worker):
         self.logger.info("Top 10 ratings con más frecuencia:")
         return top_10
     
+    def get_movies_with_votes_for_client(self, client_id):
+        movies_with_ratings = {}
+        for movie_id, data in self.movies_ratings[client_id].items():
+            if data["votes"] > 0:
+                movies_with_ratings[movie_id] = data
+        self.logger.info(f"Obtenidas {len(movies_with_ratings.keys())} peliculas con al menos un rating")
+        return movies_with_ratings
+    
     def close(self):
         """Cierra todas las conexiones"""
         self.logger.info("Cerrando conexiones del joiner...")
@@ -229,8 +250,13 @@ class RatingsJoiner(Worker):
         try:
             self.movies_consumer.start()
             
-            # ✅ AGREGAR: Iniciar consumer de ratings si ya tenemos movies del checkpoint
+            # Iniciar consumer de ratings si ya tenemos movies del checkpoint
             if len(self.movies.keys()) > 0:
+                self.logger.info(f"Tengo {len(self.movies.keys())} clientes con movies, iniciando consumer...")
+                
+                # ✅ AGREGAR: Reprocesar mensajes pendientes después del recovery
+                self._reprocess_pending_messages_after_recovery()
+                
                 self.ratings_consumer.start_consuming_2()
                 self.logger.info("Thread de consumo de ratings empezado desde checkpoint")
             else:
@@ -239,6 +265,30 @@ class RatingsJoiner(Worker):
             self.shutdown_event.wait()
         finally:
             self.close()
+
+    def _reprocess_pending_messages_after_recovery(self):
+        """Reprocesa mensajes pendientes después del recovery"""
+        if os.path.exists(PENDING_MESSAGES):
+            self.logger.info("Reprocesando mensajes pendientes después del recovery...")
+            temp_path = PENDING_MESSAGES + ".tmp"
+            
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        self.logger.warning("Línea inválida en archivo pendiente.")
+                        continue
+
+                client_id = msg.get("client_id")
+                if client_id in self.movies:
+                    self.logger.info(f"Reprocesando mensaje pendiente para cliente {client_id}")
+                    self.ratings_producer.enqueue(msg)
+                else:
+                    writing_file.write(line)
+
+            os.replace(temp_path, PENDING_MESSAGES)
+            self.logger.info("Reprocesamiento de mensajes pendientes completado")
 
 
 if __name__ == '__main__':

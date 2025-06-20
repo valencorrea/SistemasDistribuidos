@@ -1,12 +1,14 @@
 import json
+import logging
 import os
 from collections import defaultdict
-
+import time
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient, TCPServer
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 
@@ -14,12 +16,16 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/credits_batches/"
 CHECKPOINT_FILE = "/root/files/credits_checkpoint.json"
 
-
 class CreditsJoinerSimple(Worker):
     """CreditsJoiner usando JoinerRecoveryManager"""
-    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        level=logging.DEBUG,
+        datefmt='%H:%M:%S')   
     def __init__(self):
         super().__init__()
+
         
         # Estado específico del credits joiner
         self.actor_counts = {}
@@ -50,6 +56,10 @@ class CreditsJoinerSimple(Worker):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
+        self.joiner_instance_id = "joiner_credits"
+        host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
+        port = int(os.getenv("AGGREGATOR_PORT", 9000))
+        self.tcp_client = TCPClient(host, port)
         
         # Cargar estado inicial
         self._load_initial_state()
@@ -58,7 +68,8 @@ class CreditsJoinerSimple(Worker):
         state_data = {
             'restore_state': self._restore_state,
             'save_state': self._save_state,
-            'log_state': self._log_state
+            'log_state': self._log_state,
+            'process_message': self.process_credits_message
         }
         self.recovery_manager.load_checkpoint_and_recover(state_data)
     
@@ -211,6 +222,10 @@ class CreditsJoinerSimple(Worker):
             # Iniciar consumer de credits si ya tenemos movies del checkpoint
             if len(self.movies.keys()) > 0:
                 self.logger.info(f"Tengo {len(self.movies.keys())} clientes con movies, iniciando consumer...")
+                
+                # ✅ AGREGAR: Reprocesar mensajes pendientes después del recovery
+                self._reprocess_pending_messages_after_recovery()
+                
                 self.credits_consumer.start_consuming_2()
                 self.logger.info("Thread de consumo de credits empezado desde checkpoint")
                 
@@ -226,6 +241,41 @@ class CreditsJoinerSimple(Worker):
         finally:
             self.close()
 
+    def _reprocess_pending_messages_after_recovery(self):
+        """Reprocesa mensajes pendientes después del recovery"""
+        if os.path.exists(PENDING_MESSAGES):
+            self.logger.info("Reprocesando mensajes pendientes después del recovery...")
+            temp_path = PENDING_MESSAGES + ".tmp"
+            
+            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
+                for line in reading_file:
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        self.logger.warning("Invalid file line.")
+                        continue
+
+                    client_id = msg.get("client_id")
+                    if client_id in self.movies:
+                        self.logger.info(f"Reprocesando mensaje pendiente para cliente {client_id}")
+                        self.credits_producer.enqueue(msg)
+                    else:
+                        writing_file.write(line)
+
+            os.replace(temp_path, PENDING_MESSAGES)
+            self.logger.info("Reprocesamiento de mensajes pendientes completado")
+
+    def send_batch_id_to_aggregator(self, batch_id):
+        msg_dict = {
+            "type": "batch_id",
+            "batch_id": batch_id,
+            "joiner_instance_id": self.joiner_instance_id
+        }
+        msg = json.dumps(msg_dict) + '\n'
+        if self.tcp_client.send(msg):
+            self.logger.info(f"Batch id enviado por TCP: {msg.strip()}")
+        else:
+            self.logger.error("No se pudo enviar batch id por TCP.")
 
 if __name__ == '__main__':
     worker = CreditsJoinerSimple()
