@@ -2,15 +2,14 @@ import json
 import logging
 import os
 from collections import defaultdict
-import socket
 import time
-
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 
@@ -25,7 +24,6 @@ class CreditsJoiner(Worker):
         super().__init__()
         self.received_credits_batches_per_client = {}
         self.total_credits_batches_per_client = {}
-
         self.processed_rating_batches_per_client = defaultdict(int)
         self.movies_consumer = Subscriber("20_century_arg_result",
                                         message_handler=self.handle_movies_message)
@@ -44,41 +42,10 @@ class CreditsJoiner(Worker):
         self.amounts_control_consumer = Subscriber("credits_amounts",
                                                    message_handler=self.handle_amounts)
         self.joiner_instance_id = "joiner_credits"
-        self.host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
-        self.port = int(os.getenv("AGGREGATOR_PORT", 9000))
-        self.socket = None
-        self.timeout = 5000
-        self.connect()
-
-    def connect(self) -> bool:
-        try:
-            logger.info(f"Intentando conectar a host:{self.host} y puerto:{self.port}")
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(self.timeout)
-            self.socket.connect((self.host, self.port))
-            logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
-            return True
-        except Exception as e:
-            logger.error(f"Error conectando: {e}")
-            if self.socket:
-                self.socket.close()
-            self.socket = None
-            return False
-
-    # def connect_to_aggregator(self):
-    #     if self.aggregator_socket:
-    #         try:
-    #             self.aggregator_socket.close()
-    #         except Exception:
-    #             pass
-    #     while True:
-    #         try:
-    #             self.aggregator_socket = socket.create_connection((self.aggregator_host, self.aggregator_port), timeout=10)
-    #             self.logger.info(f"Conectado a aggregator TCP en {self.aggregator_host}:{self.aggregator_port}")
-    #             break
-    #         except Exception as e:
-    #             self.logger.error(f"No se pudo conectar a aggregator TCP: {e}. Reintentando en 2s...")
-    #             time.sleep(2)
+        
+        host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
+        port = int(os.getenv("AGGREGATOR_PORT", 9000))
+        self.tcp_client = TCPClient(host, port)
 
     def handle_amounts(self, message):
         try:
@@ -125,8 +92,7 @@ class CreditsJoiner(Worker):
             self.credits_consumer.close()
             self.producer.close()
             self.credits_producer.close()
-            if self.socket:
-                self.socket.close()
+            self.tcp_client.close()
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -233,29 +199,10 @@ class CreditsJoiner(Worker):
             "joiner_instance_id": self.joiner_instance_id
         }
         msg = json.dumps(msg_dict) + '\n'
-        try:
-            if not self._send_batch_id_message(msg):
-                return
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            self.logger.warning("Conexión TCP perdida, reintentando...")
-            self.connect()
-            try:
-                self._send_batch_id_message(msg)
-            except Exception as e:
-                self.logger.error(f"Error enviando batch id tras reconexión: {e}")
-        except Exception as e:
-            self.logger.error(f"Error enviando batch id por TCP: {e}")
-
-    def _send_batch_id_message(self, msg):
-        if not self.socket:
-            self.connect()
-        if self.socket:
-            self.socket.sendall(msg.encode('utf-8'))
+        if self.tcp_client.send(msg):
             self.logger.info(f"Batch id enviado por TCP: {msg.strip()}")
-            return True
         else:
-            self.logger.error("No se pudo establecer conexión TCP para enviar batch id.")
-            return False
+            self.logger.error("No se pudo enviar batch id por TCP.")
 
 if __name__ == '__main__':
     worker = CreditsJoiner()

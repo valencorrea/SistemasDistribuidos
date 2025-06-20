@@ -1,5 +1,4 @@
 import logging
-import socket
 import threading
 import os
 import json
@@ -8,6 +7,7 @@ import time
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPServer
 
 from collections import Counter, defaultdict
 from typing import Optional
@@ -28,79 +28,29 @@ class Aggregator(Worker):
         self.actor_counter_per_client = defaultdict(Counter)
         self.batches_by_joiner = defaultdict(set)
 
-        self.tcp_host = "0.0.0.0"
-        self.tcp_port = 9000
-        self.tcp_socket = None
-        self.start_server()
+        self.tcp_host = os.getenv("TCP_HOST", "0.0.0.0")
+        self.tcp_port = int(os.getenv("TCP_PORT", 9000))
+        self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
 
-    def start_server(self):
+    def _handle_tcp_message(self, msg, addr):
         try:
-            self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.tcp_socket.bind((self.tcp_host, self.tcp_port))
-            self.tcp_socket.listen(5)
-            self.logger.info(f"[TCP] Servidor escuchando en {self.tcp_host}:{self.tcp_port}")
-            
-            while True:
-                client_socket, addr = self.accept_connection()
-                if client_socket:
-                    self.logger.info(f"[TCP] Conexión aceptada de {addr}")
-                    threading.Thread(target=self.handle_tcp_client, args=(client_socket, addr), daemon=True).start()
+            self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
+            data_json = json.loads(msg)
+            if data_json.get("type") != "batch_id":
+                return
+            batch_id = data_json.get("batch_id")
+            joiner_instance_id = data_json.get("joiner_instance_id")
+            if batch_id is None or joiner_instance_id is None:
+                self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
+                return
+            self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
         except Exception as e:
-            self.logger.error(f"[TCP] Error en servidor TCP: {e}")
-
-    def accept_connection(self):
-        try:
-            if self.tcp_socket:
-                client_socket, addr = self.tcp_socket.accept()
-                return client_socket, addr[0]
-        except Exception as e:
-            self.logger.error(f"[TCP] Error aceptando conexión: {e}")
-        return None, None
-
-    def handle_tcp_client(self, client_socket, addr):
-        try:
-            buffer = b""
-            while True:
-                data = client_socket.recv(4096)
-                if not data:
-                    self.logger.info(f"[TCP] Conexión cerrada por {addr}")
-                    break
-                buffer += data
-                while b'\n' in buffer:
-                    line, buffer = buffer.split(b'\n', 1)
-                    try:
-                        msg = line.decode('utf-8').strip()
-                        if not msg:
-                            continue
-                        self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
-                        data_json = json.loads(msg)
-                        if data_json.get("type") != "batch_id":
-                            continue
-                        batch_id = data_json.get("batch_id")
-                        joiner_instance_id = data_json.get("joiner_instance_id")
-                        if batch_id is None or joiner_instance_id is None:
-                            self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
-                            continue
-                        self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
-                        self.logger.info(f"[TCP] Guardado batch_id {batch_id} para joiner {joiner_instance_id}. Total batches para este joiner: {len(self.batches_by_joiner[joiner_instance_id])}")
-                    except Exception as e:
-                        self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
-        except Exception as e:
-            self.logger.error(f"[TCP] Error procesando conexión de {addr}: {e}")
-        finally:
-            try:
-                client_socket.close()
-            except Exception:
-                pass
+            self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            if self.socket:
-                self.socket.close()
-                self.socket = None
-
+            self.server.stop()
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
@@ -144,6 +94,7 @@ class Aggregator(Worker):
 
     def start(self):
         self.logger.info("Iniciando agregador")
+        self.server.start()
         try:
             self.consumer.start_consuming()
         finally:
