@@ -1,12 +1,14 @@
 import json
+import logging
 import os
 from collections import defaultdict
-
+import time
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 
@@ -14,12 +16,16 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/credits_batches/"
 CHECKPOINT_FILE = "/root/files/credits_checkpoint.json"
 
-
 class CreditsJoinerSimple(Worker):
     """CreditsJoiner usando JoinerRecoveryManager"""
-    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        level=logging.DEBUG,
+        datefmt='%H:%M:%S')   
     def __init__(self):
         super().__init__()
+
         
         # Estado específico del credits joiner
         self.actor_counts = {}
@@ -255,6 +261,17 @@ class CreditsJoinerSimple(Worker):
             os.replace(temp_path, PENDING_MESSAGES)
             self.logger.info("Reprocesamiento de mensajes pendientes completado")
 
+    def send_batch_id_to_aggregator(self, batch_id):
+        msg_dict = {
+            "type": "batch_id",
+            "batch_id": batch_id,
+            "joiner_instance_id": self.joiner_instance_id
+        }
+        msg = json.dumps(msg_dict) + '\n'
+        if self.tcp_client.send(msg):
+            self.logger.info(f"Batch id enviado por TCP: {msg.strip()}")
+        else:
+            self.logger.error("No se pudo enviar batch id por TCP.")
 
 if __name__ == '__main__':
     worker = CreditsJoinerSimple()

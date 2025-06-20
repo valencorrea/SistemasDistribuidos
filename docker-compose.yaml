@@ -25,6 +25,7 @@ services:
     links:
     - rabbitmq
   best_and_worst_ratings_aggregator:
+    container_name: best_and_worst_ratings_aggregator
     build:
       context: .
       dockerfile: aggregator/best_and_worst_ratings_aggregator/aggregator.dockerfile
@@ -48,6 +49,8 @@ services:
     - SERVICE_NAME=best_and_worst_ratings_aggregator
     links:
     - rabbitmq
+    ports:
+    - 60001:60001
   client_1:
     build:
       context: .
@@ -131,6 +134,7 @@ services:
       timeout: 2s
     ports:
     - 50000:50000
+    - 60000:60000
   credits_joiner:
     build:
       context: .
@@ -153,6 +157,29 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=credits_joiner
+    - AGGREGATOR_HOST=aggregator_top_10
+    - AGGREGATOR_PORT=60002
+    image: credits_joiner:latest
+    links:
+    - rabbitmq
+  credits_joiner_1:
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=credits_joiner_1
     image: credits_joiner:latest
     links:
     - rabbitmq
@@ -218,7 +245,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_1,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50001:50001
     - 50011:50011
@@ -236,7 +263,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_1,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50002:50002
     - 50012:50012
@@ -254,7 +281,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_1,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,sentiment_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50003:50003
     - 50013:50013
@@ -320,6 +347,8 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=ratings_joiner
+    - RATINGS_AGGREGATOR_HOST=best_and_worst_ratings_aggregator
+    - RATINGS_AGGREGATOR_PORT=60001
     image: ratings_joiner:latest
     links:
     - rabbitmq
@@ -373,6 +402,7 @@ services:
     links:
     - rabbitmq
   top_10_credits_aggregator:
+    container_name: aggregator_top_10
     build:
       context: .
       dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
@@ -396,6 +426,8 @@ services:
     - SERVICE_NAME=top_10_credits_aggregator
     links:
     - rabbitmq
+    ports:
+    - 60002:60000
   top_5_countries_aggregator:
     build:
       context: .

@@ -1,11 +1,13 @@
 import json
 import os
 from collections import defaultdict
+import logging
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 from utils.parsers.ratings_parser import convert_data_for_rating_joiner
@@ -14,6 +16,12 @@ PENDING_MESSAGES = "/root/files/ratings_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/ratings_batches/"
 CHECKPOINT_FILE = "/root/files/ratings_checkpoint.json"
 
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 class RatingsJoiner(Worker):
     """RatingsJoiner usando JoinerRecoveryManager"""
@@ -200,6 +208,14 @@ class RatingsJoiner(Worker):
         top_10 = sorted(self.rating_counts[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
         self.logger.info("Top 10 ratings con más frecuencia:")
         return top_10
+    
+    def get_movies_with_votes_for_client(self, client_id):
+        movies_with_ratings = {}
+        for movie_id, data in self.movies_ratings[client_id].items():
+            if data["votes"] > 0:
+                movies_with_ratings[movie_id] = data
+        self.logger.info(f"Obtenidas {len(movies_with_ratings.keys())} peliculas con al menos un rating")
+        return movies_with_ratings
     
     def close(self):
         """Cierra todas las conexiones"""
