@@ -15,14 +15,13 @@ class Aggregator(AbstractAggregator):
     def create_producer(self):
         return Producer("result")
 
-    def create_final_result(self, client_id, batch_id):
+    def create_final_result(self, client_id):
         rate_revenue_budget = self._get_sentiment_mean(client_id)
         return {
             "result_number": 5,
             "type": "query_5_sentiments",
             "result": rate_revenue_budget,
-            "client_id": client_id,
-            "batch_id": batch_id
+            "client_id": client_id
         }
 
     def process_message(self, client_id, message):
