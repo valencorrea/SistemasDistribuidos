@@ -81,6 +81,9 @@ class TCPClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self._socket = None
+        self._response_callbacks = {}  # Para manejar respuestas asíncronas
+        self._response_thread = None
+        self._running = False
         self.connect()
 
     def connect(self):
@@ -97,6 +100,9 @@ class TCPClient:
                 self._socket.settimeout(self.timeout)
                 self._socket.connect((self.host, self.port))
                 logger.info(f"[TCP Client] Conexión establecida con {self.host}:{self.port}")
+                
+                # Iniciar thread de escucha de respuestas
+                self._start_response_listener()
                 return True
             except socket.gaierror as e:
                 logger.error(f"[TCP Client] Error de DNS: {e}. Host: {self.host}")
@@ -108,6 +114,89 @@ class TCPClient:
         self._socket = None
         logger.error(f"[TCP Client] No se pudo conectar tras {self.max_retries} intentos.")
         return False
+
+    def _start_response_listener(self):
+        """Inicia thread para escuchar respuestas del servidor"""
+        if self._response_thread and self._response_thread.is_alive():
+            return
+        
+        self._running = True
+        self._response_thread = threading.Thread(target=self._listen_for_responses)
+        self._response_thread.daemon = True
+        self._response_thread.start()
+        logger.info("[TCP Client] Thread de escucha de respuestas iniciado")
+
+    def _listen_for_responses(self):
+        """Escucha respuestas del servidor"""
+        buffer = b""
+        while self._running and self._socket:
+            try:
+                data = self._socket.recv(4096)
+                if not data:
+                    logger.info("[TCP Client] Conexión cerrada por el servidor")
+                    break
+                
+                buffer += data
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    msg = line.decode('utf-8').strip()
+                    if msg:
+                        self._handle_response(msg)
+                        
+            except socket.timeout:
+                continue
+            except (ConnectionResetError, BrokenPipeError):
+                logger.warning("[TCP Client] Conexión perdida con el servidor")
+                break
+            except Exception as e:
+                logger.error(f"[TCP Client] Error escuchando respuestas: {e}")
+                break
+        
+        self._running = False
+        logger.info("[TCP Client] Thread de escucha de respuestas terminado")
+
+    def _handle_response(self, response_msg):
+        """Maneja una respuesta recibida del servidor"""
+        try:
+            response_data = json.loads(response_msg)
+            response_type = response_data.get("type")
+            
+            logger.info(f"[TCP Client] Respuesta recibida: {response_type}")
+            
+            # Buscar callback registrado para este tipo de respuesta
+            if response_type in self._response_callbacks:
+                callback = self._response_callbacks[response_type]
+                callback(response_data)
+            else:
+                logger.warning(f"[TCP Client] No hay callback registrado para respuesta tipo: {response_type}")
+                
+        except json.JSONDecodeError:
+            logger.error(f"[TCP Client] Respuesta no es JSON válido: {response_msg}")
+        except Exception as e:
+            logger.error(f"[TCP Client] Error procesando respuesta: {e}")
+
+    def register_response_callback(self, response_type, callback):
+        """Registra un callback para un tipo específico de respuesta"""
+        self._response_callbacks[response_type] = callback
+        logger.info(f"[TCP Client] Callback registrado para respuesta tipo: {response_type}")
+
+    def send_with_response(self, message, response_type, callback, timeout=10):
+        """Envía mensaje y espera respuesta específica"""
+        try:
+            # Registrar callback temporal
+            self.register_response_callback(response_type, callback)
+            
+            # Enviar mensaje
+            if self.send(message):
+                logger.info(f"[TCP Client] Mensaje enviado, esperando respuesta tipo: {response_type}")
+                return True
+            else:
+                logger.error("[TCP Client] No se pudo enviar mensaje")
+                return False
+                
+        except Exception as e:
+            logger.error(f"[TCP Client] Error en send_with_response: {e}")
+            return False
 
     def send(self, message):
         if not self._socket:
@@ -135,6 +224,7 @@ class TCPClient:
             return False
 
     def close(self):
+        self._running = False
         if self._socket:
             self._socket.close()
             self._socket = None
