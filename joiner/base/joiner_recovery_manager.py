@@ -21,7 +21,7 @@ class JoinerRecoveryManager:
         self.aggregator_queue = config['aggregator_queue']
         self.aggregator_response_queue = config['aggregator_response_queue']
         self.joiner_id = config['joiner_id']
-        self.checkpoint_interval = config.get('checkpoint_interval', 500)
+        self.checkpoint_interval = config.get('checkpoint_interval', 5)
         self.log_interval = config.get('log_interval', 100)
         
         # Configuración TCP para consulta al aggregator

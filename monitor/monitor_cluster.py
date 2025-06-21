@@ -63,27 +63,16 @@ class MonitorCluster:
             logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
             return filtered_services
         else:
-            # Fallback: obtener servicios del docker-compose dinámicamente
-            try:
-                services = self._discover_services_from_compose()
-                filtered_services = self._filter_services(services)
-                logger.info(f"🔍 Servicios descubiertos dinámicamente: {services}")
-                logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
-                return filtered_services
-            except Exception as e:
-                logger.warning(f"❌ No se pudieron descubrir servicios dinámicamente: {e}")
-                # Lista por defecto basada en el docker-compose (ya filtrada)
-                default_services = [
+            default_services = [
                     'arg_production_filter', 'best_and_worst_ratings_aggregator', 
                     'credits_joiner', 'esp_production_filter', 'main_movie_filter', 
                     'no_colab_productions_filter', 'ratings_joiner', 
                     'sentiment_aggregator', 'sentiment_filter', 
-                    'top_10_credits_aggregator', 'top_5_countries_aggregator',
+                    'aggregator_top_10', 'top_5_countries_aggregator',
                     'twentieth_century_arg_aggregator', 'twentieth_century_arg_esp_aggregator',
                     'twentieth_century_filter'
                 ]
-                logger.info(f"📋 Usando lista por defecto de servicios filtrados: {default_services}")
-                return default_services
+            return default_services
 
     def _filter_services(self, services: List[str]) -> List[str]:
         """Filtra la lista de servicios excluyendo worker y client_*"""
@@ -100,25 +89,6 @@ class MonitorCluster:
         
         return filtered_services
 
-    def _discover_services_from_compose(self) -> List[str]:
-        """Descubre servicios del docker-compose dinámicamente"""
-        try:
-            # Obtener todos los contenedores del proyecto
-            containers = self.docker_client.containers.list(all=True)
-            services = set()
-            
-            for container in containers:
-                # Obtener labels del contenedor para identificar el servicio
-                labels = container.labels
-                service_name = labels.get('com.docker.compose.service')
-                
-                if service_name and service_name not in ['monitor_1', 'monitor_2', 'monitor_3', 'rabbitmq']:
-                    services.add(service_name)
-            
-            return list(services)
-        except Exception as e:
-            logger.error(f"Error descubriendo servicios: {e}")
-            return []
 
     def _get_cluster_nodes(self) -> List[Tuple[str, int]]:
         nodes_env = os.getenv('MONITOR_CLUSTER_NODES', 'monitor_1,monitor_2,monitor_3')
@@ -577,9 +547,8 @@ class MonitorCluster:
                             for service_name in self.expected_services:
                                 if service_name not in self.services:
                                     # Si nunca ha reportado, verificar si existe el contenedor
-                                    if self._should_restart_service(service_name):
-                                        restart.append(service_name)
-                                        logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat, se intentará levantar")
+                                    restart.append(service_name)
+                                    logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat, se intentará levantar")
                         
                         for name in restart:
                             self._restart_service(name)
@@ -588,54 +557,70 @@ class MonitorCluster:
             except Exception as e:
                 logger.error(f"Error heartbeat check: {e}")
 
-    def _should_restart_service(self, service_name: str) -> bool:
-        """Determina si un servicio debe ser reiniciado basado en su estado actual"""
-        try:
-            containers = self.docker_client.containers.list(all=True)
-            matching = [c for c in containers if service_name in c.name]
-            
-            if not matching:
-                logger.warning(f"❌ Contenedor para {service_name} no encontrado")
-                return True
-                
-            container = matching[0]
-            container.reload()
-            status = container.status
-            
-            # Solo reiniciar si está detenido, muerto o pausado
-            return status in ["exited", "dead", "paused"]
-            
-        except Exception as e:
-            logger.error(f"❌ Error verificando estado de {service_name}: {e}")
-            return False
-
     def _restart_service(self, name: str):
         try:
             containers = self.docker_client.containers.list(all=True)
-            matching = [c for c in containers if name in c.name]
+            
+            # Buscar contenedores que coincidan con el patrón de réplicas
+            # Patrones posibles: name, name_1, name_1-1, name_1-2, etc.
+            matching = []
+            
+            for container in containers:
+                container_name = container.name
+                
+                # Verificar si el nombre del servicio está en el nombre del contenedor
+                if name in container_name:
+                    # Verificar si es una réplica válida (termina en número o número-número)
+                    if (container_name == name or 
+                        container_name.endswith(f"_{name}") or
+                        container_name.endswith(f"-{name}") or
+                        any(container_name.endswith(f"{name}_{i}") for i in range(1, 100)) or
+                        any(container_name.endswith(f"{name}-{i}") for i in range(1, 100)) or
+                        any(container_name.endswith(f"{name}_{i}-{j}") for i in range(1, 100) for j in range(1, 100))):
+                        matching.append(container)
             
             if not matching:
                 logger.warning(f"❌ Contenedor para {name} no encontrado")
                 return
+            
+            logger.info(f"🔍 Encontrados {len(matching)} contenedores para {name}: {[c.name for c in matching]}")
+            
+            # Verificar cada contenedor y reiniciar solo los que están caídos
+            restarted_any = False
+            
+            for container in matching:
+                container.reload()
+                status = container.status
                 
-            container = matching[0]
+                logger.info(f"🔍 Verificando estado de {container.name}: {status}")
+                
+                if status in ["exited", "dead", "paused"]:
+                    logger.warning(f"🔄 El contenedor {container.name} está en estado {status}, se intentará reiniciar.")
+                    try:
+                        container.restart()
+                        logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
+                        restarted_any = True
+                    except Exception as e:
+                        logger.error(f"❌ Error reiniciando {container.name}: {e}")
+                elif status == "running":
+                    logger.info(f"✅ El contenedor {container.name} está ejecutándose correctamente.")
+                else:
+                    logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
             
-            container.reload()
-            status = container.status
-            
-            logger.info(f"🔍 Verificando estado de {name}: {status}")
-            
-            if status == "running":
-                logger.info(f"✅ El servicio {name} está ejecutándose correctamente. No se reiniciará.")
+            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
+            if restarted_any:
                 with self.lock:
                     self.services[name] = time.time() * 1000
-                return
-            elif status in ["exited", "dead", "paused"]:
-                logger.warning(f"🔄 El servicio {name} está en estado {status}, se intentará reiniciar.")
-                container.restart()
-                logger.info(f"✅ Servicio {name} reiniciado correctamente (contenedor: {container.name})")
+                logger.info(f"✅ Servicio {name} marcado como saludable después de reiniciar contenedores")
             else:
-                logger.info(f"ℹ️ El servicio {name} está en estado {status}, no se reiniciará.")
+                # Verificar si hay al menos un contenedor ejecutándose
+                running_containers = [c for c in matching if c.status == "running"]
+                if running_containers:
+                    with self.lock:
+                        self.services[name] = time.time() * 1000
+                    logger.info(f"✅ Servicio {name} tiene {len(running_containers)} contenedores ejecutándose")
+                else:
+                    logger.warning(f"⚠️ Servicio {name} no tiene contenedores ejecutándose después de intentar reiniciar")
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando {name}: {e}")
@@ -669,30 +654,66 @@ class MonitorCluster:
         try:
             containers = self.docker_client.containers.list(all=True)
             target_name = f"monitor_{node_id}"
-            matching = [c for c in containers if target_name in c.name]
+            
+            # Buscar contenedores que coincidan con el patrón de réplicas para monitores
+            matching = []
+            
+            for container in containers:
+                container_name = container.name
+                
+                # Verificar si el nombre del monitor está en el nombre del contenedor
+                if target_name in container_name:
+                    # Verificar si es una réplica válida
+                    if (container_name == target_name or 
+                        container_name.endswith(f"_{target_name}") or
+                        container_name.endswith(f"-{target_name}") or
+                        any(container_name.endswith(f"{target_name}_{i}") for i in range(1, 100)) or
+                        any(container_name.endswith(f"{target_name}-{i}") for i in range(1, 100)) or
+                        any(container_name.endswith(f"{target_name}_{i}-{j}") for i in range(1, 100) for j in range(1, 100))):
+                        matching.append(container)
             
             if not matching:
                 logger.warning(f"❌ Contenedor para monitor_{node_id} no encontrado")
                 return
+            
+            logger.info(f"🔍 Encontrados {len(matching)} contenedores para monitor_{node_id}: {[c.name for c in matching]}")
+            
+            # Verificar cada contenedor y reiniciar solo los que están caídos
+            restarted_any = False
+            
+            for container in matching:
+                container.reload()
+                status = container.status
                 
-            container = matching[0]
+                logger.info(f"🔍 Verificando estado de {container.name}: {status}")
+                
+                if status in ["exited", "dead", "paused"]:
+                    logger.warning(f"🔄 El contenedor {container.name} está en estado {status}, se intentará reiniciar.")
+                    try:
+                        container.restart()
+                        logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
+                        restarted_any = True
+                    except Exception as e:
+                        logger.error(f"❌ Error reiniciando {container.name}: {e}")
+                elif status == "running":
+                    logger.info(f"✅ El contenedor {container.name} está ejecutándose correctamente.")
+                else:
+                    logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
             
-            container.reload()
-            status = container.status
-            
-            logger.info(f"🔍 Verificando estado de monitor_{node_id}: {status}")
-            
-            if status == "running":
-                logger.info(f"✅ El monitor {node_id} está ejecutándose correctamente. No se reiniciará.")
+            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
+            if restarted_any:
                 with self.lock:
                     self.monitor_heartbeats[node_id] = time.time() * 1000
-                return
-            elif status in ["exited", "dead", "paused"]:
-                logger.warning(f"🔄 El monitor {node_id} está en estado {status}, se intentará reiniciar.")
-                container.restart()
-                logger.info(f"✅ Monitor {node_id} reiniciado correctamente (contenedor: {container.name})")
+                logger.info(f"✅ Monitor {node_id} marcado como saludable después de reiniciar contenedores")
             else:
-                logger.info(f"ℹ️ El monitor {node_id} está en estado {status}, no se reiniciará.")
+                # Verificar si hay al menos un contenedor ejecutándose
+                running_containers = [c for c in matching if c.status == "running"]
+                if running_containers:
+                    with self.lock:
+                        self.monitor_heartbeats[node_id] = time.time() * 1000
+                    logger.info(f"✅ Monitor {node_id} tiene {len(running_containers)} contenedores ejecutándose")
+                else:
+                    logger.warning(f"⚠️ Monitor {node_id} no tiene contenedores ejecutándose después de intentar reiniciar")
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando monitor_{node_id}: {e}")

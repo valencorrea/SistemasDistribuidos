@@ -39,8 +39,8 @@ class CreditsJoinerSimple(Worker):
             'aggregator_queue': 'credits_aggregator',
             'aggregator_response_queue': 'credits_joiner_response',
             'joiner_id': 'CreditsJoiner',
-            'checkpoint_interval': 10,  # REDUCIDO: checkpoint cada 10 mensajes
-            'log_interval': 5,          # REDUCIDO: log cada 5 mensajes
+            'checkpoint_interval': 5,  
+            'log_interval': 5,
             'aggregator_host': 'credits_aggregator',
             'aggregator_port': 50000
         }
@@ -85,7 +85,7 @@ class CreditsJoinerSimple(Worker):
     def _save_state(self):
         """Guarda estado específico del credits joiner"""
         return {
-            "actor_counts": self.actor_counts,
+            "actor_counts": dict(self.actor_counts),
             "processed_rating_batches_per_client": dict(self.processed_rating_batches_per_client),
             "movies": {client_id: list(movie_ids) for client_id, movie_ids in self.movies.items()}
         }
