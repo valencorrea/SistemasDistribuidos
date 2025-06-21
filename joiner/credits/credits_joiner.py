@@ -58,9 +58,7 @@ class CreditsJoinerSimple(Worker):
         
         # Consumers y producers
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                        message_handler=self.handle_movies_message,
-                                        durable=False,
-                                        auto_ack=False)
+                                        message_handler=self.handle_movies_message)
         self.credits_consumer = Consumer("credits",
                                         _message_handler=self.handle_credits_message)
         self.producer = Producer("top_10_actors_from_batch")

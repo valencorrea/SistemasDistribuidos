@@ -61,9 +61,7 @@ class RatingsJoiner(Worker):
         
         # Consumers y producers específicos del ratings joiner
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                        message_handler=self.handle_movies_message,
-                                        durable=False,  # ✅ NO cambiar configuración del exchange
-                                        auto_ack=False)  # ✅ CONFIGURACIÓN ROBUSTA para ACK
+                                        message_handler=self.handle_movies_message)  # ✅ CONFIGURACIÓN ROBUSTA para ACK
         self.ratings_consumer = Consumer("ratings",
                                        _message_handler=self.handle_ratings_message)
         self.producer = Producer("top_10_ratings_from_batch")
