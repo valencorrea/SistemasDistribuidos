@@ -22,7 +22,7 @@ workers:
     log_level: INFO
     kill: false
   sentiment:
-    count: 1
+    count: 0
     log_level: INFO
     kill: false
   arg_production:
@@ -30,7 +30,7 @@ workers:
     log_level: INFO
     kill: false
   credits:
-    count: 2
+    count: 1
     log_level: INFO
     kill: false
   ratings:
@@ -60,7 +60,7 @@ aggregators:
     log_level: INFO
     kill: false
   sentiment:
-    generate: true
+    generate: false
     log_level: INFO
     kill: false
 

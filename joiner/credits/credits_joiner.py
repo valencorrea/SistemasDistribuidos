@@ -2,16 +2,15 @@ import json
 import logging
 import os
 import threading
-from collections import defaultdict
 import time
+from collections import defaultdict
+
+from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.worker import Worker
-from middleware.tcp_protocol.tcp_protocol import TCPClient, TCPServer
-
-from joiner.base.joiner_recovery_manager import JoinerRecoveryManager
 
 PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 BATCH_PERSISTENCE_DIR = "/root/files/credits_batches/"
@@ -24,7 +23,8 @@ class CreditsJoinerSimple(Worker):
     logging.basicConfig(
         format='%(asctime)s %(levelname)-8s %(message)s',
         level=logging.DEBUG,
-        datefmt='%H:%M:%S')   
+        datefmt='%H:%M:%S')
+
     def __init__(self):
         super().__init__()
 
@@ -45,7 +45,7 @@ class CreditsJoinerSimple(Worker):
         config = {
             'checkpoint_file': CHECKPOINT_FILE,
             'batch_persistence_dir': BATCH_PERSISTENCE_DIR,
-            'aggregator_queue': 'credits_aggregator',
+            'aggregator_queue': 'top_10_actors_from_batch',
             'aggregator_response_queue': 'credits_joiner_response',
             'joiner_id': 'CreditsJoiner',
             'checkpoint_interval': 5,  
@@ -66,10 +66,28 @@ class CreditsJoinerSimple(Worker):
             queue_name="credits",
             queue_type="direct")
         self.joiner_instance_id = "joiner_credits"
-        
+        self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
+        self.received_credits_batches_per_client = {}
+
         # Cargar estado inicial
         self._load_initial_state()
-    
+
+    def handle_control_message(self, message):
+        self.logger.info(f"Mensaje de control recibido: {message}")
+        client_id = message.get("client_id")
+        top_10 = self.get_result(client_id)
+        result_message = {
+            "type": "query_4_top_10_actores_credits",
+            "actors": top_10,
+            "client_id": client_id,
+            "batch_size": self.received_credits_batches_per_client[client_id]
+        }
+        self.producer.enqueue(result_message)
+        self.logger.info(f"Resultado enviado {result_message}.")
+        self.actor_counts.pop(client_id)
+        self.processed_rating_batches_per_client.pop(client_id)
+
+
     def _load_initial_state(self):
         # Primero cargar movies desde persistencia
         self._load_movies_from_persistence()
@@ -210,7 +228,9 @@ class CreditsJoinerSimple(Worker):
     def process_credits_message(self, message):
         """Handler para mensajes de credits"""
         # Verificar si tengo las movies del cliente
+        batch_size = message.get("batch_size")
         client_id = message.get("client_id")
+        self.received_credits_batches_per_client[client_id] = self.received_credits_batches_per_client.get(client_id, 0) + batch_size
         if client_id not in self.movies:
             os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
             self.logger.info(f"⏳ Client id {client_id} not ready for credits file. Saving locally")
@@ -322,6 +342,7 @@ class CreditsJoinerSimple(Worker):
         self.logger.info("🚀 Iniciando joiner de credits")
         try:
             self.movies_consumer.start()
+            self.control_consumer.start()
             
             # Iniciar consumer de credits si ya tenemos movies del checkpoint
             if len(self.movies.keys()) > 0:
