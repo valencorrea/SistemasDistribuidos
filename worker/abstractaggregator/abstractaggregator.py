@@ -36,6 +36,7 @@ class AbstractAggregator(Worker):
         self.consumer.start_consuming_2()
 
     def handle_message(self, message):
+        self.logger.info(f"Mensaje final recibido")
         batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches")
         client_id = message.get("client_id", None)
@@ -47,11 +48,13 @@ class AbstractAggregator(Worker):
         batch_id = str(batch_id) if batch_id is not None else None
 
         if not batch_id:
+            self.consumer.ack(batch_id)
             self.logger.error(f"Mensaje malformado: falta batch_id")
 
-        if message.get("type") != "batch_result":
-            self.consumer.ack(batch_id)
-            return
+        # if message.get("type") != "batch_result":
+        #
+        #     self.consumer.ack(batch_id)
+        #     return
 
         if not client_id or not batch_size:
             self.logger.error(f"Mensaje malformado: falta client_id o batch_size en batch {batch_id}")
@@ -65,7 +68,6 @@ class AbstractAggregator(Worker):
 
         if client_id not in self.results:
             self.logger.info(f"Se recibio un nuevo cliente con id {client_id}.")
-            # self.results[client_id] = []
             self.received_batches_per_client[client_id] = 0
 
         self.received_batches_per_client[client_id] += batch_size

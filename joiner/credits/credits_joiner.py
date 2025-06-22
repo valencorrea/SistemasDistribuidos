@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import random
+import string
 import threading
 import time
 from collections import defaultdict
@@ -65,6 +67,7 @@ class CreditsJoinerSimple(Worker):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
+        # TODO obtener de una envar
         self.joiner_instance_id = "joiner_credits"
         self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
         self.received_credits_batches_per_client = {}
@@ -80,13 +83,18 @@ class CreditsJoinerSimple(Worker):
             "type": "query_4_top_10_actores_credits",
             "actors": top_10,
             "client_id": client_id,
-            "batch_size": self.received_credits_batches_per_client[client_id]
+            "batch_size": self.received_credits_batches_per_client[client_id],
+            "batch_id": self.generate_batch_id(client_id, self.joiner_instance_id)
         }
         self.producer.enqueue(result_message)
         self.logger.info(f"Resultado enviado {result_message}.")
         self.actor_counts.pop(client_id)
         self.processed_rating_batches_per_client.pop(client_id)
 
+    @staticmethod
+    def generate_batch_id(client_id, joiner_id):
+        rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
+        return f"credits-{joiner_id}-{rand_str}"
 
     def _load_initial_state(self):
         # Primero cargar movies desde persistencia
