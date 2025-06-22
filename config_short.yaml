@@ -32,7 +32,7 @@ workers:
   credits:
     count: 1
     log_level: INFO
-    kill: false
+    kill: true
   ratings:
     count: 1
     log_level: INFO
@@ -42,11 +42,11 @@ aggregators:
   twentieth_century_arg_esp:
     generate: true
     log_level: INFO
-    kill: true
+    kill: false
   twentieth_century_arg:
     generate: true
     log_level: INFO
-    kill: true
+    kill: false
   top_5_countries:
     generate: true
     log_level: INFO
@@ -65,5 +65,5 @@ aggregators:
     kill: false
 
 test:
-  random: true
-  interval: 11
+  random: false
+  interval: 1

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import string
@@ -16,17 +17,30 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 class CreditsJoiner(AbstractAggregator):
     def __init__(self):
         super().__init__()
-        # TODO obtener de una envar
+        # TODO revisar el orden de estos inits
+        self.has_recovered_at_least_one = False
+        # log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+        # self.logger = logging.getLogger(__name__)
+        # logging.basicConfig(
+        #     format='%(asctime)s %(levelname)-8s %(message)s',
+        #     level=getattr(logging, log_level, logging.INFO),
+        #     datefmt='%H:%M:%S')
+        # self.logger.info(f"Iniciando joiner de credits con log level {log_level}")
+        self.movies_name = "_credits_movies.json"
         self.joiner_instance_id = "joiner_credits"
-        self.processed_rating_batches_per_client = defaultdict(int)
+        self.movies = {}
+        self.recover_movies()
+        self.logger.info(f"Se finalizo la recuperacion de movies.")
+        # TODO obtener de una envar
+        self.logger.info(f"Se inicializo como worker.")
         self.movies_consumer = Subscriber("20_century_arg_result",
                                           message_handler=self.handle_movies_message)
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
-        self.results = {}
-        self.movies = {}
         self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
+        if self.has_recovered_at_least_one:
+            self.consumer.start()
 
     def create_consumer(self):
         return Consumer("credits", _message_handler=self.handle_message)
@@ -80,7 +94,6 @@ class CreditsJoiner(AbstractAggregator):
         self.producer.enqueue(result_message)
         self.logger.info(f"Resultado enviado {result_message}.")
         self.results.pop(client_id)
-        self.processed_rating_batches_per_client.pop(client_id)
 
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
@@ -99,11 +112,12 @@ class CreditsJoiner(AbstractAggregator):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def send_batch_processed(self, client_id, batch_id, batch_size, total_batches):
+        # TODO cuando me recupero, tengo que enviar el ultimo batch_id que persisti por si las dudas
         control_message = {
             "type": "control",
             "client_id": client_id,
             "batch_id": batch_id,
-            "batch_size": self.received_batches_per_client[client_id],
+            "batch_size": batch_size,
             "joiner_instance_id": self.joiner_instance_id,
         }
         if client_id in self.total_batches_per_client:
@@ -117,6 +131,7 @@ class CreditsJoiner(AbstractAggregator):
         return top_10
 
     def handle_movies_message(self, message):
+        print("MENSAJE DE MOVIES RECIBIDO")
         self.logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
         if message.get("type") == "20_century_arg_total_result":
             self.process_movie_message(message)
@@ -126,7 +141,9 @@ class CreditsJoiner(AbstractAggregator):
     def process_movie_message(self, message):
         # TODO chequear que sea por cliente y no todo el archivo
         client_id = message.get("client_id")
-        self.movies[client_id] = {movie["id"] for movie in message.get("movies")}
+        movies = [movie["id"] for movie in message.get("movies")]
+        self.persist_movies(client_id, movies)
+        self.movies[client_id] = movies
         self.logger.info(f"Obtenidas {message.get('total_movies')} películas")
 
         if os.path.exists(PENDING_MESSAGES):
@@ -152,6 +169,52 @@ class CreditsJoiner(AbstractAggregator):
             self.logger.info("Thread de consumo de credits empezado")
         else:
             self.logger.info("Thread de consumo de credits no empezado, ya existe uno")
+
+    def persist_movies(self, client_id, movies):
+        # TODO hacer ack manual para Suscriber y ackearlo apenas se escriba en el archivo
+        # TODO guardar en un directorio separado asi no se mezclan con los archivos de credits
+        try:
+            self.logger.info(f"Se va a intentar persistir el archivo de movies para el cliente {client_id}")
+            movies_file = f"{client_id}{self.movies_name}"
+            with open(movies_file, "w") as f:
+                f.write(f"BEGIN_TRANSACTION;{json.dumps(movies)}\n")
+                f.write(f"END_TRANSACTION;\n")
+                self.logger.info(f"Se persistio el archivo de movies para el cliente {client_id}")
+        except Exception:
+            self.logger.exception(f"Error al intentar persistir el archivo de movies para el cliente {client_id}")
+
+    def recover_movies(self):
+        for filename in os.listdir():
+            if not filename.endswith(self.movies_name):
+                self.logger.info(f"Archivo {filename} no es un archivo de movies, se omite.")
+                continue
+
+            client_id = filename.replace(f"{self.movies_name}", "")
+            self.logger.info(f"Recuperando movies para cliente {client_id} desde {filename}")
+
+            try:
+                with open(filename, "r") as f:
+                    lines = [line.strip() for line in f.readlines()]
+
+                    # Validamos que sea un archivo valido, sino nos caimos guardando el archivo
+                    if len(lines) != 2 or not lines[0].startswith("BEGIN_TRANSACTION;") or lines[1] != "END_TRANSACTION;":
+                        self.logger.error(f"Formato inválido en archivo {filename}. Se omite.")
+                        # TODO si es invalido borrar el archivo
+                        continue
+
+                    raw_json = lines[0][len("BEGIN_TRANSACTION;"):]
+                    current_payload = json.loads(raw_json)
+
+                    self.movies[client_id] = current_payload
+                    # self.results[client_id] = {}
+                    self.has_recovered_at_least_one = True
+                    self.logger.info(f"Películas recuperadas para cliente {client_id}: {len(self.movies[client_id])} items.")
+
+            except json.JSONDecodeError as e:
+                self.logger.exception(f"Error decodificando JSON en archivo {filename}: {e}")
+            except Exception as e:
+                self.logger.exception(f"Error al intentar recuperar películas desde archivo {filename}: {e}")
+
 
     def start(self):
         self.logger.info("Iniciando joiner de credits")

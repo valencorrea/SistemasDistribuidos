@@ -36,7 +36,6 @@ class AbstractAggregator(Worker):
         self.consumer.start_consuming_2()
 
     def handle_message(self, message):
-        self.logger.info(f"Mensaje final recibido")
         batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches")
         client_id = message.get("client_id", None)
@@ -89,7 +88,7 @@ class AbstractAggregator(Worker):
         self.check_if_its_completed(client_id)
 
     def send_batch_processed(self, client_id, batch_id, batch_size, total_batches):
-        # TODO abstraer en otra clase para que no meta ruido aca
+        # TODO abstraer en otra clase para que no meta ruido aca. Esto es para los joiners
         pass
 
     def check_if_its_completed(self, client_id):
@@ -187,7 +186,7 @@ class AbstractAggregator(Worker):
                             in_transaction = False
                             current_batch_id = None
                             current_payload = None
-
+                            # TODO si el archivo es invalido, deberiamos borrarlo
                 except json.JSONDecodeError as e:
                     self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
                 except Exception as e:
