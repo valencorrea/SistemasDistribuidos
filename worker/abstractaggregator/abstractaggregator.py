@@ -81,11 +81,16 @@ class AbstractAggregator(Worker):
         result = self.process_message(client_id, message)
         self.persist_result(client_id, batch_id, batch_size, total_batches, result)
         self.consumer.ack(batch_id)
+        self.send_batch_processed(client_id, batch_id, batch_size, total_batches)
         self.aggregate_message(client_id, result)
         self.processed_batch_ids.add(batch_id)
 
         self.logger.info(f"Fue procesado el mensaje {batch_id} del cliente {client_id}")
         self.check_if_its_completed(client_id)
+
+    def send_batch_processed(self, client_id, batch_id, batch_size, total_batches):
+        # TODO abstraer en otra clase para que no meta ruido aca
+        pass
 
     def check_if_its_completed(self, client_id):
         if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
