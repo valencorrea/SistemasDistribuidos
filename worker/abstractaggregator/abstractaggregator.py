@@ -169,7 +169,7 @@ class AbstractAggregator(Worker):
                             total_batches = current_payload.get("total_batches")
 
                             if client_id not in self.results:
-                                self.results[client_id] = []
+                                # self.results[client_id] = {}
                                 self.received_batches_per_client[client_id] = 0
                                 self.logger.info(f"Nuevo cliente recuperado: {client_id}")
 

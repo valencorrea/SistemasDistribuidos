@@ -19,13 +19,6 @@ class CreditsJoiner(AbstractAggregator):
         super().__init__()
         # TODO revisar el orden de estos inits
         self.has_recovered_at_least_one = False
-        # log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-        # self.logger = logging.getLogger(__name__)
-        # logging.basicConfig(
-        #     format='%(asctime)s %(levelname)-8s %(message)s',
-        #     level=getattr(logging, log_level, logging.INFO),
-        #     datefmt='%H:%M:%S')
-        # self.logger.info(f"Iniciando joiner de credits con log level {log_level}")
         self.movies_name = "_credits_movies.json"
         self.joiner_instance_id = "joiner_credits"
         self.movies = {}
@@ -54,8 +47,10 @@ class CreditsJoiner(AbstractAggregator):
         partial_result = {}
         for actor in actors:
             if actor.movie_id in movies_per_client:
-                actor_id = actor.id
+                actor_id = str(actor.id)
                 actor_name = actor.name
+                if actor_name == "Ricardo Darín":
+                    self.logger.info(f"Actor {actor_name} encontrado en la película {actor.movie_id} del cliente {client_id}")
                 if actor_id not in partial_result:
                     partial_result[actor_id] = {"name": actor_name, "count": 1}
                 else:
@@ -64,12 +59,12 @@ class CreditsJoiner(AbstractAggregator):
 
     def aggregate_message(self, client_id, result):
         if not self.results.get(client_id):
-            self.results[client_id] = result
-        else:
-            for actor_id, actor_data in result.items():
-                if actor_id not in self.results[client_id]:
-                    self.results[client_id][actor_id] = {"name": actor_data["name"], "count": 0}
-                self.results[client_id][actor_id]["count"] += actor_data["count"]
+            self.results[client_id] = {}
+        for actor_id, actor_data in result.items():
+            actor_id = str(actor_id)
+            if actor_id not in self.results[client_id]:
+                self.results[client_id][actor_id] = {"name": actor_data["name"], "count": 0}
+            self.results[client_id][actor_id]["count"] += actor_data["count"]
 
     def check_if_its_completed(self, client_id):
         pass
