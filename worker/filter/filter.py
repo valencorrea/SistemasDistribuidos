@@ -2,6 +2,7 @@ import json
 import os
 from abc import abstractmethod
 from collections import defaultdict
+from time import sleep
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
@@ -61,6 +62,7 @@ class Filter(Worker):
         }
 
         for producer in self.producers:
+            sleep(1)
             producer.enqueue(result)
             self.logger.info(f"Se envio el resutlado de {batch_id} del cliente {client_id} al productor {producer.getname()}")
 
