@@ -50,7 +50,7 @@ class CreditsJoinerSimple(Worker):
             'joiner_id': 'CreditsJoiner',
             'checkpoint_interval': 5,  
             'log_interval': 5,
-            'aggregator_host': os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator"),
+            'aggregator_host': os.getenv("AGGREGATOR_HOST", "aggregator_top_10"),
             'aggregator_port': int(os.getenv("AGGREGATOR_PORT", 60000))
         }
         

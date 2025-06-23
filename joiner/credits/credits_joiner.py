@@ -40,6 +40,9 @@ class CreditsJoiner(AbstractAggregator):
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
         self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
         
+        # Registrar callback para respuestas del aggregator
+        self.tcp_client.register_response_callback("control_ack", self._handle_aggregator_response)
+        
         if self.has_recovered_at_least_once:
             self.consumer.start()
 
@@ -229,6 +232,20 @@ class CreditsJoiner(AbstractAggregator):
             except Exception as e:
                 self.logger.exception(f"Error al intentar recuperar películas desde archivo {filename}: {e}")
 
+    def _handle_aggregator_response(self, response):
+        try:
+            response_type = response.get("type")
+            batch_id = response.get("batch_id")
+            message = response.get("joiner_instance_id")
+            
+            if response_type == "control_ack":
+                self.logger.info(f"✅ Batch {batch_id} confirmado por el aggregator")
+                # TODO 
+            else:
+                self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
 
     def start(self):
         self.logger.info("Iniciando joiner de credits")

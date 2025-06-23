@@ -124,9 +124,15 @@ class Aggregator(AbstractAggregator):
                 joiner_instance_id = data_json.get("joiner_instance_id")
                 
                 if batch_id and joiner_instance_id:
-                    self.batch_to_joiner[batch_id] = joiner_instance_id
+                    self.batch_to_joiner[batch_id] = joiner_instance_id # TODO ver si ya tenia
                 
-                #self.handle_control_message(data_json)
+                response_data = {
+                    "type": "control_ack",
+                    "batch_id": batch_id,
+                    "joiner_instance_id": joiner_instance_id
+                }
+                
+                self.tcp_server.send_response(addr, response_data)
                 
             else:
                 self.logger.warning(f"[TCP] Tipo de mensaje desconocido: {message_type}")
