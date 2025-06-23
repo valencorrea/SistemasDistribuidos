@@ -32,15 +32,12 @@ class CreditsJoiner(AbstractAggregator):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
-        #self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
         
-        # TCP Client para comunicarse con el aggregator
         aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
         self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
         
-        # Registrar callback para respuestas del aggregator
         self.tcp_client.register_response_callback("control_ack", self._handle_aggregator_response)
         
         if self.has_recovered_at_least_once:
@@ -91,14 +88,6 @@ class CreditsJoiner(AbstractAggregator):
             result["total_batches"] = self.total_batches_per_client[client_id]
         return result
 
-    # def handle_control_message(self, message):
-    #     self.logger.info(f"Mensaje de control recibido: {message}")
-    #     client_id = message["client_id"]
-    #     result_message = self.create_final_result(client_id)
-    #     self.producer.enqueue(result_message) -> TODO!
-    #     self.logger.info(f"Resultado enviado {result_message}.")
-    #     self.results.pop(client_id)
-
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
         rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
@@ -125,6 +114,7 @@ class CreditsJoiner(AbstractAggregator):
             "client_id": client_id,
             "batch_id": batch_id,
             "batch_size": batch_size,
+            "total_batches": total_batches,
             "joiner_instance_id": self.joiner_instance_id,
         }
         if client_id in self.total_batches_per_client:
@@ -138,9 +128,6 @@ class CreditsJoiner(AbstractAggregator):
                 self.logger.error(f"Error enviando mensaje TCP al aggregator: {control_message}")
         except Exception as e:
             self.logger.error(f"Excepción enviando mensaje TCP: {e}")
-
-        #self.producer.enqueue(control_message)
-        #self.logger.info(f"Control enviado al aggregator: {control_message}")
 
     def get_result(self, client_id):
         top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
@@ -236,22 +223,27 @@ class CreditsJoiner(AbstractAggregator):
         try:
             response_type = response.get("type")
             batch_id = response.get("batch_id")
-            message = response.get("joiner_instance_id")
+            joiner_instance_id = response.get("joiner_instance_id")
+            client_id = response.get("client_id")
             
             if response_type == "control_ack":
                 self.logger.info(f"✅ Batch {batch_id} confirmado por el aggregator")
-                # TODO 
+                if joiner_instance_id == self.joiner_instance_id:
+                    result_message = self.create_final_result(client_id)
+                    self.producer.enqueue(result_message)
+                    self.logger.info(f"Resultado enviado {result_message}.")
+                    self.results.pop(client_id)
             else:
                 self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
                 
         except Exception as e:
             self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
 
+
     def start(self):
         self.logger.info("Iniciando joiner de credits")
         try:
             self.movies_consumer.start()
-            #self.control_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()
