@@ -66,44 +66,45 @@ class Aggregator(AbstractAggregator):
             "client_id": client_id
         }
 
-    def handle_result_message(self, message):
-        self.logger.info(f"Mensaje de top 10 parcial recibido {message}")
-        client_id = message.get("client_id")
-        batch_id = message.get("batch_id")
-        batch_size = message.get("batch_size")
-        actors = message.get("actors")
-        self.logger.info(f"Se obtuvieron {len(actors)}: {actors} actores.")
-
-        if batch_size:
-            self.received_batches_per_client[client_id] = self.received_batches_per_client.get(client_id,
-                                                                                               0) + batch_size
-            self.logger.info(
-                f"Se actualiza la cantidad total de batches: {self.received_batches_per_client[client_id]} para el cliente {client_id}.")
-
-        for _, count in actors:
-            self.logger.info(f"Se va a aumentar la cantidad de registros de un actor: {count}: {type(count)}.")
-            self.results[client_id][count["name"]] += count["count"]
-
-        total = self.total_batches_per_client.get(client_id, None)
-        received = self.received_batches_per_client.get(client_id, 0)
-        self.logger.info(f"Control de batches para el cliente {client_id}: total: {total}, received: {received}")
-        if total and 0 < total <= received:
-            self.logger.info(f"Se va a enviar el resultado final para el cliente {client_id}.")
-            # Top 10 final encontrado
-            final_top_10 = self.results[client_id].most_common(10)
-            self.producer.enqueue({
-                "result_number": 4,
-                "type": "top_10_actors",
-                "actors": final_top_10,
-                "client_id": client_id,
-                "batch_id": batch_id
-            })
-            self.logger.info("Top 10 actores agregados y enviados.")
-            self.results.pop(client_id)
-            self.control_received_batches_per_client.pop(client_id)
-            self.total_batches_per_client.pop(client_id)
-            self.received_batches_per_client.pop(client_id)
-            self.delete_file(f"{client_id}{self.control_log_name}")
+    # def handle_result_message(self, message):
+    #     self.logger.info(f"Mensaje de top 10 parcial recibido {message}")
+    #     client_id = message.get("client_id")
+    #     batch_id = message.get("batch_id")
+    #     batch_size = message.get("batch_size")
+    #     actors = message.get("actors")
+    #     self.logger.info(f"Se obtuvieron {len(actors)}: {actors} actores.")
+    #
+    #     if batch_size:
+    #         self.received_batches_per_client[client_id] = self.received_batches_per_client.get(client_id,
+    #                                                                                            0) + batch_size
+    #         self.logger.info(
+    #             f"Se actualiza la cantidad total de batches: {self.received_batches_per_client[client_id]} para el cliente {client_id}.")
+    #
+    #     for _, count in actors:
+    #         self.logger.info(f"Se va a aumentar la cantidad de registros de un actor: {count}: {type(count)}.")
+    #         self.results[client_id][count["name"]] += count["count"]
+    #
+    #     total = self.total_batches_per_client.get(client_id, None)
+    #     received = self.received_batches_per_client.get(client_id, 0)
+    #     self.logger.info(f"Control de batches para el cliente {client_id}: total: {total}, received: {received}")
+    #     if total and 0 < total <= received:
+    #         self.logger.info(f"Se va a enviar el resultado final para el cliente {client_id}.")
+    #         # Top 10 final encontrado
+    #         final_top_10 = self.results[client_id].most_common(10)
+    #         self.producer.enqueue({
+    #             "result_number": 4,
+    #             "type": "top_10_actors",
+    #             "actors": final_top_10,
+    #             "client_id": client_id,
+    #             "batch_id": batch_id
+    #         })
+    #         self.logger.info(f"Resultado final para cliente {client_id}: {final_top_10}.")
+    #         self.logger.info("Top 10 actores agregados y enviados.")
+    #         self.results.pop(client_id)
+    #         self.control_received_batches_per_client.pop(client_id)
+    #         self.total_batches_per_client.pop(client_id)
+    #         self.received_batches_per_client.pop(client_id)
+    #         self.delete_file(f"{client_id}{self.control_log_name}")
 
     def _handle_tcp_message(self, msg, addr):
         try:
@@ -155,7 +156,7 @@ class Aggregator(AbstractAggregator):
         total = self.total_batches_per_client.get(client_id, None)
         received = self.control_received_batches_per_client.get(client_id, 0)
         if total and 0 < total <= received:
-            self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando resultado.")
+            self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
             self.joiner_control_publisher.enqueue({"client_id": client_id})
 
     def start(self):

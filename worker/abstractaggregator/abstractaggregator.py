@@ -95,7 +95,7 @@ class AbstractAggregator(Worker):
         if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
             self.logger.info(f"Se va a enviar todo para el cliente {client_id}.")
             self.send_aggregated_result(client_id)
-            self.logger.info(f"Se envio el resultado para el cliente {client_id}.")
+            self.logger.info(f"Se envio el resultado para el cliente {client_id}")
             self.delete_client(client_id)
 
     def delete_client(self, client_id):
@@ -203,7 +203,7 @@ class AbstractAggregator(Worker):
 
     def send_aggregated_result(self, client_id):
         result_message = self.create_final_result(client_id)
-        self.logger.info(f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}")
+        self.logger.info(f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}: {result_message}")
         if self.producer.enqueue(result_message):
             self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas al cliente {client_id}")
         else:

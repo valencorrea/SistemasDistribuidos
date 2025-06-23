@@ -40,10 +40,9 @@ class CreditsJoiner(AbstractAggregator):
 
     def process_message(self, client_id, message):
         actors = convert_data(message)
-        movies_per_client = self.movies.get(client_id, set())
         partial_result = {}
         for actor in actors:
-            if actor.movie_id in movies_per_client:
+            if actor.movie_id in self.movies.get(client_id, set()):
                 actor_id = str(actor.id)
                 actor_name = actor.name
                 if actor_name == "Ricardo Darín":
@@ -118,7 +117,7 @@ class CreditsJoiner(AbstractAggregator):
         self.logger.info(f"Control enviado al aggregator: {control_message}")
 
     def get_result(self, client_id):
-        top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
+        top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)
         self.logger.info("Top 10 actores con más contribuciones:")
         return top_10
 

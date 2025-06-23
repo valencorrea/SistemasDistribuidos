@@ -77,6 +77,34 @@ services:
     - ./files/short/credits.csv:/root/files/credits.csv
     - ./files/short/ratings.csv:/root/files/ratings.csv
     - ./results/short/results.json:/root/results/results.json
+  client_2:
+    build:
+      context: .
+      dockerfile: client/client.dockerfile
+    container_name: client_2
+    depends_on:
+      client_decodifier:
+        condition: service_healthy
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - DECODIFIER_HOST=client_decodifier
+    - DECODIFIER_PORT=50000
+    - CLIENT_ID=2
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=client_2
+    volumes:
+    - ./files/short/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/short/credits.csv:/root/files/credits.csv
+    - ./files/short/ratings.csv:/root/files/ratings.csv
+    - ./results/short/results.json:/root/results/results.json
   client_decodifier:
     build:
       context: .
@@ -220,7 +248,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50001:50001
     - 50011:50011
@@ -239,7 +267,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50002:50002
     - 50012:50012
@@ -258,7 +286,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50003:50003
     - 50013:50013
