@@ -25,9 +25,9 @@ class MonitorCluster:
         self.node_id = int(os.getenv('MONITOR_NODE_ID', str(random.randint(1000, 9999))))
         self.port = int(os.getenv('MONITOR_SERVICE_PORT', 50000 + self.node_id))
         self.cluster_port = int(os.getenv('MONITOR_CLUSTER_PORT', 50010 + self.node_id))
-        self.heartbeat_interval = int(os.getenv('HEARTBEAT_INTERVAL', 5000))
-        self.heartbeat_timeout = int(os.getenv('HEARTBEAT_TIMEOUT', 15000))
-        self.election_timeout = int(os.getenv('ELECTION_TIMEOUT', 10000))
+        self.heartbeat_interval = int(os.getenv('HEARTBEAT_INTERVAL', 100))
+        self.heartbeat_timeout = int(os.getenv('HEARTBEAT_TIMEOUT', 3000))
+        self.election_timeout = int(os.getenv('ELECTION_TIMEOUT', 1000))
 
         self.state = MonitorState.FOLLOWER
         self.current_leader = None
@@ -44,20 +44,20 @@ class MonitorCluster:
         self.expected_services = self._get_expected_services()
         self.services: Dict[str, float] = {}
         self.monitor_heartbeats: Dict[int, float] = {}
+        self.service_start_times: Dict[str, float] = {}  # Para trackear cuándo se espera el primer heartbeat de cada servicio
         self.lock = threading.Lock()
         self.state_lock = threading.Lock()
         self.docker_client = docker.from_env()
+        self.leader_start_time = time.time() * 1000
 
         logger.info(f"🚀 Monitor {self.node_id} iniciado en puerto {self.port}, cluster en puerto {self.cluster_port}")
         logger.info(f"📋 Nodos del cluster: {self.cluster_nodes}, total nodos: {self.total_nodes}")
         logger.info(f"🔧 Servicios esperados: {self.expected_services}")
 
     def _get_expected_services(self) -> List[str]:
-        """Obtiene la lista de servicios que deben estar ejecutándose desde variables de entorno"""
         services_env = os.getenv('EXPECTED_SERVICES', '')
         if services_env:
             services = [service.strip() for service in services_env.split(',') if service.strip()]
-            # Filtrar servicios que no deben ser monitoreados
             filtered_services = self._filter_services(services)
             logger.info(f"📋 Servicios configurados desde docker-compose: {services}")
             logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
@@ -75,14 +75,11 @@ class MonitorCluster:
             return default_services
 
     def _filter_services(self, services: List[str]) -> List[str]:
-        """Filtra la lista de servicios excluyendo worker y client_*"""
         excluded_services = {'worker', 'client_decodifier'}
         
-        # Agregar todos los servicios que empiecen con 'client_'
         client_services = [service for service in services if service.startswith('client_')]
         excluded_services.update(client_services)
         
-        # Filtrar servicios excluidos
         filtered_services = [service for service in services if service not in excluded_services]
         
         logger.info(f"🚫 Servicios excluidos del monitoreo: {list(excluded_services)}")
@@ -159,23 +156,34 @@ class MonitorCluster:
         logger.info(f"❌ Monitor {self.node_id} no encontró líder existente")
 
     def _start_service_server(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(('0.0.0.0', self.port))
-            sock.listen(5)
-            logger.info(f"🔧 Monitor {self.node_id} escuchando servicios en puerto {self.port}")
+        # Socket TCP
+        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp_sock.bind(('0.0.0.0', self.port))
+        tcp_sock.listen(20)
+        logger.info(f"🔧 Monitor {self.node_id} escuchando servicios TCP en puerto {self.port}")
+
+        # Socket UDP
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udp_sock.bind(('0.0.0.0', self.port))
+        logger.info(f"🔧 Monitor {self.node_id} escuchando servicios UDP en puerto {self.port}")
+
+        def tcp_loop():
             while True:
-                client, _ = sock.accept()
-                with self.state_lock:
-                    if self.state == MonitorState.LEADER:
-                        threading.Thread(target=self._handle_service_client, args=(client,), daemon=True).start()
-                    else:
-                        client.close()
-        except Exception as e:
-            logger.error(f"Error servicio server: {e}")
-        finally:
-            sock.close()
+                client, addr = tcp_sock.accept()
+                threading.Thread(target=self._handle_service_client, args=(client,), daemon=True).start()
+
+        def udp_loop():
+            while True:
+                try:
+                    data, addr = udp_sock.recvfrom(1024)
+                    threading.Thread(target=self._handle_service_udp, args=(data, addr), daemon=True).start()
+                except Exception as e:
+                    logger.error(f"Error recibiendo UDP: {e}")
+
+        threading.Thread(target=tcp_loop, daemon=True).start()
+        threading.Thread(target=udp_loop, daemon=True).start()
 
     def _start_cluster_server(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -273,8 +281,7 @@ class MonitorCluster:
                 sender_id = msg.get("node_id")
                 if sender_id is not None:
                     with self.lock:
-                        self.monitor_heartbeats[sender_id] = time.time() * 1000
-                        logger.debug(f"💓 Monitor {self.node_id} recibió heartbeat de monitor {sender_id}")
+                        self.monitor_heartbeats[sender_id] = (time.time() * 1000) + self.heartbeat_timeout
                         
         except Exception as e:
             logger.error(f"Error cluster client: {e}")
@@ -283,23 +290,89 @@ class MonitorCluster:
 
     def _handle_service_client(self, client: socket.socket):
         try:
+            buffer = ""
             while True:
                 data = client.recv(1024)
                 if not data:
                     break
-                try:
-                    msg = json.loads(data.decode())
-                    service = msg.get("service_name")
-                    if service:
-                        with self.lock:
-                            self.services[service] = time.time() * 1000
-                            logger.debug(f"💓 Monitor {self.node_id} recibió heartbeat de servicio {service}")
-                except json.JSONDecodeError:
-                    pass
+                
+                buffer += data.decode()
+                
+                # Procesar todos los mensajes JSON completos en el buffer
+                while True:
+                    try:
+                        # Buscar el final del primer JSON válido
+                        brace_count = 0
+                        json_end = -1
+                        
+                        for i, char in enumerate(buffer):
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    json_end = i + 1
+                                    break
+                        
+                        if json_end == -1:
+                            # No hay JSON completo en el buffer
+                            break
+                        
+                        # Extraer y procesar el primer JSON
+                        json_str = buffer[:json_end]
+                        buffer = buffer[json_end:]
+                        
+                        msg = json.loads(json_str)
+                        
+                        # Manejar mensajes de control
+                        if msg.get("type") == "who_is_leader":
+                            response = {"type": "leader_info", "leader_id": self.current_leader}
+                            client.send(json.dumps(response).encode())
+                            #logger.info(f"❓ Monitor {self.node_id} respondió who_is_leader: {self.current_leader}")
+                            continue
+                        
+                        # Manejar heartbeats de servicios
+                        service = msg.get("service_name")
+                        if service:
+                            with self.lock:
+                                # Si es el primer heartbeat de este servicio, limpiar el tiempo de inicio
+                                if service not in self.services and service in self.service_start_times:
+                                    del self.service_start_times[service]
+                                
+                                self.services[service] = (time.time() * 1000 )+ self.heartbeat_timeout
+                                #logger.info(f"💓 Monitor {self.node_id} recibió heartbeat de servicio {service}")
+                        else:
+                            logger.warning(f"⚠️ Monitor {self.node_id} recibió mensaje sin service_name: {msg}")
+                            
+                    except json.JSONDecodeError as e:
+                        # Si hay error en el JSON, descartar hasta el siguiente '{'
+                        next_brace = buffer.find('{')
+                        if next_brace == -1:
+                            # No hay más JSONs en el buffer
+                            buffer = ""
+                            break
+                        else:
+                            buffer = buffer[next_brace:]
+                            continue
+                            
         except Exception as e:
             logger.error(f"Error servicio client: {e}")
         finally:
             client.close()
+
+    def _handle_service_udp(self, data, addr):
+        try:
+            msg = json.loads(data.decode())
+            service = msg.get("service_name")
+            if service:
+                with self.lock:
+                    if service not in self.services and service in self.service_start_times:
+                        del self.service_start_times[service]
+                    self.services[service] = (time.time() * 1000 )+ self.heartbeat_timeout
+            else:
+                logger.warning(f"⚠️ Monitor {self.node_id} recibió mensaje UDP sin service_name: {msg}")
+        except Exception as e:
+            logger.error(f"Error recibiendo UDP: {e}")
 
     def _election_loop(self):
         time.sleep(random.uniform(1, 3))
@@ -312,15 +385,15 @@ class MonitorCluster:
                         (now - self.last_leader_heartbeat) < self.heartbeat_timeout
                     )
                     if not leader_alive and not self.election_in_progress:
-                        logger.info(f"⏰ Monitor {self.node_id} no detecta líder activo. Verificando antes de iniciar elección...")
+                        #logger.info(f"⏰ Monitor {self.node_id} no detecta líder activo. Verificando antes de iniciar elección...")
                         
                         if self._quick_leader_check():
                             logger.info(f"✅ Monitor {self.node_id} encontró líder en verificación rápida, no inicia elección")
                         else:
-                            logger.info(f"⏰ Monitor {self.node_id} confirma que no hay líder activo. Inicia elección Bully.")
+                            #logger.info(f"⏰ Monitor {self.node_id} confirma que no hay líder activo. Inicia elección Bully.")
                             self.current_leader = None
                             threading.Thread(target=self._start_bully_election, daemon=True).start()
-            time.sleep(5)
+            time.sleep(1)
 
     def _quick_leader_check(self):
         for host, port in self.cluster_nodes:
@@ -382,9 +455,9 @@ class MonitorCluster:
             sock.send(msg.encode())
             sock.close()
             
-            logger.debug(f"💓 Monitor {self.node_id} envió heartbeat a líder {self.current_leader}")
+            #logger.debug(f"💓 Monitor {self.node_id} envió heartbeat a líder {self.current_leader}")
         except Exception as e:
-            logger.warning(f"❌ No se pudo enviar heartbeat a líder {self.current_leader}: {e}")
+            #logger.warning(f"❌ No se pudo enviar heartbeat a líder {self.current_leader}: {e}")
             logger.info(f"🚨 Monitor {self.node_id} detectó que el líder {self.current_leader} no está disponible. Iniciando elección.")
             with self.state_lock:
                 self.current_leader = None
@@ -471,20 +544,31 @@ class MonitorCluster:
         logger.info(f"👑 Monitor {self.node_id} ahora es el LÍDER (término {term})")
         
         self._initialize_expected_services()
+        self._initialize_expected_monitors()
         
         self._announce_leadership()
         self._send_heartbeat_to_all()
 
     def _initialize_expected_services(self):
-        """Inicializa el tracking de servicios esperados cuando se convierte en líder"""
         logger.info(f"🔧 Monitor {self.node_id} inicializando tracking de {len(self.expected_services)} servicios esperados")
         
+        now = time.time() * 1000
         with self.lock:
-            # Marcar todos los servicios esperados como no reportados inicialmente
             for service_name in self.expected_services:
                 if service_name not in self.services:
-                    # No establecer timestamp inicial, esperar primer heartbeat
+                    self.service_start_times[service_name] = now
                     logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de {service_name}")
+
+    def _initialize_expected_monitors(self):
+        logger.info(f"🔧 Monitor {self.node_id} inicializando tracking de {len(self.expected_node_ids)} monitores esperados")
+        
+        now = time.time() * 1000
+        with self.lock:
+            for node_id in self.expected_node_ids:
+                if node_id != self.node_id and node_id not in self.monitor_heartbeats:
+                    # Dar más tiempo para que los monitores se estabilicen después del cambio de líder
+                    self.monitor_heartbeats[node_id] = now + 20000  # 30 segundos de gracia
+                    logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de monitor {node_id}")
 
     def _announce_leadership(self):
         msg = json.dumps({
@@ -537,18 +621,20 @@ class MonitorCluster:
                         restart = []
                         
                         with self.lock:
-                            # Verificar servicios que han reportado heartbeat
                             for name, ts in list(self.services.items()):
                                 if now - ts > self.heartbeat_timeout:
                                     restart.append(name)
                                     del self.services[name]
                             
-                            # Verificar servicios esperados que nunca han reportado
+                            # NUEVO: Dar más tiempo para el primer heartbeat
+                            initial_timeout = 20000  # 10 segundos para el primer heartbeat
                             for service_name in self.expected_services:
                                 if service_name not in self.services:
-                                    # Si nunca ha reportado, verificar si existe el contenedor
-                                    restart.append(service_name)
-                                    logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat, se intentará levantar")
+                                    start_time = self.service_start_times.get(service_name)
+                                    if start_time and (now - start_time) > initial_timeout:
+                                        restart.append(service_name)
+                                        del self.service_start_times[service_name]  # Evitar reinicios infinitos
+                                        logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat después de {initial_timeout/1000}s, se intentará levantar")
                         
                         for name in restart:
                             self._restart_service(name)
@@ -561,16 +647,12 @@ class MonitorCluster:
         try:
             containers = self.docker_client.containers.list(all=True)
             
-            # Buscar contenedores que coincidan con el patrón de réplicas
-            # Patrones posibles: name, name_1, name_1-1, name_1-2, etc.
             matching = []
             
             for container in containers:
                 container_name = container.name
                 
-                # Verificar si el nombre del servicio está en el nombre del contenedor
                 if name in container_name:
-                    # Verificar si es una réplica válida (termina en número o número-número)
                     if (container_name == name or 
                         container_name.endswith(f"_{name}") or
                         container_name.endswith(f"-{name}") or
@@ -585,42 +667,17 @@ class MonitorCluster:
             
             logger.info(f"🔍 Encontrados {len(matching)} contenedores para {name}: {[c.name for c in matching]}")
             
-            # Verificar cada contenedor y reiniciar solo los que están caídos
-            restarted_any = False
-            
             for container in matching:
-                container.reload()
-                status = container.status
-                
-                logger.info(f"🔍 Verificando estado de {container.name}: {status}")
-                
-                if status in ["exited", "dead", "paused"]:
-                    logger.warning(f"🔄 El contenedor {container.name} está en estado {status}, se intentará reiniciar.")
-                    try:
-                        container.restart()
-                        logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
-                        restarted_any = True
-                    except Exception as e:
-                        logger.error(f"❌ Error reiniciando {container.name}: {e}")
-                elif status == "running":
-                    logger.info(f"✅ El contenedor {container.name} está ejecutándose correctamente.")
-                else:
-                    logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
+                try:
+                    logger.info(f"🔄 Reiniciando contenedor {container.name} (sin verificar status)")
+                    container.restart()
+                    logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
+                except Exception as e:
+                    logger.error(f"❌ Error reiniciando {container.name}: {e}")
             
-            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
-            if restarted_any:
-                with self.lock:
-                    self.services[name] = time.time() * 1000
-                logger.info(f"✅ Servicio {name} marcado como saludable después de reiniciar contenedores")
-            else:
-                # Verificar si hay al menos un contenedor ejecutándose
-                running_containers = [c for c in matching if c.status == "running"]
-                if running_containers:
-                    with self.lock:
-                        self.services[name] = time.time() * 1000
-                    logger.info(f"✅ Servicio {name} tiene {len(running_containers)} contenedores ejecutándose")
-                else:
-                    logger.warning(f"⚠️ Servicio {name} no tiene contenedores ejecutándose después de intentar reiniciar")
+            with self.lock:
+                self.services[name] = time.time() * 1000
+            logger.info(f"✅ Servicio {name} marcado como saludable después de intentar reiniciar")
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando {name}: {e}")
@@ -638,10 +695,16 @@ class MonitorCluster:
                                     continue
 
                                 last_beat = self.monitor_heartbeats.get(node_id)
-                                if last_beat is None or (now - last_beat) > self.heartbeat_timeout:
-                                    logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
-                                    restart.append(node_id)
-                                    self.monitor_heartbeats.pop(node_id, None)
+                                if last_beat is None:
+                                    # Inicializar si no existe
+                                    self.monitor_heartbeats[node_id] = now + 10000  # 10 segundos de gracia
+                                    logger.info(f"⏳ Monitor {self.node_id} inicializando tracking de monitor {node_id}")
+                                elif (now - last_beat) > self.heartbeat_timeout:
+                                    # Verificar que no sea un reinicio reciente
+                                    if (now - last_beat) < 60000:  # No reiniciar si fue reiniciado hace menos de 1 minuto
+                                        logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
+                                        restart.append(node_id)
+                                        self.monitor_heartbeats.pop(node_id, None)
 
                         for node_id in restart:
                             self._restart_monitor_container(node_id)
@@ -655,15 +718,12 @@ class MonitorCluster:
             containers = self.docker_client.containers.list(all=True)
             target_name = f"monitor_{node_id}"
             
-            # Buscar contenedores que coincidan con el patrón de réplicas para monitores
             matching = []
             
             for container in containers:
                 container_name = container.name
                 
-                # Verificar si el nombre del monitor está en el nombre del contenedor
                 if target_name in container_name:
-                    # Verificar si es una réplica válida
                     if (container_name == target_name or 
                         container_name.endswith(f"_{target_name}") or
                         container_name.endswith(f"-{target_name}") or
@@ -678,42 +738,18 @@ class MonitorCluster:
             
             logger.info(f"🔍 Encontrados {len(matching)} contenedores para monitor_{node_id}: {[c.name for c in matching]}")
             
-            # Verificar cada contenedor y reiniciar solo los que están caídos
-            restarted_any = False
-            
             for container in matching:
-                container.reload()
-                status = container.status
-                
-                logger.info(f"🔍 Verificando estado de {container.name}: {status}")
-                
-                if status in ["exited", "dead", "paused"]:
-                    logger.warning(f"🔄 El contenedor {container.name} está en estado {status}, se intentará reiniciar.")
-                    try:
-                        container.restart()
-                        logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
-                        restarted_any = True
-                    except Exception as e:
-                        logger.error(f"❌ Error reiniciando {container.name}: {e}")
-                elif status == "running":
-                    logger.info(f"✅ El contenedor {container.name} está ejecutándose correctamente.")
-                else:
-                    logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
+                try:
+                    logger.info(f"🔄 Reiniciando contenedor {container.name} (sin verificar status)")
+                    container.restart()
+                    logger.info(f"✅ Contenedor {container.name} reiniciado correctamente")
+                except Exception as e:
+                    logger.error(f"❌ Error reiniciando {container.name}: {e}")
             
-            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
-            if restarted_any:
-                with self.lock:
-                    self.monitor_heartbeats[node_id] = time.time() * 1000
-                logger.info(f"✅ Monitor {node_id} marcado como saludable después de reiniciar contenedores")
-            else:
-                # Verificar si hay al menos un contenedor ejecutándose
-                running_containers = [c for c in matching if c.status == "running"]
-                if running_containers:
-                    with self.lock:
-                        self.monitor_heartbeats[node_id] = time.time() * 1000
-                    logger.info(f"✅ Monitor {node_id} tiene {len(running_containers)} contenedores ejecutándose")
-                else:
-                    logger.warning(f"⚠️ Monitor {node_id} no tiene contenedores ejecutándose después de intentar reiniciar")
+            with self.lock:
+                # Dar tiempo para que el monitor reiniciado se estabilice
+                self.monitor_heartbeats[node_id] = time.time() * 1000 + 15000  # 15 segundos adicionales
+            logger.info(f"✅ Monitor {node_id} marcado como saludable después de intentar reiniciar")
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando monitor_{node_id}: {e}")
