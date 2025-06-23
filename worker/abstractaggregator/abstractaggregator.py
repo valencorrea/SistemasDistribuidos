@@ -13,7 +13,7 @@ class AbstractAggregator(Worker):
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.processed_batch_ids = set()
-        self.logname = "_resultados.log"
+        self.results_log_name = "_resultados.log"
         self.results = {}
         self.producer = self.create_producer()
         # Es importante que se procese antes de comenzar a leer de nuevo
@@ -95,7 +95,7 @@ class AbstractAggregator(Worker):
         if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
             self.logger.info(f"Se va a enviar todo para el cliente {client_id}.")
             self.send_aggregated_result(client_id)
-            self.logger.info(f"Se envio el resultado para el cliente {client_id}.")
+            self.logger.info(f"Se envio el resultado para el cliente {client_id}")
             self.delete_client(client_id)
 
     def delete_client(self, client_id):
@@ -105,12 +105,11 @@ class AbstractAggregator(Worker):
             self.total_batches_per_client.pop(client_id)
             self.received_batches_per_client.pop(client_id)
             # Si se cae aca, no se borra el log del cliente y el resultado se envia dos veces. Suponemos que no es un problema
-            self.delete_log_for_client(client_id)
+            self.delete_file(f"{client_id}{self.results_log_name}")
         except KeyError:
             self.logger.exception(f"Error al eliminar el resultado del cliente {client_id}")
 
-    def delete_log_for_client(self, client_id):
-        log_file = f"{client_id}{self.logname}"
+    def delete_file(self, log_file):
         if os.path.exists(log_file):
             os.remove(log_file)
             self.logger.info(f"Archivo de log {log_file} eliminado.")
@@ -119,7 +118,7 @@ class AbstractAggregator(Worker):
 
     def persist_result(self, client_id, batch_id, batch_size, total_batches, result):
         # TODO Cada tanto crear un acumulado de log y borrar lo viejo
-        log_file = f"{client_id}{self.logname}"
+        log_file = f"{client_id}{self.results_log_name}"
         payload = {
             "client_id": client_id,
             "result": result,
@@ -128,6 +127,10 @@ class AbstractAggregator(Worker):
         if total_batches is not None:
             payload["total_batches"] = total_batches
 
+        self.persist_entry(batch_id, log_file, payload)
+
+    @staticmethod
+    def persist_entry(batch_id, log_file, payload):
         with open(log_file, "a") as f:
             f.write(f"BEGIN_TRANSACTION;{batch_id};{json.dumps(payload)}\n")
             f.write(f"END_TRANSACTION;{batch_id}\n")
@@ -135,11 +138,11 @@ class AbstractAggregator(Worker):
     def load_processed_batches(self):
         self.logger.debug("Iniciando proceso de recuperación.")
         for filename in os.listdir():
-            if not filename.endswith(self.logname):
+            if not filename.endswith(self.results_log_name):
                 self.logger.info(f"Archivo {filename} no es un archivo de resultados, se omite.")
                 continue
 
-            client_id = filename.replace("%s" % self.logname, "")
+            client_id = filename.replace("%s" % self.results_log_name, "")
             self.logger.info(f"Recuperando estado para cliente {client_id} desde {filename}")
 
             in_transaction = False
@@ -200,7 +203,7 @@ class AbstractAggregator(Worker):
 
     def send_aggregated_result(self, client_id):
         result_message = self.create_final_result(client_id)
-        self.logger.info(f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}")
+        self.logger.info(f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}: {result_message}")
         if self.producer.enqueue(result_message):
             self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas al cliente {client_id}")
         else:

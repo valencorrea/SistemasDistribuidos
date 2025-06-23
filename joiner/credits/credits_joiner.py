@@ -18,10 +18,9 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 class CreditsJoiner(AbstractAggregator):
     def __init__(self):
         super().__init__()
-        # TODO revisar el orden de estos inits
         self.has_recovered_at_least_once = False
         self.movies_name = "_credits_movies.json"
-        self.joiner_instance_id = "joiner_credits"
+        self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
         self.logger.info(f"Se finalizo la recuperacion de movies.")
@@ -32,14 +31,20 @@ class CreditsJoiner(AbstractAggregator):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
-        
+
+        #self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
+        if self.has_recovered_at_least_once:
+            self.credits_producer = Producer(
+            queue_name="credits",
+            queue_type="direct")
+
         aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
         self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
-        
+
         self.tcp_client.register_response_callback("control_ack", self._handle_aggregator_response)
-        
+
         if self.has_recovered_at_least_once:
             self.consumer.start()
 
@@ -51,10 +56,9 @@ class CreditsJoiner(AbstractAggregator):
 
     def process_message(self, client_id, message):
         actors = convert_data(message)
-        movies_per_client = self.movies.get(client_id, set())
         partial_result = {}
         for actor in actors:
-            if actor.movie_id in movies_per_client:
+            if actor.movie_id in self.movies.get(client_id, set()):
                 actor_id = str(actor.id)
                 actor_name = actor.name
                 if actor_id not in partial_result:
@@ -91,7 +95,6 @@ class CreditsJoiner(AbstractAggregator):
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
         rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
-
         return f"credits-{joiner_id}-{rand_str}"
 
     def close(self):
@@ -130,7 +133,7 @@ class CreditsJoiner(AbstractAggregator):
             self.logger.error(f"Excepción enviando mensaje TCP: {e}")
 
     def get_result(self, client_id):
-        top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
+        top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)
         self.logger.info("Top 10 actores con más contribuciones:")
         return top_10
 
@@ -225,17 +228,20 @@ class CreditsJoiner(AbstractAggregator):
             batch_id = response.get("batch_id")
             joiner_instance_id = response.get("joiner_instance_id")
             client_id = response.get("client_id")
-            
+
             if response_type == "control_ack":
                 self.logger.info(f"✅ Batch {batch_id} confirmado por el aggregator")
-                if joiner_instance_id == self.joiner_instance_id:
-                    result_message = self.create_final_result(client_id)
-                    self.producer.enqueue(result_message)
-                    self.logger.info(f"Resultado enviado {result_message}.")
-                    self.results.pop(client_id)
+                if joiner_instance_id:
+                    self.consumer.ack(batch_id)
+                #else:
+
+                    #result_message = self.create_final_result(client_id)
+                    #self.producer.enqueue(result_message)
+                    #self.logger.info(f"Resultado enviado {result_message}.")
+                    #self.results.pop(client_id)
             else:
                 self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
 
