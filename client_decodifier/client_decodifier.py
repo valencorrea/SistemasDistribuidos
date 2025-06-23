@@ -20,8 +20,6 @@ class ClientDecodifier(Worker):
         self.client_sockets = {}
         self.client_sockets_lock = threading.Lock()
 
-        #self.test_producer = Producer("result_comparator")
-
         self.result_consumer = Consumer("result", _message_handler=self.wait_for_result)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.results_received_per_client = defaultdict(int)
