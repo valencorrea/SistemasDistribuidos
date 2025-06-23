@@ -117,7 +117,7 @@ class HeartbeatSenderCluster:
                 heartbeat = ServiceParser.create_heartbeat(self.service_name)
                 self.socket.send(heartbeat.encode())
                 current_host, current_port = self._get_current_monitor()
-                logger.debug(f"Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
+                # logger.debug(f"Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
                 
             except (socket.error, ConnectionResetError, BrokenPipeError) as e:
                 logger.warning(f"Connection error sending heartbeat from {self.service_name}: {e}")

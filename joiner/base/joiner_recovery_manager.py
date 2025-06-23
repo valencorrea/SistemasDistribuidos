@@ -30,7 +30,7 @@ class JoinerRecoveryManager:
         self.aggregator_port = config.get('aggregator_port', 50000)
         
         # Cliente TCP para comunicaciones con aggregator
-        self.tcp_client = TCPClient(self.aggregator_host, self.aggregator_port)
+        #self.tcp_client = TCPClient(self.aggregator_host, self.aggregator_port)
         
         # Estado
         self.processed_messages = set()
@@ -175,54 +175,54 @@ class JoinerRecoveryManager:
                 response_received["result"] = response_data
                 response_received["received"] = True
             
-            # Registrar callback temporal
-            self.tcp_client.register_response_callback("batch_status_response", response_callback)
-            
-            # Enviar consulta via TCP
-            if self.tcp_client.send(json.dumps(query_message) + '\n'):
-                self.logger.info(f"Consulta enviada al aggregator para {client_id}_{batch_id}")
-                
-                # Esperar respuesta con timeout
-                timeout = 5  # 5 segundos de timeout
-                start_time = time.time()
-                
-                while not response_received["received"] and (time.time() - start_time) < timeout:
-                    time.sleep(0.1)  # Esperar 100ms entre checks
-                
-                if response_received["received"]:
-                    response_data = response_received["result"]
-                    response_type = response_data.get("response_type")
-                    message_id = f"{client_id}_{batch_id}"
-                    
-                    self.logger.info(f"Respuesta del aggregator para {message_id}: {response_type}")
-                    
-                    if response_type == "batch_processed_by_me":
-                        self.logger.info(f"Batch {message_id} fue procesado por mí, agregando a processed_messages")
-                        self.processed_messages.add(message_id)
-                        
-                        # Crear END_TRX ya que el aggregator confirma que lo procesé
-                        self._persist_end_transaction(client_id, batch_id)
-                        
-                        # Procesar el mensaje localmente
-                        process_message_callback(batch_info["message"])
-                        
-                    elif response_type == "batch_processed_by_other":
-                        self.logger.info(f"Batch {message_id} fue procesado por otro joiner, descartando")
-                        # Eliminar el archivo ya que fue procesado por otro
-                        self._remove_batch_file(client_id, batch_id)
-                        
-                    elif response_type == "batch_not_processed":
-                        self.logger.info(f"Batch {message_id} no fue procesado, descartando archivo")
-                        # Eliminar el archivo ya que no fue procesado
-                        self._remove_batch_file(client_id, batch_id)
-                else:
-                    self.logger.warning(f"Timeout esperando respuesta del aggregator para {client_id}_{batch_id}")
-                    # En caso de timeout, asumir que no fue procesado
-                    self._remove_batch_file(client_id, batch_id)
-            else:
-                self.logger.error(f"No se pudo enviar consulta al aggregator para {client_id}_{batch_id}")
-                # En caso de error, asumir que no fue procesado
-                self._remove_batch_file(client_id, batch_id)
+            # # Registrar callback temporal
+            # self.tcp_client.register_response_callback("batch_status_response", response_callback)
+            #
+            # # Enviar consulta via TCP
+            # if self.tcp_client.send(json.dumps(query_message) + '\n'):
+            #     self.logger.info(f"Consulta enviada al aggregator para {client_id}_{batch_id}")
+            #
+            #     # Esperar respuesta con timeout
+            #     timeout = 5  # 5 segundos de timeout
+            #     start_time = time.time()
+            #
+            #     while not response_received["received"] and (time.time() - start_time) < timeout:
+            #         time.sleep(0.1)  # Esperar 100ms entre checks
+            #
+            #     if response_received["received"]:
+            #         response_data = response_received["result"]
+            #         response_type = response_data.get("response_type")
+            #         message_id = f"{client_id}_{batch_id}"
+            #
+            #         self.logger.info(f"Respuesta del aggregator para {message_id}: {response_type}")
+            #
+            #         if response_type == "batch_processed_by_me":
+            #             self.logger.info(f"Batch {message_id} fue procesado por mí, agregando a processed_messages")
+            #             self.processed_messages.add(message_id)
+            #
+            #             # Crear END_TRX ya que el aggregator confirma que lo procesé
+            #             self._persist_end_transaction(client_id, batch_id)
+            #
+            #             # Procesar el mensaje localmente
+            #             process_message_callback(batch_info["message"])
+            #
+            #         elif response_type == "batch_processed_by_other":
+            #             self.logger.info(f"Batch {message_id} fue procesado por otro joiner, descartando")
+            #             # Eliminar el archivo ya que fue procesado por otro
+            #             self._remove_batch_file(client_id, batch_id)
+            #
+            #         elif response_type == "batch_not_processed":
+            #             self.logger.info(f"Batch {message_id} no fue procesado, descartando archivo")
+            #             # Eliminar el archivo ya que no fue procesado
+            #             self._remove_batch_file(client_id, batch_id)
+            #     else:
+            #         self.logger.warning(f"Timeout esperando respuesta del aggregator para {client_id}_{batch_id}")
+            #         # En caso de timeout, asumir que no fue procesado
+            #         self._remove_batch_file(client_id, batch_id)
+            # else:
+            #     self.logger.error(f"No se pudo enviar consulta al aggregator para {client_id}_{batch_id}")
+            #     # En caso de error, asumir que no fue procesado
+            #     self._remove_batch_file(client_id, batch_id)
                 
         except Exception as e:
             self.logger.error(f"Error consultando aggregator para {client_id}_{batch_id}: {e}")
@@ -273,17 +273,17 @@ class JoinerRecoveryManager:
             self.logger.info(f"Mensaje ya procesado localmente: {message_id}")
             return False
         
-        # 2. Consultar al aggregator si ya fue procesado por otro joiner
-        if not self._check_with_aggregator_if_processed(client_id, batch_id):
-            self.logger.info(f"Mensaje {message_id} ya fue procesado por otro joiner")
-            return False
+        # # 2. Consultar al aggregator si ya fue procesado por otro joiner
+        # if not self._check_with_aggregator_if_processed(client_id, batch_id):
+        #     self.logger.info(f"Mensaje {message_id} ya fue procesado por otro joiner")
+        #     return False
         
         try:
             # 3. Procesar el mensaje
             process_message_callback(message)
             
-            # 4. Persistir resultado
-            self._persist_batch_result(client_id, batch_id, message, state_data)
+            # # 4. Persistir resultado
+            # self._persist_batch_result(client_id, batch_id, message, state_data)
             
             # 5. Actualizar contadores
             self.batch_processed_counts[client_id] += 1
@@ -302,11 +302,11 @@ class JoinerRecoveryManager:
             # 8. Marcar como procesado
             self.processed_messages.add(message_id)
             
-            # 9. Persistir END_TRX
-            self._persist_end_transaction(client_id, batch_id)
+            # # 9. Persistir END_TRX
+            # self._persist_end_transaction(client_id, batch_id)
             
-            # 10. Logs y checkpoints
-            self._handle_periodic_operations(state_data)
+            # # 10. Logs y checkpoints
+            # self._handle_periodic_operations(state_data)
             
             return True
             
@@ -333,39 +333,39 @@ class JoinerRecoveryManager:
                 response_received["result"] = response_data
                 response_received["received"] = True
             
-            # Registrar callback temporal
-            self.tcp_client.register_response_callback("message_processed_response", response_callback)
-            
-            # Enviar consulta via TCP
-            if self.tcp_client.send(json.dumps(query_message) + '\n'):
-                self.logger.info(f"Consulta enviada al aggregator para verificar {client_id}_{batch_id}")
-                
-                # Esperar respuesta con timeout
-                timeout = 5  # 5 segundos de timeout
-                start_time = time.time()
-                
-                while not response_received["received"] and (time.time() - start_time) < timeout:
-                    time.sleep(0.1)  # Esperar 100ms entre checks
-                
-                if response_received["received"]:
-                    response_data = response_received["result"]
-                    was_processed = response_data.get("was_processed", False)
-                    processed_by = response_data.get("processed_by", None)
-                    
-                    self.logger.info(f"Respuesta recibida: procesado={was_processed}, por={processed_by}")
-                    
-                    if was_processed and processed_by != self.joiner_id:
-                        self.logger.info(f"Mensaje {client_id}_{batch_id} ya fue procesado por {processed_by}")
-                        return False  # No procesar
-                    else:
-                        self.logger.info(f"Mensaje {client_id}_{batch_id} no fue procesado o fue procesado por mí")
-                        return True  # Continuar procesamiento
-                else:
-                    self.logger.warning(f"Timeout esperando respuesta del aggregator para {client_id}_{batch_id}")
-                    return True  # Continuar procesamiento en caso de timeout
-            else:
-                self.logger.error(f"No se pudo enviar consulta de verificación al aggregator")
-                return True  # Continuar procesamiento en caso de error
+            # # Registrar callback temporal
+            # self.tcp_client.register_response_callback("message_processed_response", response_callback)
+            #
+            # # Enviar consulta via TCP
+            # if self.tcp_client.send(json.dumps(query_message) + '\n'):
+            #     self.logger.info(f"Consulta enviada al aggregator para verificar {client_id}_{batch_id}")
+            #
+            #     # Esperar respuesta con timeout
+            #     timeout = 5  # 5 segundos de timeout
+            #     start_time = time.time()
+            #
+            #     while not response_received["received"] and (time.time() - start_time) < timeout:
+            #         time.sleep(0.1)  # Esperar 100ms entre checks
+            #
+            #     if response_received["received"]:
+            #         response_data = response_received["result"]
+            #         was_processed = response_data.get("was_processed", False)
+            #         processed_by = response_data.get("processed_by", None)
+            #
+            #         self.logger.info(f"Respuesta recibida: procesado={was_processed}, por={processed_by}")
+            #
+            #         if was_processed and processed_by != self.joiner_id:
+            #             self.logger.info(f"Mensaje {client_id}_{batch_id} ya fue procesado por {processed_by}")
+            #             return False  # No procesar
+            #         else:
+            #             self.logger.info(f"Mensaje {client_id}_{batch_id} no fue procesado o fue procesado por mí")
+            #             return True  # Continuar procesamiento
+            #     else:
+            #         self.logger.warning(f"Timeout esperando respuesta del aggregator para {client_id}_{batch_id}")
+            #         return True  # Continuar procesamiento en caso de timeout
+            # else:
+            #     self.logger.error(f"No se pudo enviar consulta de verificación al aggregator")
+            #     return True  # Continuar procesamiento en caso de error
                 
         except Exception as e:
             self.logger.error(f"Error consultando aggregator para verificación: {e}")
@@ -426,13 +426,13 @@ class JoinerRecoveryManager:
     def _send_batch_processed(self, client_id, batch_id, message):
         """Envía mensaje de control al aggregator"""
         control_message = {
-            "type": "batch_processed",
+            "type": "control",
             "client_id": client_id,
             "batch_id": batch_id,
-            "processed_batches": self.batch_processed_counts[client_id],
+            # "processed_batches": self.batch_processed_counts[client_id],
             "batch_size": message.get("batch_size", 0),
             "total_batches": message.get("total_batches", 0),
-            "joiner_id": self.joiner_id
+            "joiner_instance_id": self.joiner_id,
         }
         self.aggregator_producer.enqueue(control_message)
         self.logger.info(f"Control enviado al aggregator: {control_message}")

@@ -20,7 +20,7 @@ class Aggregator(Worker):
         
         self.tcp_host = os.getenv("AGGREGATOR_HOST", "best_and_worst_ratings_aggregator")
         self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60001))
-        self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+        #self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
 
     def _handle_tcp_message(self, msg, addr):
         try:
@@ -40,7 +40,7 @@ class Aggregator(Worker):
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            self.server.stop()
+            #self.server.stop()
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
@@ -121,7 +121,7 @@ class Aggregator(Worker):
 
     def start(self):
         self.logger.info("Iniciando agregador")
-        self.server.start()
+        #self.server.start()
         try:
             self.consumer.start_consuming()
         finally:

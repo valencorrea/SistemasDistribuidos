@@ -68,11 +68,11 @@ class Consumer(threading.Thread):
     def _on_message(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.debug(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
+            # logger.debug(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
+            # logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.exception(f"JSON decode error: {e}")
@@ -81,10 +81,10 @@ class Consumer(threading.Thread):
             logger.exception(f"Error processing message: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-    def _on_message_2(self, channel, method, properties, body):
+    def _on_message_explicit(self, channel, method, properties, body):
         try:
             timestamp = get_timestamp()
-            logger.debug(f"Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
+            # logger.debug(f"Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
 
             message_id = str(message.get("batch_id"))
@@ -93,7 +93,7 @@ class Consumer(threading.Thread):
 
             self._delivery_tags[message_id] = method.delivery_tag
             self._message_handler(message)
-            logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
+            # logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.exception(f"JSON decode error: {e}")
@@ -129,7 +129,7 @@ class Consumer(threading.Thread):
         self._channel.basic_qos(prefetch_count=1)
         self._channel.basic_consume(
             queue=self._actual_queue_name,
-            on_message_callback=self._on_message_2,
+            on_message_callback=self._on_message_explicit,
             auto_ack=False
         )
 
