@@ -38,6 +38,7 @@ class HeartbeatSenderCluster:
         self.thread.daemon = True
         self.thread.start()
         logger.info(f"💓 Heartbeat sender iniciado para {self.service_name}")
+        logger.info(f"🔍 Intentando conectar a monitores: {self.monitor_endpoints}")
     
     def stop(self):
         self.running = False
@@ -68,6 +69,7 @@ class HeartbeatSenderCluster:
                 
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(3)
+                logger.info(f"🔍 Intentando conectar a {current_host}:{current_port}")
                 self.socket.connect((current_host, current_port))
                 
                 logger.info(f"✅ Connected to monitor: {current_host}:{current_port}")
@@ -106,6 +108,7 @@ class HeartbeatSenderCluster:
                 self.socket.send(heartbeat.encode())
                 current_host, current_port = self._get_current_monitor()
                 logger.debug(f"💓 Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
+                # logger.debug(f"Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
                 
             except (socket.error, ConnectionResetError, BrokenPipeError) as e:
                 logger.warning(f"🔌 Connection error sending heartbeat from {self.service_name}: {e}")

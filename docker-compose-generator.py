@@ -42,6 +42,7 @@ def generate_docker_yaml(config):
                     "context": ".",
                     "dockerfile": "client_decodifier/client_decodifier.dockerfile",
                 },
+                "container_name": "client_decodifier",
                 "depends_on": {
                     "rabbitmq": {
                         "condition": "service_healthy"
@@ -105,6 +106,8 @@ def generate_docker_yaml(config):
         "no_colab_productions_filter": "filters/no_colab_productions/no_colab_productions_filter.dockerfile",
         "sentiment_filter": "filters/sentiment_analizer/sentiment_analizer.dockerfile"
     }
+    credits_joiner_id_counter = 1
+    ratings_joiner_id_counter = 1
 
     for name, dockerfile in worker_definitions.items():
         count = workers.get(name.split('_filter')[0] if '_filter' in name else name.split('_joiner')[0], 1)
@@ -120,39 +123,42 @@ def generate_docker_yaml(config):
         if count == 0:
             continue
 
-        template["services"][name] = {
+        env = ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"]
+        if "credits_joiner" in name:
+            env.append(f"JOINER_INSTANCE_ID=credits-{credits_joiner_id_counter}")
+            credits_joiner_id_counter += 1
+        elif "ratings_joiner" in name:
+            env.append(f"JOINER_INSTANCE_ID=ratings-{ratings_joiner_id_counter}")
+            ratings_joiner_id_counter += 1
+
+        base_service = {
             "build": {
                 "context": ".",
                 "dockerfile": dockerfile
             },
             "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                },
-                "worker": {
-                    "condition": "service_started"
-                }
+                "rabbitmq": {"condition": "service_healthy"},
+                "worker": {"condition": "service_started"}
             },
             "links": ["rabbitmq"],
-            "environment": ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"],
-            "image": f"{name}:latest"
+            "environment": env,
+            "image": f"{name}:latest",
+            "container_name": f"{name}_1"
         }
+        template["services"][name] = base_service
         all_services.append(name)
 
         for i in range(1, count):
-            replica_name = f"{name}_{i}"
+            replica_name = f"{name}_{i + 1}"
             template["services"][replica_name] = {
                 "image": f"{name}:latest",
+                "container_name": f"{replica_name}",
                 "depends_on": {
-                    "rabbitmq": {
-                        "condition": "service_healthy"
-                    },
-                    "worker": {
-                        "condition": "service_started"
-                    }
+                    "rabbitmq": {"condition": "service_healthy"},
+                    "worker": {"condition": "service_started"}
                 },
                 "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1"]
+                "environment": ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"]
             }
             all_services.append(replica_name)
 
@@ -215,6 +221,7 @@ def generate_docker_yaml(config):
                 f"{service_port}:{service_port}",  # Puerto para servicios
                 f"{cluster_port}:{cluster_port}"   # Puerto para comunicación cluster
             ],
+            "container_name": monitor_name,
             "environment": [
                 "PYTHONUNBUFFERED=1",
                 f"MONITOR_SERVICE_PORT={service_port}",

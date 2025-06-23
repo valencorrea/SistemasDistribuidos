@@ -7,6 +7,10 @@ from typing import Optional, Callable, Any
 import pika
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
 
 class Subscriber(threading.Thread):
     def __init__(self, exchange_name: str, message_handler: Optional[Callable[[dict], Any]] = None):
