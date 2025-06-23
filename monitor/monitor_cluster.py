@@ -53,11 +53,9 @@ class MonitorCluster:
         logger.info(f"🔧 Servicios esperados: {self.expected_services}")
 
     def _get_expected_services(self) -> List[str]:
-        """Obtiene la lista de servicios que deben estar ejecutándose desde variables de entorno"""
         services_env = os.getenv('EXPECTED_SERVICES', '')
         if services_env:
             services = [service.strip() for service in services_env.split(',') if service.strip()]
-            # Filtrar servicios que no deben ser monitoreados
             filtered_services = self._filter_services(services)
             logger.info(f"📋 Servicios configurados desde docker-compose: {services}")
             logger.info(f"🔧 Servicios filtrados para monitoreo: {filtered_services}")
@@ -75,14 +73,11 @@ class MonitorCluster:
             return default_services
 
     def _filter_services(self, services: List[str]) -> List[str]:
-        """Filtra la lista de servicios excluyendo worker y client_*"""
         excluded_services = {'worker', 'client_decodifier'}
         
-        # Agregar todos los servicios que empiecen con 'client_'
         client_services = [service for service in services if service.startswith('client_')]
         excluded_services.update(client_services)
         
-        # Filtrar servicios excluidos
         filtered_services = [service for service in services if service not in excluded_services]
         
         logger.info(f"🚫 Servicios excluidos del monitoreo: {list(excluded_services)}")
@@ -476,14 +471,11 @@ class MonitorCluster:
         self._send_heartbeat_to_all()
 
     def _initialize_expected_services(self):
-        """Inicializa el tracking de servicios esperados cuando se convierte en líder"""
         logger.info(f"🔧 Monitor {self.node_id} inicializando tracking de {len(self.expected_services)} servicios esperados")
         
         with self.lock:
-            # Marcar todos los servicios esperados como no reportados inicialmente
             for service_name in self.expected_services:
                 if service_name not in self.services:
-                    # No establecer timestamp inicial, esperar primer heartbeat
                     logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de {service_name}")
 
     def _announce_leadership(self):
@@ -537,16 +529,13 @@ class MonitorCluster:
                         restart = []
                         
                         with self.lock:
-                            # Verificar servicios que han reportado heartbeat
                             for name, ts in list(self.services.items()):
                                 if now - ts > self.heartbeat_timeout:
                                     restart.append(name)
                                     del self.services[name]
                             
-                            # Verificar servicios esperados que nunca han reportado
                             for service_name in self.expected_services:
                                 if service_name not in self.services:
-                                    # Si nunca ha reportado, verificar si existe el contenedor
                                     restart.append(service_name)
                                     logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat, se intentará levantar")
                         
@@ -561,16 +550,12 @@ class MonitorCluster:
         try:
             containers = self.docker_client.containers.list(all=True)
             
-            # Buscar contenedores que coincidan con el patrón de réplicas
-            # Patrones posibles: name, name_1, name_1-1, name_1-2, etc.
             matching = []
             
             for container in containers:
                 container_name = container.name
                 
-                # Verificar si el nombre del servicio está en el nombre del contenedor
                 if name in container_name:
-                    # Verificar si es una réplica válida (termina en número o número-número)
                     if (container_name == name or 
                         container_name.endswith(f"_{name}") or
                         container_name.endswith(f"-{name}") or
@@ -585,7 +570,6 @@ class MonitorCluster:
             
             logger.info(f"🔍 Encontrados {len(matching)} contenedores para {name}: {[c.name for c in matching]}")
             
-            # Verificar cada contenedor y reiniciar solo los que están caídos
             restarted_any = False
             
             for container in matching:
@@ -607,13 +591,11 @@ class MonitorCluster:
                 else:
                     logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
             
-            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
             if restarted_any:
                 with self.lock:
                     self.services[name] = time.time() * 1000
                 logger.info(f"✅ Servicio {name} marcado como saludable después de reiniciar contenedores")
             else:
-                # Verificar si hay al menos un contenedor ejecutándose
                 running_containers = [c for c in matching if c.status == "running"]
                 if running_containers:
                     with self.lock:
@@ -655,15 +637,12 @@ class MonitorCluster:
             containers = self.docker_client.containers.list(all=True)
             target_name = f"monitor_{node_id}"
             
-            # Buscar contenedores que coincidan con el patrón de réplicas para monitores
             matching = []
             
             for container in containers:
                 container_name = container.name
                 
-                # Verificar si el nombre del monitor está en el nombre del contenedor
                 if target_name in container_name:
-                    # Verificar si es una réplica válida
                     if (container_name == target_name or 
                         container_name.endswith(f"_{target_name}") or
                         container_name.endswith(f"-{target_name}") or
@@ -678,7 +657,6 @@ class MonitorCluster:
             
             logger.info(f"🔍 Encontrados {len(matching)} contenedores para monitor_{node_id}: {[c.name for c in matching]}")
             
-            # Verificar cada contenedor y reiniciar solo los que están caídos
             restarted_any = False
             
             for container in matching:
@@ -700,13 +678,11 @@ class MonitorCluster:
                 else:
                     logger.info(f"ℹ️ El contenedor {container.name} está en estado {status}, no se reiniciará.")
             
-            # Solo marcar como saludable si se reinició algún contenedor o si hay al menos uno ejecutándose
             if restarted_any:
                 with self.lock:
                     self.monitor_heartbeats[node_id] = time.time() * 1000
                 logger.info(f"✅ Monitor {node_id} marcado como saludable después de reiniciar contenedores")
             else:
-                # Verificar si hay al menos un contenedor ejecutándose
                 running_containers = [c for c in matching if c.status == "running"]
                 if running_containers:
                     with self.lock:

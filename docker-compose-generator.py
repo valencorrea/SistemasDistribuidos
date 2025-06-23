@@ -7,6 +7,12 @@ def generate_docker_yaml(config):
     workers = config["workers"]
     clients = config["clients"]
     aggregators = config["aggregators"]
+    
+    # Configuración de monitores desde YAML (NUEVO)
+    monitors_config = config.get("monitors", {})
+    monitor_count = monitors_config.get("count", 3)
+    base_port = monitors_config.get("base_port", 50000)
+    cluster_base_port = monitors_config.get("cluster_base_port", 50010)
 
     template = {
         "services": {
@@ -187,17 +193,17 @@ def generate_docker_yaml(config):
         }
         all_services.append(name)
 
-    # Crear 3 instancias de monitor cluster
-    monitor_cluster_nodes = ["monitor_1", "monitor_2", "monitor_3"]
+    # Generar monitores dinámicamente (MEJORADO)
+    monitor_cluster_nodes = [f"monitor_{i}" for i in range(1, monitor_count + 1)]
     monitor_service_ports = []
     
     # Generar la lista de servicios esperados para los monitores
     expected_services_str = ",".join(all_services)
     
-    for i in range(1, 4):
+    for i in range(1, monitor_count + 1):
         monitor_name = f"monitor_{i}"
-        service_port = 50000 + i  # 50001, 50002, 50003
-        cluster_port = 50010 + i  # 50011, 50012, 50013
+        service_port = base_port + i
+        cluster_port = cluster_base_port + i
         monitor_service_ports.append(str(service_port))
         
         template["services"][monitor_name] = {
@@ -230,7 +236,7 @@ def generate_docker_yaml(config):
             
             # Configurar múltiples monitores con sus puertos específicos
             template["services"][service_name]["environment"].extend([
-                "MONITOR_HOSTS=monitor_1,monitor_2,monitor_3",
+                f"MONITOR_HOSTS={','.join(monitor_cluster_nodes)}",
                 f"MONITOR_PORTS={','.join(monitor_service_ports)}",
                 "HEARTBEAT_INTERVAL=5000",
                 f"SERVICE_NAME={service_name}"
@@ -240,7 +246,7 @@ def generate_docker_yaml(config):
                 template["services"][service_name]["depends_on"] = {}
 
             if isinstance(template["services"][service_name]["depends_on"], list):
-                template["services"][service_name]["depends_on"].extend(["monitor_1", "monitor_2", "monitor_3"])
+                template["services"][service_name]["depends_on"].extend(monitor_cluster_nodes)
             else:
                 for monitor_name in monitor_cluster_nodes:
                     template["services"][service_name]["depends_on"][monitor_name] = {

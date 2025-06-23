@@ -1,5 +1,10 @@
 output_file: docker-compose.yaml
 
+monitors:
+  count: 1
+  base_port: 50000
+  cluster_base_port: 50010
+
 clients:
   - id: 1
     files_path: ./files/short
