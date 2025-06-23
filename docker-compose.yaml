@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: filters/arg_production/arg_production_filter.dockerfile
+    container_name: arg_production_filter_1
     depends_on:
       monitor_1:
         condition: service_started
@@ -80,6 +81,7 @@ services:
     build:
       context: .
       dockerfile: client_decodifier/client_decodifier.dockerfile
+    container_name: client_decodifier
     depends_on:
       monitor_1:
         condition: service_started
@@ -107,6 +109,31 @@ services:
     build:
       context: .
       dockerfile: joiner/credits/credits_joiner.dockerfile
+    container_name: credits_joiner_1
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - JOINER_INSTANCE_ID=credits-1
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=credits_joiner
+    image: credits_joiner:latest
+    links:
+    - rabbitmq
+  credits_joiner_2:
+    container_name: credits_joiner_2
     depends_on:
       monitor_1:
         condition: service_started
@@ -124,7 +151,7 @@ services:
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
-    - SERVICE_NAME=credits_joiner
+    - SERVICE_NAME=credits_joiner_2
     image: credits_joiner:latest
     links:
     - rabbitmq
@@ -132,6 +159,7 @@ services:
     build:
       context: .
       dockerfile: filters/esp_production/esp_production_filter.dockerfile
+    container_name: esp_production_filter_1
     depends_on:
       monitor_1:
         condition: service_started
@@ -157,6 +185,7 @@ services:
     build:
       context: .
       dockerfile: filters/main_movie_filter/main_movie_filter.dockerfile
+    container_name: main_movie_filter_1
     depends_on:
       monitor_1:
         condition: service_started
@@ -182,6 +211,7 @@ services:
     build:
       context: .
       dockerfile: monitor/monitor_cluster.dockerfile
+    container_name: monitor_1
     environment:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50001
@@ -190,7 +220,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50001:50001
     - 50011:50011
@@ -200,6 +230,7 @@ services:
     build:
       context: .
       dockerfile: monitor/monitor_cluster.dockerfile
+    container_name: monitor_2
     environment:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50002
@@ -208,7 +239,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50002:50002
     - 50012:50012
@@ -218,6 +249,7 @@ services:
     build:
       context: .
       dockerfile: monitor/monitor_cluster.dockerfile
+    container_name: monitor_3
     environment:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50003
@@ -226,7 +258,7 @@ services:
     - HEARTBEAT_TIMEOUT=15000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,ratings_joiner,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter,arg_production_filter,credits_joiner,credits_joiner_2,ratings_joiner,ratings_joiner_2,ratings_joiner_3,main_movie_filter,esp_production_filter,no_colab_productions_filter,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
     ports:
     - 50003:50003
     - 50013:50013
@@ -236,6 +268,7 @@ services:
     build:
       context: .
       dockerfile: filters/no_colab_productions/no_colab_productions_filter.dockerfile
+    container_name: no_colab_productions_filter_1
     depends_on:
       monitor_1:
         condition: service_started
@@ -274,6 +307,31 @@ services:
     build:
       context: .
       dockerfile: joiner/ratings/ratings_joiner.dockerfile
+    container_name: ratings_joiner_1
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - JOINER_INSTANCE_ID=ratings-1
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=ratings_joiner
+    image: ratings_joiner:latest
+    links:
+    - rabbitmq
+  ratings_joiner_2:
+    container_name: ratings_joiner_2
     depends_on:
       monitor_1:
         condition: service_started
@@ -291,7 +349,30 @@ services:
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
-    - SERVICE_NAME=ratings_joiner
+    - SERVICE_NAME=ratings_joiner_2
+    image: ratings_joiner:latest
+    links:
+    - rabbitmq
+  ratings_joiner_3:
+    container_name: ratings_joiner_3
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=5000
+    - SERVICE_NAME=ratings_joiner_3
     image: ratings_joiner:latest
     links:
     - rabbitmq
@@ -395,6 +476,7 @@ services:
     build:
       context: .
       dockerfile: filters/twentieth_century/twentieth_century_filter.dockerfile
+    container_name: twentieth_century_filter_1
     depends_on:
       monitor_1:
         condition: service_started

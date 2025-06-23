@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
+from middleware.producer.publisher import Publisher
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ class Aggregator(AbstractAggregator):
         self.tcp_host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
         self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60002))
         # self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
-        self.joiner_control_publisher = Producer("joiner_control_credits")
+        self.joiner_control_publisher = Publisher("joiner_control_credits")
         self.processed_batches_map = defaultdict(set)
         self.control_log_name = "_control.log"
         self.recover_control_messages()

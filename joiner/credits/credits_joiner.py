@@ -17,10 +17,9 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 class CreditsJoiner(AbstractAggregator):
     def __init__(self):
         super().__init__()
-        # TODO revisar el orden de estos inits
         self.has_recovered_at_least_one = False
         self.movies_name = "_credits_movies.json"
-        self.joiner_instance_id = "joiner_credits"
+        self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
         self.logger.info(f"Se finalizo la recuperacion de movies.")
@@ -28,10 +27,8 @@ class CreditsJoiner(AbstractAggregator):
         self.logger.info(f"Se inicializo como worker.")
         self.movies_consumer = Subscriber("20_century_arg_result",
                                           message_handler=self.handle_movies_message)
-        self.credits_producer = Producer(
-            queue_name="credits",
-            queue_type="direct")
-        self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
+        self.credits_producer = Producer(queue_name="credits",queue_type="direct")
+        self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
         if self.has_recovered_at_least_one:
             self.consumer.start()
 
@@ -93,7 +90,6 @@ class CreditsJoiner(AbstractAggregator):
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
         rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
-
         return f"credits-{joiner_id}-{rand_str}"
 
     def close(self):
