@@ -4,6 +4,7 @@ import threading
 import os
 import logging
 import random
+import json
 from utils.parsers.service_parser import ServiceParser
 
 logger = logging.getLogger(__name__)
@@ -57,37 +58,59 @@ class HeartbeatSenderCluster:
         logger.info(f"🔄 Switching to monitor: {current_host}:{current_port}")
         return self._get_current_monitor()
     
-    def _connect_to_monitor(self):
-        max_attempts = len(self.monitor_endpoints)
-        
-        for attempt in range(max_attempts):
-            current_host, current_port = self._get_current_monitor()
-            
+    def _find_leader(self):
+        """Encuentra quién es el líder actual preguntando a todos los monitores"""
+        for host, port in self.monitor_endpoints:
             try:
-                if self.socket:
-                    self.socket.close()
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(2)
+                s.connect((host, port))
                 
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(3)
-                logger.info(f"🔍 Intentando conectar a {current_host}:{current_port}")
-                self.socket.connect((current_host, current_port))
+                msg = {"type": "who_is_leader"}
+                s.send(json.dumps(msg).encode())
                 
-                logger.info(f"✅ Connected to monitor: {current_host}:{current_port}")
-                return True
-                
+                response = s.recv(1024)
+                if response:
+                    response_data = json.loads(response.decode())
+                    leader_id = response_data.get("leader_id")
+                    
+                    if leader_id is not None:
+                        logger.info(f"✅ Encontrado líder: {leader_id} en {host}:{port}")
+                        s.close()
+                        return leader_id
+                s.close()
             except Exception as e:
-                logger.warning(f"❌ Failed to connect to monitor {current_host}:{current_port}: {e}")
-                self.socket = None
-                
-                if attempt < max_attempts - 1:
-                    self._switch_to_next_monitor()
+                logger.debug(f"❌ No se pudo preguntar a {host}:{port}: {e}")
+                continue
         
-        logger.error(f"❌ Failed to connect to any monitor after {max_attempts} attempts")
-        return False
+        logger.warning(f"❌ No se pudo encontrar líder en ningún monitor")
+        return None
+    
+    def _connect_to_monitor(self):
+        # Con UDP no necesitamos "conectar", solo crear el socket
+        try:
+            if self.socket:
+                self.socket.close()
+            
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.socket.settimeout(1)
+            
+            current_host, current_port = self._get_current_monitor()
+            logger.info(f"🔍 Configurado para enviar UDP a {current_host}:{current_port}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error configurando socket UDP: {e}")
+            self.socket = None
+            return False
     
     def _send_heartbeats(self):
         connection_failures = 0
-        max_connection_failures = 3
+        max_connection_failures = 5
+        leader_host = None
+        leader_port = None
+        leader_id = None
+        leader_lookup_counter = 0
         
         while self.running:
             try:
@@ -101,24 +124,36 @@ class HeartbeatSenderCluster:
                         else:
                             time.sleep(2)
                         continue
-                    
                     connection_failures = 0
                 
-                heartbeat = ServiceParser.create_heartbeat(self.service_name)
-                self.socket.send(heartbeat.encode())
-                current_host, current_port = self._get_current_monitor()
-                logger.debug(f"💓 Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
-                # logger.debug(f"Heartbeat enviado por {self.service_name} a {current_host}:{current_port}")
+                # Preguntar por el líder cada 10 ciclos o si no hay líder
+                if leader_id is None or leader_lookup_counter >= 10:
+                    leader_id = self._find_leader()
+                    leader_host = None
+                    leader_port = None
+                    if leader_id is not None:
+                        for host, port in self.monitor_endpoints:
+                            if host.endswith(str(leader_id)) or host == f"monitor_{leader_id}":
+                                leader_host, leader_port = host, port
+                                logger.info(f"💡 Enviando heartbeats al líder {leader_host}:{leader_port}")
+                                break
+                        else:
+                            logger.warning(f"No se encontró el host del líder {leader_id} en la lista de monitores")
+                            leader_host, leader_port = None, None
+                    else:
+                        logger.warning(f"No se pudo determinar el líder, reintentando en el próximo ciclo")
+                        time.sleep(2)
+                        leader_lookup_counter = 0
+                        continue
+                    leader_lookup_counter = 0
                 
-            except (socket.error, ConnectionResetError, BrokenPipeError) as e:
-                logger.warning(f"🔌 Connection error sending heartbeat from {self.service_name}: {e}")
-                
-                if self.socket:
-                    self.socket.close()
-                    self.socket = None
-                
-                self._switch_to_next_monitor()
-                connection_failures += 1
+                if leader_host and leader_port:
+                    heartbeat = ServiceParser.create_heartbeat(self.service_name)
+                    self.socket.sendto(heartbeat.encode(), (leader_host, leader_port))
+                    logger.debug(f"💓 Heartbeat UDP enviado por {self.service_name} a {leader_host}:{leader_port}")
+                else:
+                    logger.warning(f"No hay líder disponible para enviar heartbeat")
+                leader_lookup_counter += 1
                 
             except Exception as e:
                 logger.error(f"💥 Unexpected error sending heartbeat from {self.service_name}: {e}")

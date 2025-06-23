@@ -1,14 +1,17 @@
 output_file: docker-compose.yaml
 
+# Configuración de monitores
 monitors:
   count: 1
   base_port: 50000
   cluster_base_port: 50010
+  # Configuración de heartbeat (muy rápido para testing)
+  heartbeat_interval: 2000      # 2 segundos
+  heartbeat_timeout: 8000       # 8 segundos
+  election_timeout: 5000        # 5 segundos
 
 clients:
   - id: 1
-    files_path: ./files/short
-  - id: 2
     files_path: ./files/short
 
 workers:
@@ -29,7 +32,7 @@ workers:
     log_level: INFO
     kill: false
   sentiment:
-    count: 0
+    count: 1
     log_level: INFO
     kill: false
   arg_production:
@@ -41,7 +44,7 @@ workers:
     log_level: INFO
     kill: false
   ratings:
-    count: 3
+    count: 1
     log_level: INFO
     kill: false
 
@@ -49,11 +52,11 @@ aggregators:
   twentieth_century_arg_esp:
     generate: true
     log_level: INFO
-    kill: false
+    kill: true
   twentieth_century_arg:
     generate: true
     log_level: INFO
-    kill: false
+    kill: true
   top_5_countries:
     generate: true
     log_level: INFO
@@ -61,16 +64,16 @@ aggregators:
   top_10_credits:
     generate: true
     log_level: INFO
-    kill: true
+    kill: false
   best_and_worst_ratings:
     generate: true
     log_level: INFO
     kill: false
   sentiment:
-    generate: false
+    generate: true
     log_level: INFO
     kill: false
 
 test:
-  random: false
-  interval: 1
+  random: true
+  interval: 11

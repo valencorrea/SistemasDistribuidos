@@ -1,9 +1,12 @@
 output_file: docker-compose.yaml
 
 monitors:
-  count: 4
+  count: 3
   base_port: 50000
   cluster_base_port: 50010
+  heartbeat_interval: 5000      # 5 segundos
+  heartbeat_timeout: 15000      # 15 segundos
+  election_timeout: 10000       # 10 segundos
 
 clients:
   - id: 1

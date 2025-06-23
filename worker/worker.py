@@ -11,6 +11,9 @@ from middleware.heartbeat.heartbeat_sender_cluster import HeartbeatSenderCluster
 
 class Worker(ABC):
     def __init__(self):
+        service_name = os.getenv('SERVICE_NAME', self.__class__.__name__.lower())
+        self.heartbeat_sender = HeartbeatSenderCluster(service_name)
+        self.heartbeat_sender.start() 
         log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
@@ -19,16 +22,12 @@ class Worker(ABC):
             datefmt='%H:%M:%S')
         logging.getLogger("pika").setLevel(logging.WARNING)
         self.shutdown_event = threading.Event()
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        
-        # Inicializar el heartbeat sender
-        service_name = os.getenv('SERVICE_NAME', self.__class__.__name__.lower())
-        self.heartbeat_sender = HeartbeatSenderCluster(service_name)
-        self.heartbeat_sender.start()  # Iniciar el heartbeat sender
+        signal.signal(signal.SIGTERM, self.signal_handler)      
         
         if not self.wait_for_rabbitmq():
             self.logger.error("Error al intentar conectar con rabbitMQ. No se va a iniciar el worker")
-            self._close()
+            # NO detener el heartbeat sender aquí - debe continuar funcionando
+            self._close_without_stopping_heartbeat()
             return
             
         self.shutdown_consumer = Consumer(
@@ -49,9 +48,14 @@ class Worker(ABC):
         self.logger.info("Mensaje de shutdown recibido.")
         self._close()
 
+    def _close_without_stopping_heartbeat(self):
+        """Cierra el worker sin detener el heartbeat sender"""
+        self.shutdown_event.set()
+        self.close()
+
     def _close(self):
         self.shutdown_event.set()
-        self.heartbeat_sender.stop()  # Detener el heartbeat sender
+        self.heartbeat_sender.stop()  # Detener el heartbeat sender solo al cerrar normalmente
         self.close()
 
     def wait_for_rabbitmq(self, max_retries: int = 10, retry_interval: float = 10.0) -> bool:
