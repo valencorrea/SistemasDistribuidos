@@ -32,7 +32,7 @@ workers:
   credits:
     count: 1
     log_level: INFO
-    kill: true
+    kill: false
   ratings:
     count: 1
     log_level: INFO
@@ -54,7 +54,7 @@ aggregators:
   top_10_credits:
     generate: true
     log_level: INFO
-    kill: false
+    kill: true
   best_and_worst_ratings:
     generate: true
     log_level: INFO

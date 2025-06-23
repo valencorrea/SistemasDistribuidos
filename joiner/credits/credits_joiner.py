@@ -113,10 +113,11 @@ class CreditsJoiner(AbstractAggregator):
             "client_id": client_id,
             "batch_id": batch_id,
             "batch_size": batch_size,
-            "joiner_instance_id": self.joiner_instance_id,
+            "joiner_id": self.joiner_instance_id,
         }
         if client_id in self.total_batches_per_client:
             control_message["total_batches"] = self.total_batches_per_client[client_id]
+        # Enviar por tcp
         self.producer.enqueue(control_message)
         self.logger.info(f"Control enviado al aggregator: {control_message}")
 
