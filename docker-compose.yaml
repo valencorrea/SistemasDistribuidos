@@ -125,6 +125,8 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=5000
     - SERVICE_NAME=credits_joiner
+    - AGGREGATOR_HOST=top_10_credits_aggregator
+    - AGGREGATOR_PORT=60000
     image: credits_joiner:latest
     links:
     - rabbitmq
@@ -296,6 +298,7 @@ services:
     links:
     - rabbitmq
   top_10_credits_aggregator:
+    container_name: top_10_credits_aggregator
     build:
       context: .
       dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
@@ -319,6 +322,8 @@ services:
     - SERVICE_NAME=top_10_credits_aggregator
     links:
     - rabbitmq
+    ports:
+    - 60000:60000
   top_5_countries_aggregator:
     build:
       context: .

@@ -10,6 +10,7 @@ from middleware.consumer.subscriber import Subscriber
 from middleware.producer.producer import Producer
 from utils.parsers.credits_parser import convert_data
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
+from middleware.tcp_protocol.tcp_protocol import TCPClient
 
 PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 
@@ -18,7 +19,7 @@ class CreditsJoiner(AbstractAggregator):
     def __init__(self):
         super().__init__()
         # TODO revisar el orden de estos inits
-        self.has_recovered_at_least_one = False
+        self.has_recovered_at_least_once = False
         self.movies_name = "_credits_movies.json"
         self.joiner_instance_id = "joiner_credits"
         self.movies = {}
@@ -31,8 +32,15 @@ class CreditsJoiner(AbstractAggregator):
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
-        self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
-        if self.has_recovered_at_least_one:
+        #self.control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
+        
+        # TCP Client para comunicarse con el aggregator
+        aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
+        aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
+        self.tcp_client = TCPClient(aggregator_host, aggregator_port)
+        self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
+        
+        if self.has_recovered_at_least_once:
             self.consumer.start()
 
     def create_consumer(self):
@@ -49,8 +57,6 @@ class CreditsJoiner(AbstractAggregator):
             if actor.movie_id in movies_per_client:
                 actor_id = str(actor.id)
                 actor_name = actor.name
-                if actor_name == "Ricardo Darín":
-                    self.logger.info(f"Actor {actor_name} encontrado en la película {actor.movie_id} del cliente {client_id}")
                 if actor_id not in partial_result:
                     partial_result[actor_id] = {"name": actor_name, "count": 1}
                 else:
@@ -82,13 +88,13 @@ class CreditsJoiner(AbstractAggregator):
             result["total_batches"] = self.total_batches_per_client[client_id]
         return result
 
-    def handle_control_message(self, message):
-        self.logger.info(f"Mensaje de control recibido: {message}")
-        client_id = message["client_id"]
-        result_message = self.create_final_result(client_id)
-        self.producer.enqueue(result_message)
-        self.logger.info(f"Resultado enviado {result_message}.")
-        self.results.pop(client_id)
+    # def handle_control_message(self, message):
+    #     self.logger.info(f"Mensaje de control recibido: {message}")
+    #     client_id = message["client_id"]
+    #     result_message = self.create_final_result(client_id)
+    #     self.producer.enqueue(result_message) -> TODO!
+    #     self.logger.info(f"Resultado enviado {result_message}.")
+    #     self.results.pop(client_id)
 
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
@@ -103,6 +109,9 @@ class CreditsJoiner(AbstractAggregator):
             self.consumer.close()
             self.producer.close()
             self.credits_producer.close()
+            if self.tcp_client:
+                self.tcp_client.close()
+
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -117,8 +126,18 @@ class CreditsJoiner(AbstractAggregator):
         }
         if client_id in self.total_batches_per_client:
             control_message["total_batches"] = self.total_batches_per_client[client_id]
-        self.producer.enqueue(control_message)
-        self.logger.info(f"Control enviado al aggregator: {control_message}")
+
+        try:
+            tcp_message = json.dumps(control_message) + '\n'
+            if self.tcp_client.send(tcp_message):
+                self.logger.info(f"Mensaje TCP enviado al aggregator: {control_message}")
+            else:
+                self.logger.error(f"Error enviando mensaje TCP al aggregator: {control_message}")
+        except Exception as e:
+            self.logger.error(f"Excepción enviando mensaje TCP: {e}")
+
+        #self.producer.enqueue(control_message)
+        #self.logger.info(f"Control enviado al aggregator: {control_message}")
 
     def get_result(self, client_id):
         top_10 = sorted(self.results[client_id].items(), key=lambda item: item[1]["count"], reverse=True)[:10]
@@ -202,7 +221,7 @@ class CreditsJoiner(AbstractAggregator):
 
                     self.movies[client_id] = current_payload
                     # self.results[client_id] = {}
-                    self.has_recovered_at_least_one = True
+                    self.has_recovered_at_least_once = True
                     self.logger.info(f"Películas recuperadas para cliente {client_id}: {len(self.movies[client_id])} items.")
 
             except json.JSONDecodeError as e:
@@ -215,7 +234,7 @@ class CreditsJoiner(AbstractAggregator):
         self.logger.info("Iniciando joiner de credits")
         try:
             self.movies_consumer.start()
-            self.control_consumer.start()
+            #self.control_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()

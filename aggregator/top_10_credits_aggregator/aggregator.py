@@ -7,6 +7,7 @@ from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 from worker.worker import Worker
+from middleware.tcp_protocol.tcp_protocol import TCPServer
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -19,10 +20,13 @@ class Aggregator(AbstractAggregator):
         super().__init__()
         self.control_received_batches_per_client = defaultdict(int)
         self.batches_by_joiner = defaultdict(set)
-        self.tcp_host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
-        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60002))
-        #self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
-        self.joiner_control_publisher = Producer("joiner_control_credits")
+        self.batch_to_joiner = {}
+        self.tcp_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
+        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60000))
+        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
+        
+        #self.joiner_control_publisher = Producer("joiner_control_credits")
 
     def create_consumer(self):
         return Consumer("top_10_actors_from_batch", _message_handler=self.handle_message_joiner_aggregator)
@@ -36,8 +40,8 @@ class Aggregator(AbstractAggregator):
         self.logger.info(f"Tipo de mensaje recibido: {type_of_message}")
         if type_of_message == "query_4_top_10_actores_credits":
             self.handle_message(message)
-        elif type_of_message == "control":
-            self.handle_control_message(message)
+        #elif type_of_message == "control":
+        #     self.handle_control_message(message)
         else:
             self.logger.error(f"Tipo de mensaje desconocido: {type_of_message}. Mensaje: {message}")
 
@@ -101,16 +105,32 @@ class Aggregator(AbstractAggregator):
 
     def _handle_tcp_message(self, msg, addr):
         try:
-            self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
+            self.logger.info(f"[TCP] Mensaje de control recibido: {msg}")
             data_json = json.loads(msg)
-            if data_json.get("type") != "batch_id":
-                return
-            batch_id = data_json.get("batch_id")
-            joiner_instance_id = data_json.get("joiner_instance_id")
-            if batch_id is None or joiner_instance_id is None:
-                self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
-                return
-            self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+            message_type = data_json.get("type")
+            
+            # if message_type == "batch_id":
+            #     # Manejar mensajes de batch_id (código existente)
+            #     batch_id = data_json.get("batch_id")
+            #     joiner_instance_id = data_json.get("joiner_instance_id")
+            #     if batch_id is None or joiner_instance_id is None:
+            #         self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
+            #         return
+            #     self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+            #     self.logger.info(f"[TCP] Batch {batch_id} registrado para joiner {joiner_instance_id}")
+                
+            if message_type == "control":
+                batch_id = data_json.get("batch_id")
+                joiner_instance_id = data_json.get("joiner_instance_id")
+                
+                if batch_id and joiner_instance_id:
+                    self.batch_to_joiner[batch_id] = joiner_instance_id
+                
+                #self.handle_control_message(data_json)
+                
+            else:
+                self.logger.warning(f"[TCP] Tipo de mensaje desconocido: {message_type}")
+                
         except Exception as e:
             self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
@@ -118,40 +138,47 @@ class Aggregator(AbstractAggregator):
         # TODO revisar close de estos aggregators
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            #self.server.stop()
+            self.tcp_server.stop()
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
-    def handle_control_message(self, message):
-        total_batches = message.get("total_batches")
-        batch_size = message.get("batch_size")
-        joiner_id = message.get("joiner_instance_id")
-        batch_id = message.get("batch_id")
-        client_id = message.get("client_id")
-        self.control_received_batches_per_client[client_id] = self.control_received_batches_per_client.get(client_id, 0) + batch_size
+    # def handle_control_message(self, message):
+    #     total_batches = message.get("total_batches")
+    #     batch_size = message.get("batch_size")
+    #     joiner_id = message.get("joiner_instance_id")
+    #     batch_id = message.get("batch_id")
+    #     client_id = message.get("client_id")
+    #     self.control_received_batches_per_client[client_id] = self.control_received_batches_per_client.get(client_id, 0) + batch_size
 
-        self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
-        if total_batches:
-            self.total_batches_per_client[client_id] = total_batches
-            self.logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches_per_client[client_id]} para el cliente {client_id}.")
-        self.consumer.ack(batch_id)
-        # self.batches_by_joiner[joiner_id].add(batch_id)
+    #     # Guardar en batch_to_joiner también para mensajes de cola
+    #     if batch_id and joiner_id:
+    #         self.batch_to_joiner[batch_id] = joiner_id
+    #         self.logger.info(f"[COLA] Guardado en batch_to_joiner: {batch_id} -> {joiner_id}")
 
-        total = self.total_batches_per_client.get(client_id, None)
-        received = self.control_received_batches_per_client.get(client_id, 0)
-        if total and 0 < total <= received:
-            self.logger.info(f"Ya fueron procesados todos los batches ({received}/{total}) para el cliente {client_id}. Enviando el acumulado.")
-            self.joiner_control_publisher.enqueue({
-                "client_id": client_id
-            })
-            # TODO una vez que se envio el mensaje de control, borrar los datos del cliente
+    #     self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
+    #     if total_batches:
+    #         self.total_batches_per_client[client_id] = total_batches
+    #         self.logger.info(f"Se actualiza la cantidad total de batches: {self.total_batches_per_client[client_id]} para el cliente {client_id}.")
+    #     self.consumer.ack(batch_id)
+    #     # self.batches_by_joiner[joiner_id].add(batch_id)
 
+    #     total = self.total_batches_per_client.get(client_id, None)
+    #     received = self.control_received_batches_per_client.get(client_id, 0)
+    #     if total and 0 < total <= received:
+    #         self.logger.info(f"Ya fueron procesados todos los batches ({received}/{total}) para el cliente {client_id}. Enviando el acumulado.")
+    #         self.joiner_control_publisher.enqueue({
+    #             "client_id": client_id
+    #         })
+    #         # TODO una vez que se envio el mensaje de control, borrar los datos del cliente
+
+    
+    
     def start(self):
         self.logger.info("Iniciando agregador")
-        # self.server.start()
+        self.tcp_server.start()
         super().start()
 
 
