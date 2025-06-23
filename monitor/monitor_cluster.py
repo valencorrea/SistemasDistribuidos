@@ -25,9 +25,9 @@ class MonitorCluster:
         self.node_id = int(os.getenv('MONITOR_NODE_ID', str(random.randint(1000, 9999))))
         self.port = int(os.getenv('MONITOR_SERVICE_PORT', 50000 + self.node_id))
         self.cluster_port = int(os.getenv('MONITOR_CLUSTER_PORT', 50010 + self.node_id))
-        self.heartbeat_interval = int(os.getenv('HEARTBEAT_INTERVAL', 5000))
-        self.heartbeat_timeout = int(os.getenv('HEARTBEAT_TIMEOUT', 15000))
-        self.election_timeout = int(os.getenv('ELECTION_TIMEOUT', 10000))
+        self.heartbeat_interval = int(os.getenv('HEARTBEAT_INTERVAL', 100))
+        self.heartbeat_timeout = int(os.getenv('HEARTBEAT_TIMEOUT', 3000))
+        self.election_timeout = int(os.getenv('ELECTION_TIMEOUT', 1000))
 
         self.state = MonitorState.FOLLOWER
         self.current_leader = None
@@ -160,7 +160,7 @@ class MonitorCluster:
         tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_sock.bind(('0.0.0.0', self.port))
-        tcp_sock.listen(5)
+        tcp_sock.listen(20)
         logger.info(f"🔧 Monitor {self.node_id} escuchando servicios TCP en puerto {self.port}")
 
         # Socket UDP
@@ -172,14 +172,12 @@ class MonitorCluster:
         def tcp_loop():
             while True:
                 client, addr = tcp_sock.accept()
-                logger.info(f"🔧 Monitor {self.node_id} recibió conexión TCP de {addr}")
                 threading.Thread(target=self._handle_service_client, args=(client,), daemon=True).start()
 
         def udp_loop():
             while True:
                 try:
                     data, addr = udp_sock.recvfrom(1024)
-                    logger.debug(f"🔧 Monitor {self.node_id} recibió UDP de {addr}")
                     threading.Thread(target=self._handle_service_udp, args=(data, addr), daemon=True).start()
                 except Exception as e:
                     logger.error(f"Error recibiendo UDP: {e}")
@@ -283,8 +281,7 @@ class MonitorCluster:
                 sender_id = msg.get("node_id")
                 if sender_id is not None:
                     with self.lock:
-                        self.monitor_heartbeats[sender_id] = time.time() * 1000
-                        logger.debug(f"💓 Monitor {self.node_id} recibió heartbeat de monitor {sender_id}")
+                        self.monitor_heartbeats[sender_id] = (time.time() * 1000) + self.heartbeat_timeout
                         
         except Exception as e:
             logger.error(f"Error cluster client: {e}")
@@ -331,7 +328,7 @@ class MonitorCluster:
                         if msg.get("type") == "who_is_leader":
                             response = {"type": "leader_info", "leader_id": self.current_leader}
                             client.send(json.dumps(response).encode())
-                            logger.info(f"❓ Monitor {self.node_id} respondió who_is_leader: {self.current_leader}")
+                            #logger.info(f"❓ Monitor {self.node_id} respondió who_is_leader: {self.current_leader}")
                             continue
                         
                         # Manejar heartbeats de servicios
@@ -343,7 +340,7 @@ class MonitorCluster:
                                     del self.service_start_times[service]
                                 
                                 self.services[service] = (time.time() * 1000 )+ self.heartbeat_timeout
-                                logger.info(f"💓 Monitor {self.node_id} recibió heartbeat de servicio {service}")
+                                #logger.info(f"💓 Monitor {self.node_id} recibió heartbeat de servicio {service}")
                         else:
                             logger.warning(f"⚠️ Monitor {self.node_id} recibió mensaje sin service_name: {msg}")
                             
@@ -369,11 +366,9 @@ class MonitorCluster:
             service = msg.get("service_name")
             if service:
                 with self.lock:
-                    # Si es el primer heartbeat de este servicio, limpiar el tiempo de inicio
                     if service not in self.services and service in self.service_start_times:
                         del self.service_start_times[service]
                     self.services[service] = (time.time() * 1000 )+ self.heartbeat_timeout
-                    logger.info(f"💓 Monitor {self.node_id} recibió heartbeat UDP de servicio {service}")
             else:
                 logger.warning(f"⚠️ Monitor {self.node_id} recibió mensaje UDP sin service_name: {msg}")
         except Exception as e:
@@ -390,15 +385,15 @@ class MonitorCluster:
                         (now - self.last_leader_heartbeat) < self.heartbeat_timeout
                     )
                     if not leader_alive and not self.election_in_progress:
-                        logger.info(f"⏰ Monitor {self.node_id} no detecta líder activo. Verificando antes de iniciar elección...")
+                        #logger.info(f"⏰ Monitor {self.node_id} no detecta líder activo. Verificando antes de iniciar elección...")
                         
                         if self._quick_leader_check():
                             logger.info(f"✅ Monitor {self.node_id} encontró líder en verificación rápida, no inicia elección")
                         else:
-                            logger.info(f"⏰ Monitor {self.node_id} confirma que no hay líder activo. Inicia elección Bully.")
+                            #logger.info(f"⏰ Monitor {self.node_id} confirma que no hay líder activo. Inicia elección Bully.")
                             self.current_leader = None
                             threading.Thread(target=self._start_bully_election, daemon=True).start()
-            time.sleep(5)
+            time.sleep(1)
 
     def _quick_leader_check(self):
         for host, port in self.cluster_nodes:
@@ -460,9 +455,9 @@ class MonitorCluster:
             sock.send(msg.encode())
             sock.close()
             
-            logger.debug(f"💓 Monitor {self.node_id} envió heartbeat a líder {self.current_leader}")
+            #logger.debug(f"💓 Monitor {self.node_id} envió heartbeat a líder {self.current_leader}")
         except Exception as e:
-            logger.warning(f"❌ No se pudo enviar heartbeat a líder {self.current_leader}: {e}")
+            #logger.warning(f"❌ No se pudo enviar heartbeat a líder {self.current_leader}: {e}")
             logger.info(f"🚨 Monitor {self.node_id} detectó que el líder {self.current_leader} no está disponible. Iniciando elección.")
             with self.state_lock:
                 self.current_leader = None
@@ -549,6 +544,7 @@ class MonitorCluster:
         logger.info(f"👑 Monitor {self.node_id} ahora es el LÍDER (término {term})")
         
         self._initialize_expected_services()
+        self._initialize_expected_monitors()
         
         self._announce_leadership()
         self._send_heartbeat_to_all()
@@ -562,6 +558,17 @@ class MonitorCluster:
                 if service_name not in self.services:
                     self.service_start_times[service_name] = now
                     logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de {service_name}")
+
+    def _initialize_expected_monitors(self):
+        logger.info(f"🔧 Monitor {self.node_id} inicializando tracking de {len(self.expected_node_ids)} monitores esperados")
+        
+        now = time.time() * 1000
+        with self.lock:
+            for node_id in self.expected_node_ids:
+                if node_id != self.node_id and node_id not in self.monitor_heartbeats:
+                    # Dar más tiempo para que los monitores se estabilicen después del cambio de líder
+                    self.monitor_heartbeats[node_id] = now + 20000  # 30 segundos de gracia
+                    logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de monitor {node_id}")
 
     def _announce_leadership(self):
         msg = json.dumps({
@@ -620,7 +627,7 @@ class MonitorCluster:
                                     del self.services[name]
                             
                             # NUEVO: Dar más tiempo para el primer heartbeat
-                            initial_timeout = 30000  # 30 segundos para el primer heartbeat
+                            initial_timeout = 20000  # 10 segundos para el primer heartbeat
                             for service_name in self.expected_services:
                                 if service_name not in self.services:
                                     start_time = self.service_start_times.get(service_name)
@@ -688,10 +695,16 @@ class MonitorCluster:
                                     continue
 
                                 last_beat = self.monitor_heartbeats.get(node_id)
-                                if last_beat is None or (now - last_beat) > self.heartbeat_timeout:
-                                    logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
-                                    restart.append(node_id)
-                                    self.monitor_heartbeats.pop(node_id, None)
+                                if last_beat is None:
+                                    # Inicializar si no existe
+                                    self.monitor_heartbeats[node_id] = now + 10000  # 10 segundos de gracia
+                                    logger.info(f"⏳ Monitor {self.node_id} inicializando tracking de monitor {node_id}")
+                                elif (now - last_beat) > self.heartbeat_timeout:
+                                    # Verificar que no sea un reinicio reciente
+                                    if (now - last_beat) < 60000:  # No reiniciar si fue reiniciado hace menos de 1 minuto
+                                        logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
+                                        restart.append(node_id)
+                                        self.monitor_heartbeats.pop(node_id, None)
 
                         for node_id in restart:
                             self._restart_monitor_container(node_id)
@@ -734,7 +747,8 @@ class MonitorCluster:
                     logger.error(f"❌ Error reiniciando {container.name}: {e}")
             
             with self.lock:
-                self.monitor_heartbeats[node_id] = time.time() * 1000
+                # Dar tiempo para que el monitor reiniciado se estabilice
+                self.monitor_heartbeats[node_id] = time.time() * 1000 + 15000  # 15 segundos adicionales
             logger.info(f"✅ Monitor {node_id} marcado como saludable después de intentar reiniciar")
                 
         except Exception as e:

@@ -20,7 +20,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=arg_production_filter_1
     image: arg_production_filter:latest
     links:
@@ -46,7 +46,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=best_and_worst_ratings_aggregator
     links:
     - rabbitmq
@@ -71,7 +71,7 @@ services:
     - CLIENT_ID=1
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=client_1
     volumes:
     - ./files/long/movies_metadata.csv:/root/files/movies_metadata.csv
@@ -97,7 +97,7 @@ services:
     environment:
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=client_decodifier
     healthcheck:
       interval: 5s
@@ -128,7 +128,7 @@ services:
     - JOINER_INSTANCE_ID=credits-1
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=credits_joiner_1
     image: credits_joiner:latest
     links:
@@ -154,7 +154,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=esp_production_filter_1
     image: esp_production_filter:latest
     links:
@@ -177,7 +177,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=esp_production_filter_2
     image: esp_production_filter:latest
     links:
@@ -203,7 +203,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=main_movie_filter_1
     image: main_movie_filter:latest
     links:
@@ -226,7 +226,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=main_movie_filter_2
     image: main_movie_filter:latest
     links:
@@ -240,9 +240,9 @@ services:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50001
     - MONITOR_CLUSTER_PORT=50011
-    - HEARTBEAT_INTERVAL=5000
-    - HEARTBEAT_TIMEOUT=15000
-    - ELECTION_TIMEOUT=10000
+    - HEARTBEAT_INTERVAL=100
+    - HEARTBEAT_TIMEOUT=3000
+    - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
     - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,credits_joiner_1,ratings_joiner_1,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
@@ -260,9 +260,9 @@ services:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50002
     - MONITOR_CLUSTER_PORT=50012
-    - HEARTBEAT_INTERVAL=5000
-    - HEARTBEAT_TIMEOUT=15000
-    - ELECTION_TIMEOUT=10000
+    - HEARTBEAT_INTERVAL=100
+    - HEARTBEAT_TIMEOUT=3000
+    - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
     - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,credits_joiner_1,ratings_joiner_1,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
@@ -280,9 +280,9 @@ services:
     - PYTHONUNBUFFERED=1
     - MONITOR_SERVICE_PORT=50003
     - MONITOR_CLUSTER_PORT=50013
-    - HEARTBEAT_INTERVAL=5000
-    - HEARTBEAT_TIMEOUT=15000
-    - ELECTION_TIMEOUT=10000
+    - HEARTBEAT_INTERVAL=100
+    - HEARTBEAT_TIMEOUT=3000
+    - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
     - EXPECTED_SERVICES=worker,client_decodifier,client_1,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,credits_joiner_1,ratings_joiner_1,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
@@ -312,7 +312,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=no_colab_productions_filter_1
     image: no_colab_productions_filter:latest
     links:
@@ -352,7 +352,7 @@ services:
     - JOINER_INSTANCE_ID=ratings-1
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=ratings_joiner_1
     image: ratings_joiner:latest
     links:
@@ -378,7 +378,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=sentiment_aggregator
     links:
     - rabbitmq
@@ -403,7 +403,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=sentiment_filter_1
     image: sentiment_filter:latest
     links:
@@ -429,7 +429,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=top_10_credits_aggregator
     links:
     - rabbitmq
@@ -454,7 +454,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=top_5_countries_aggregator
     links:
     - rabbitmq
@@ -479,7 +479,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=twentieth_century_arg_aggregator
     links:
     - rabbitmq
@@ -504,7 +504,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=twentieth_century_arg_esp_aggregator
     links:
     - rabbitmq
@@ -529,7 +529,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=twentieth_century_filter_1
     image: twentieth_century_filter:latest
     links:
@@ -552,7 +552,7 @@ services:
     - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=twentieth_century_filter_2
     image: twentieth_century_filter:latest
     links:
@@ -571,6 +571,6 @@ services:
     environment:
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=5000
+    - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=worker
     image: worker:latest

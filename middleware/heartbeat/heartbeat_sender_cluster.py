@@ -110,7 +110,8 @@ class HeartbeatSenderCluster:
         leader_host = None
         leader_port = None
         leader_id = None
-        leader_lookup_counter = 0
+        last_leader_check = 0
+        leader_check_interval = 3000
         
         while self.running:
             try:
@@ -126,8 +127,9 @@ class HeartbeatSenderCluster:
                         continue
                     connection_failures = 0
                 
-                # Preguntar por el líder cada 10 ciclos o si no hay líder
-                if leader_id is None or leader_lookup_counter >= 10:
+
+                current_time = time.time() * 1000
+                if leader_id is None or (current_time - last_leader_check) >= leader_check_interval:
                     leader_id = self._find_leader()
                     leader_host = None
                     leader_port = None
@@ -143,9 +145,8 @@ class HeartbeatSenderCluster:
                     else:
                         logger.warning(f"No se pudo determinar el líder, reintentando en el próximo ciclo")
                         time.sleep(2)
-                        leader_lookup_counter = 0
                         continue
-                    leader_lookup_counter = 0
+                    last_leader_check = current_time
                 
                 if leader_host and leader_port:
                     heartbeat = ServiceParser.create_heartbeat(self.service_name)
@@ -153,7 +154,6 @@ class HeartbeatSenderCluster:
                     logger.debug(f"💓 Heartbeat UDP enviado por {self.service_name} a {leader_host}:{leader_port}")
                 else:
                     logger.warning(f"No hay líder disponible para enviar heartbeat")
-                leader_lookup_counter += 1
                 
             except Exception as e:
                 logger.error(f"💥 Unexpected error sending heartbeat from {self.service_name}: {e}")
@@ -163,16 +163,3 @@ class HeartbeatSenderCluster:
                 connection_failures += 1
             
             time.sleep(self.heartbeat_interval / 1000)
-    
-    def get_connection_status(self):
-        current_monitor = None
-        if self.socket:
-            current_host, current_port = self._get_current_monitor()
-            current_monitor = f"{current_host}:{current_port}"
-            
-        return {
-            'connected': self.socket is not None,
-            'current_monitor': current_monitor,
-            'available_monitors': [f"{host}:{port}" for host, port in self.monitor_endpoints],
-            'total_monitors': len(self.monitor_endpoints)
-        }
