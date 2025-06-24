@@ -24,7 +24,7 @@ class Aggregator(AbstractAggregator):
         self.batches_by_joiner = defaultdict(set)
         self.tcp_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60000))
-        self.joiner_control_publisher = Publisher("joiner_control_credits")
+        self.joiner_control_consumer = Consumer("joiner_control_credits", _message_handler=self.handle_control_message)
         self.processed_batches_map = defaultdict(set)
         self.control_log_name = "_control.log"
         self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
@@ -163,25 +163,25 @@ class Aggregator(AbstractAggregator):
         self.batches_by_joiner[joiner_id].add(batch_id)
 
 
-        #mi rama
-        # Guardar en batch_to_joiner también para mensajes de cola
-        if batch_id and joiner_id:
-            self.batch_to_joiner[batch_id] = joiner_id
-            self.logger.info(f"[Guardado en batch_to_joiner: {batch_id} -> {joiner_id}")
+        # #mi rama
+        # # Guardar en batch_to_joiner también para mensajes de cola
+        # if batch_id and joiner_id:
+        #     self.batch_to_joiner[batch_id] = joiner_id
+        #     self.logger.info(f"[Guardado en batch_to_joiner: {batch_id} -> {joiner_id}")
 
-        self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
-        if total_batches:
-            self.total_batches_per_client[client_id] = total_batches
-            self.logger.info(f"Se actualiza la cantidad total de batches:"
-                             f"{self.total_batches_per_client[client_id]} para el cliente {client_id}.")
-        self.consumer.ack(batch_id)
-        #Liberar el lock
+        # self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
+        # if total_batches:
+        #     self.total_batches_per_client[client_id] = total_batches
+        #     self.logger.info(f"Se actualiza la cantidad total de batches:"
+        #                      f"{self.total_batches_per_client[client_id]} para el cliente {client_id}.")
+        # self.consumer.ack(batch_id)
+        # #Liberar el lock
 
-        total = self.total_batches_per_client.get(client_id, None)
-        received = self.control_received_batches_per_client.get(client_id, 0)
-        if total and 0 < total <= received:
-            self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
-            self.joiner_control_publisher.enqueue({"client_id": client_id})
+        # total = self.total_batches_per_client.get(client_id, None)
+        # received = self.control_received_batches_per_client.get(client_id, 0)
+        # if total and 0 < total <= received:
+        #     self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
+        #     self.joiner_control_publisher.enqueue({"client_id": client_id})
 
     def start(self):
         self.logger.info("Iniciando agregador")
