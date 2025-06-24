@@ -18,6 +18,7 @@ class RatingsJoiner(AbstractAggregator):
         super().__init__()
         self.has_recovered_at_least_one = False
         self.movies_name = "_credits_movies.json"
+        self.pending_file = "_credits_pedning.json"
         self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
@@ -35,12 +36,9 @@ class RatingsJoiner(AbstractAggregator):
         return Producer("best_and_worst_ratings_partial_result")
 
     def process_message(self, client_id, message):
-        # if client_id not in self.results:
-        #     os.makedirs(os.path.dirname(PENDING_MESSAGES), exist_ok=True)
-        #     self.logger.info("client id " + client_id + " not ready for credits file. Saving locally")
-        #     with open(PENDING_MESSAGES, "a") as f:
-        #         f.write(json.dumps(message) + "\n")
-        #     return {}  # TODO validar este caso
+        if client_id not in self.results:
+            self.add_to_pending(client_id, message)
+            return None  # TODO validar este caso
         ratings = convert_data_for_rating_joiner(message)
         self.logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
         partial_result = defaultdict(dict)
@@ -50,7 +48,7 @@ class RatingsJoiner(AbstractAggregator):
                 self.logger.error(f"Rating no es un diccionario: {rating}")
                 continue
             movie_id = rating.get("movieId")
-            if int(movie_id) in self.results[client_id].keys() or str(movie_id) in self.results[client_id].keys():
+            if int(movie_id) in self.results[client_id].keys():
                 if movie_id not in partial_result:
                     partial_result[movie_id] = {
                         "rating_sum": float(rating.get("rating", 0)),
@@ -60,6 +58,13 @@ class RatingsJoiner(AbstractAggregator):
                     partial_result[movie_id]["rating_sum"] += float(rating.get("rating", 0))
                     partial_result[movie_id]["votes"] += 1
         return partial_result
+
+    def add_to_pending(self, client_id, message):
+        batch_id = message.get("batch_id")
+        pending_file = f"{client_id}{self.pending_file}"
+        with open(pending_file, "a") as f:
+            f.write(f"BEGIN_TRANSACTION;{batch_id};{json.dumps(message)}\n")
+            f.write(f"END_TRANSACTION;{batch_id}\n")
 
     def aggregate_message(self, client_id, result):
         self.logger.info(f"Agregando resultados para el cliente {client_id}. Resultados: {result}")
@@ -104,6 +109,7 @@ class RatingsJoiner(AbstractAggregator):
             self.producer.close()
             self.shutdown_consumer.close()
             self.control_consumer.close()
+            self.ratings_producer.close()
         except Exception as e:
             self.logger.exception(f"❌ Error al cerrar conexiones: {e}")
 
@@ -153,23 +159,50 @@ class RatingsJoiner(AbstractAggregator):
             self.persist_movies(client_id, movies)
             self.set_movies_for_client(client_id, movies)
 
-            if os.path.exists(PENDING_MESSAGES):
-                temp_path = PENDING_MESSAGES + ".tmp"
-                with open(PENDING_MESSAGES, "r") as infile, open(temp_path, "w") as outfile:
-                    for line in infile:
-                        try:
-                            pending_msg = json.loads(line)
-                        except json.JSONDecodeError:
-                            self.logger.warning("Línea inválida en archivo pendiente.")
-                            continue
+            for filename in os.listdir():
+                if not filename.endswith(self.pending_file):
+                    self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
+                    continue
+                client_id = filename.replace("%s" % self.pending_file, "")
+                self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
+                in_transaction = False
+                current_batch_id = None
+                current_payload = None
 
-                        if pending_msg.get("client_id") == client_id:
-                            self.logger.info(f"Reprocesando mensaje pendiente para cliente {client_id}")
-                            self.ratings_producer.enqueue(pending_msg)
-                        else:
-                            outfile.write(line)
+                with open(filename, "r") as f:
+                    try:
+                        for line in f:
+                            parts = line.strip().split(";", 2)
 
-                os.replace(temp_path, PENDING_MESSAGES)
+                            if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
+                                in_transaction = True
+                                current_batch_id = parts[1]
+                                current_payload = json.loads(parts[2])
+                                self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
+
+                            elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
+                                batch_id = parts[1]
+                                if batch_id != current_batch_id:
+                                    self.logger.error(
+                                        f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
+                                    continue
+                                if batch_id in self.processed_batch_ids:
+                                    self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
+                                    continue
+
+                                # self.handle_message(current_payload)
+                                self.ratings_producer.enqueue(current_payload)
+                                # Reset
+                                in_transaction = False
+                                current_batch_id = None
+                                current_payload = None
+                                # TODO si el archivo es invalido, deberiamos borrarlo
+                    except json.JSONDecodeError as e:
+                        self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
+                    except Exception as e:
+                        self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
+                        exit(1)
+                os.remove(filename)
 
             self.logger.info(f"{len(self.results[client_id])} películas guardadas para {client_id}")
             if not self.consumer.is_alive():
@@ -177,6 +210,8 @@ class RatingsJoiner(AbstractAggregator):
                 self.logger.info("Thread de consumo de ratings empezado")
             else:
                 self.logger.info("Thread de consumo de ratings no empezado, ya existe uno")
+
+            self.recheck_if_some_client_is_completed_after_restart()
 
         except Exception as e:
             self.logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
@@ -188,13 +223,12 @@ class RatingsJoiner(AbstractAggregator):
             if not isinstance(movie, dict):
                 self.logger.warning(f"Pelicula no es un diccionario. Pelicula: {movie}")
                 continue
-
             movie_id = movie.get("id")
             if not movie_id:
                 self.logger.warning(f"Pelicula sin ID: {movie}")
                 continue
 
-            self.results[client_id][movie_id] = {
+            self.results[client_id][int(movie_id)] = {
                 "title": movie.get("title", ""),
                 "rating_sum": 0,
                 "votes": 0

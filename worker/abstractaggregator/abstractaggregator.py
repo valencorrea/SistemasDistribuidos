@@ -82,6 +82,10 @@ class AbstractAggregator(Worker):
 
         # En estos tres pasos se procesa, persiste y agrega el mensaje
         result = self.process_message(client_id, message)
+        if result is None: # Esto es para el caso del que en el aggregator no tengo el movies todavia
+            self.logger.info(f"Este mensaje se persistio {batch_id} del cliente {client_id}, se va a prcesar luego.")
+            self.consumer.ack(batch_id)
+            return
         current_file_size = self.persist_result(client_id, batch_id, batch_size, total_batches, result)
         self.consumer.ack(batch_id)
         self.send_batch_processed(client_id, batch_id, batch_size, total_batches)
