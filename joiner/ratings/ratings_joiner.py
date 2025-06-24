@@ -17,8 +17,8 @@ class RatingsJoiner(AbstractAggregator):
     def __init__(self):
         super().__init__()
         self.has_recovered_at_least_one = False
-        self.movies_name = "_credits_movies.json"
-        self.pending_file = "_credits_pedning.json"
+        self.movies_name = "_ratings_movies.json"
+        self.pending_file = "_ratings_pending.json"
         self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
@@ -38,7 +38,7 @@ class RatingsJoiner(AbstractAggregator):
     def process_message(self, client_id, message):
         if client_id not in self.results:
             self.add_to_pending(client_id, message)
-            return None  # TODO validar este caso
+            return None
         ratings = convert_data_for_rating_joiner(message)
         self.logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
         partial_result = defaultdict(dict)
@@ -204,6 +204,7 @@ class RatingsJoiner(AbstractAggregator):
                         exit(1)
                 os.remove(filename)
 
+            self.recheck_if_some_client_is_completed_after_restart()
             self.logger.info(f"{len(self.results[client_id])} películas guardadas para {client_id}")
             if not self.consumer.is_alive():
                 self.consumer.start()
