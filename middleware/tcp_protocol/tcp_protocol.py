@@ -133,7 +133,7 @@ class TCPClient:
                 logger.info(f"[TCP Client] Conexión establecida con {self.host}:{self.port}")
                 
                 # Iniciar thread de escucha de respuestas
-                #self._start_response_listener()
+                self._start_response_listener()
                 return True
             except socket.gaierror as e:
                 logger.error(f"[TCP Client] Error de DNS: {e}. Host: {self.host}")
@@ -211,7 +211,25 @@ class TCPClient:
         self._response_callbacks[response_type] = callback
         logger.info(f"[TCP Client] Callback registrado para respuesta tipo: {response_type}")
 
-    def send(self, message, wait_for_response=False):
+    def send_with_response(self, message, response_type, callback, timeout=10):
+        """Envía mensaje y espera respuesta específica"""
+        try:
+            # Registrar callback temporal
+            self.register_response_callback(response_type, callback)
+            
+            # Enviar mensaje
+            if self.send(message):
+                logger.info(f"[TCP Client] Mensaje enviado, esperando respuesta tipo: {response_type}")
+                return True
+            else:
+                logger.error("[TCP Client] No se pudo enviar mensaje")
+                return False
+                
+        except Exception as e:
+            logger.error(f"[TCP Client] Error en send_with_response: {e}")
+            return False
+
+    def send(self, message):
         if not self._socket:
             logger.error("[TCP Client] No hay conexión para enviar mensaje.")
             if not self.connect():
@@ -219,24 +237,9 @@ class TCPClient:
         
         if not self._socket: # Re-check after trying to connect
              return False
-        message_json = json.dumps(message) + '\n'
+
         try:
-            self._socket.sendall(message_json.encode('utf-8'))
-            if wait_for_response:
-                buffer = ""
-                while True:
-                    data = self._socket.recv(1024)
-                    if data:
-                        buffer += data.decode('utf-8')
-                        
-                        if '\n' in buffer:
-                            message_end = buffer.find('\n')
-                            complete_message = buffer[:message_end]
-                            buffer = buffer[message_end + 1:]
-                            
-                            if complete_message.strip():
-                                return json.loads(complete_message)
-                    time.sleep(0.1)
+            self._socket.sendall(message.encode('utf-8'))
             return True
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("[TCP Client] Conexión perdida. Intentando reconectar...")

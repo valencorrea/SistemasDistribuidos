@@ -32,7 +32,11 @@ class CreditsJoiner(AbstractAggregator):
             queue_name="credits",
             queue_type="direct")
 
-        self.control_producer = Producer("joiner_control_credits")
+        #self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
+        if self.has_recovered_at_least_once:
+            self.credits_producer = Producer(
+            queue_name="credits",
+            queue_type="direct")
 
         aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
@@ -107,7 +111,7 @@ class CreditsJoiner(AbstractAggregator):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def send_batch_processed(self, client_id, batch_id, batch_size, total_batches):
-        # Esta funcion se llama cuando se procesa un batch, no es una consulta de control.
+        # TODO cuando me recupero, tengo que enviar el ultimo batch_id que persisti por si las dudas
         control_message = {
             "type": "control",
             "client_id": client_id,
@@ -120,8 +124,11 @@ class CreditsJoiner(AbstractAggregator):
             control_message["total_batches"] = self.total_batches_per_client[client_id]
 
         try:
-            self.control_producer.enqueue(control_message)
-            self.logger.info(f"Mensaje control enviado al aggregator: {control_message}")
+            tcp_message = json.dumps(control_message) + '\n'
+            if self.tcp_client.send(tcp_message):
+                self.logger.info(f"Mensaje TCP enviado al aggregator: {control_message}")
+            else:
+                self.logger.error(f"Error enviando mensaje TCP al aggregator: {control_message}")
         except Exception as e:
             self.logger.error(f"Excepción enviando mensaje TCP: {e}")
 
@@ -237,22 +244,7 @@ class CreditsJoiner(AbstractAggregator):
 
         except Exception as e:
             self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
-    def handle_message(self, message):
-        control_message = {
-            "type": "control_ack",
-            "batch_id": message.get("batch_id", None),
-            "joiner_instance_id": self.joiner_instance_id,
-            "client_id": message.get("client_id", None),
-        }
-        response = self.tcp_client.send(control_message, wait_for_response=True)
-        if response.get("type") == "control_ack" and response.get("batch_id") == message.get("batch_id"):
-            self.logger.info(f"✅ Batch {message.get('batch_id')} confirmado por el aggregator")
-            self.consumer.ack(message.get("batch_id"))
-            return
-        else:
-            self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
 
-        super().handle_message(message)
 
     def start(self):
         self.logger.info("Iniciando joiner de credits")
