@@ -17,6 +17,7 @@ class CreditsJoiner(AbstractAggregator):
         super().__init__()
         self.has_recovered_at_least_one = False
         self.movies_name = "_credits_movies.json"
+        self.pending_file = "_credits_pending.json"
         self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
@@ -34,6 +35,9 @@ class CreditsJoiner(AbstractAggregator):
         return Producer("top_10_actors_from_batch")
 
     def process_message(self, client_id, message):
+        if client_id not in self.results:
+            self.add_to_pending(client_id, message)
+            return None
         actors = convert_data(message)
         partial_result = {}
         for actor in actors:
@@ -48,9 +52,14 @@ class CreditsJoiner(AbstractAggregator):
                     partial_result[actor_id]["count"] += 1
         return partial_result
 
+    def add_to_pending(self, client_id, message):
+        batch_id = message.get("batch_id")
+        pending_file = f"{client_id}{self.pending_file}"
+        with open(pending_file, "a") as f:
+            f.write(f"BEGIN_TRANSACTION;{batch_id};{json.dumps(message)}\n")
+            f.write(f"END_TRANSACTION;{batch_id}\n")
+
     def aggregate_message(self, client_id, result):
-        if not self.results.get(client_id):
-            self.results[client_id] = {}
         for actor_id, actor_data in result.items():
             actor_id = str(actor_id)
             if actor_id not in self.results[client_id]:
@@ -124,30 +133,61 @@ class CreditsJoiner(AbstractAggregator):
         self.persist_movies(client_id, movies)
         self.movies[client_id] = movies
         self.logger.info(f"Obtenidas {message.get('total_movies')} películas")
-
-        if os.path.exists(PENDING_MESSAGES):
-            temp_path = PENDING_MESSAGES + ".tmp"
-            with open(PENDING_MESSAGES, "r") as reading_file, open(temp_path, "w") as writing_file:
-                for line in reading_file:
-                    try:
-                        msg = json.loads(line)
-                    except json.JSONDecodeError:
-                        self.logger.warning("Invalid file line.")
-                        continue
-
-                    if msg.get("client_id") == client_id:
-                        self.logger.info(f"Reprocessing message for client {client_id}")
-                        self.credits_producer.enqueue(msg)
-                    else:
-                        writing_file.write(line)
-
-            os.replace(temp_path, PENDING_MESSAGES)
+        self.results[client_id] = {}
+        self.recover_pending_messages()
 
         if not self.consumer.is_alive():
             self.consumer.start()
             self.logger.info("Thread de consumo de credits empezado")
         else:
             self.logger.info("Thread de consumo de credits no empezado, ya existe uno")
+
+    def recover_pending_messages(self):
+        for filename in os.listdir():
+            if not filename.endswith(self.pending_file):
+                self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
+                continue
+            client_id = filename.replace("%s" % self.pending_file, "")
+            self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
+            in_transaction = False
+            current_batch_id = None
+            current_payload = None
+
+            with open(filename, "r") as f:
+                try:
+                    for line in f:
+                        parts = line.strip().split(";", 2)
+
+                        if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
+                            in_transaction = True
+                            current_batch_id = parts[1]
+                            current_payload = json.loads(parts[2])
+                            self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
+
+                        elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
+                            batch_id = parts[1]
+                            if batch_id != current_batch_id:
+                                self.logger.error(
+                                    f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
+                                continue
+                            if batch_id in self.processed_batch_ids:
+                                self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
+                                continue
+
+                            # self.handle_message(current_payload)
+                            self.credits_producer.enqueue(current_payload)
+                            # Reset
+                            in_transaction = False
+                            current_batch_id = None
+                            current_payload = None
+                            # TODO si el archivo es invalido, deberiamos borrarlo
+                except json.JSONDecodeError as e:
+                    self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
+                except Exception as e:
+                    self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
+                    exit(1)
+            os.remove(filename)
+        self.recheck_if_some_client_is_completed_after_restart()
 
     def persist_movies(self, client_id, movies):
         # TODO hacer ack manual para Suscriber y ackearlo apenas se escriba en el archivo
