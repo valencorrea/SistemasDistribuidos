@@ -322,10 +322,10 @@ services:
       context: ./rabbitmq
       dockerfile: rabbitmq.dockerfile
     healthcheck:
-      interval: 10s
-      retries: 10
+      interval: 5s
+      retries: 20
       test: rabbitmq-diagnostics check_port_connectivity
-      timeout: 5s
+      timeout: 1s
     ports:
     - 15672:15672
     volumes:

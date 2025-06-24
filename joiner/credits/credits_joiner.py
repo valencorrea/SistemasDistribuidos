@@ -1,9 +1,7 @@
 import json
-import logging
 import os
 import random
 import string
-from collections import defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.consumer.subscriber import Subscriber
@@ -22,9 +20,6 @@ class CreditsJoiner(AbstractAggregator):
         self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
-        self.logger.info(f"Se finalizo la recuperacion de movies.")
-        # TODO obtener de una envar
-        self.logger.info(f"Se inicializo como worker.")
         self.movies_consumer = Subscriber("20_century_arg_result",
                                           message_handler=self.handle_movies_message)
         self.credits_producer = Producer(queue_name="credits",queue_type="direct")
@@ -89,7 +84,7 @@ class CreditsJoiner(AbstractAggregator):
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
         rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
-        return f"credits-{joiner_id}-{rand_str}"
+        return f"credits-{client_id}-{joiner_id}-{rand_str}"
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -98,6 +93,7 @@ class CreditsJoiner(AbstractAggregator):
             self.consumer.close()
             self.producer.close()
             self.credits_producer.close()
+            self.control_consumer.close()
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -122,14 +118,6 @@ class CreditsJoiner(AbstractAggregator):
         return top_10
 
     def handle_movies_message(self, message):
-        print("MENSAJE DE MOVIES RECIBIDO")
-        self.logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
-        if message.get("type") == "20_century_arg_total_result":
-            self.process_movie_message(message)
-        else:
-            self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
-
-    def process_movie_message(self, message):
         # TODO chequear que sea por cliente y no todo el archivo
         client_id = message.get("client_id")
         movies = [movie["id"] for movie in message.get("movies")]
@@ -163,7 +151,6 @@ class CreditsJoiner(AbstractAggregator):
 
     def persist_movies(self, client_id, movies):
         # TODO hacer ack manual para Suscriber y ackearlo apenas se escriba en el archivo
-        # TODO guardar en un directorio separado asi no se mezclan con los archivos de credits
         try:
             self.logger.info(f"Se va a intentar persistir el archivo de movies para el cliente {client_id}")
             movies_file = f"{client_id}{self.movies_name}"
@@ -194,10 +181,9 @@ class CreditsJoiner(AbstractAggregator):
                         continue
 
                     raw_json = lines[0][len("BEGIN_TRANSACTION;"):]
-                    current_payload = json.loads(raw_json)
+                    movies = json.loads(raw_json)
 
-                    self.movies[client_id] = current_payload
-                    # self.results[client_id] = {}
+                    self.movies[client_id] = movies
                     self.has_recovered_at_least_one = True
                     self.logger.info(f"Películas recuperadas para cliente {client_id}: {len(self.movies[client_id])} items.")
 

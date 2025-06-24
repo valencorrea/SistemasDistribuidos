@@ -1,11 +1,5 @@
-import json
-import os
 from abc import abstractmethod
-from collections import defaultdict
 
-from middleware.consumer.consumer import Consumer
-from middleware.producer.producer import Producer
-from utils.parsers.movie_parser import convert_data
 from worker.worker import Worker
 
 

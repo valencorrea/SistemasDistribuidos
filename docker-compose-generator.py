@@ -37,9 +37,9 @@ def generate_docker_yaml(config):
                 "ports": ["15672:15672"],
                 "healthcheck": {
                     "test": "rabbitmq-diagnostics check_port_connectivity",
-                    "interval": "10s",
-                    "timeout": "5s",
-                    "retries": 10
+                    "interval": "5s",
+                    "timeout": "1s",
+                    "retries": 20
                 },
                 "volumes": ["./rabbitmq/config.ini:/config.ini"]
             },

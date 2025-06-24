@@ -35,7 +35,8 @@ def main():
         while True:
             try:
                 containers = client.containers.list(filters={"status": "running"})
-                matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
+                matching = [ c for c in containers if
+                     any(c.name.startswith(f"dist-{w}_aggregator") or c.name.startswith(f"{w}_joiner") for w in whitelist) ]
                 time.sleep(interval)
                 if not matching:
                     print("No se encontraron contenedores para terminar.")
@@ -50,7 +51,9 @@ def main():
                 print(f"Error killing container: {e}")
     else:
         containers = client.containers.list(filters={"status": "running"})
-        matching = [c for c in containers if any(c.name.startswith("dist-" + w) for w in whitelist)]
+        random.shuffle(containers)
+        matching = [ c for c in containers if
+                     any(c.name.startswith(f"dist-{w}_aggregator") or c.name.startswith(f"{w}_joiner") for w in whitelist) ]
         print(f"Killing selected containers: {matching} every {interval} seconds.")
         for container in matching:
             time.sleep(interval)

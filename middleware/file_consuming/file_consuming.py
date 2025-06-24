@@ -1,5 +1,7 @@
+import random
 import socket
 import logging
+import string
 from typing import Generator, Optional, Tuple, List
 from dataclasses import dataclass
 import time
@@ -217,6 +219,7 @@ class CSVReceiver:
             return None
 
     def process_connection(self, client_socket) -> (str, Generator[Tuple[List[str], bool, CSVMetadata], None, None]):
+        random_string = self.generate_client_id()
         try:
             while True:
                 logger.debug("Por leer tipo")
@@ -235,7 +238,7 @@ class CSVReceiver:
                 line_count = 0
                 last_log_time = time.time()
                 logger.debug(f"Tipo leido: {file_type}")
-
+                client_id = f'{client_id}-{random_string}'
                 while True:
                     line = self._recv_line(client_socket)
                     if not line:
@@ -264,6 +267,10 @@ class CSVReceiver:
 
         except Exception as e:
             logger.error(f"Error procesando conexión: {e}")
+
+    @staticmethod
+    def generate_client_id():
+        return ''.join(random.choices(string.ascii_uppercase, k=4))
 
     def accept_connection(self) -> Tuple[Optional[socket.socket], Optional[str]]:
         try:
