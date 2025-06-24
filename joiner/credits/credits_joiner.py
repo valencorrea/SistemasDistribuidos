@@ -20,8 +20,6 @@ class CreditsJoiner(AbstractAggregator):
         self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
-        self.logger.info(f"Se finalizo la recuperacion de movies.")
-        self.logger.info(f"Se inicializo como worker.")
         self.movies_consumer = Subscriber("20_century_arg_result",
                                           message_handler=self.handle_movies_message)
         self.credits_producer = Producer(queue_name="credits",queue_type="direct")
@@ -95,6 +93,7 @@ class CreditsJoiner(AbstractAggregator):
             self.consumer.close()
             self.producer.close()
             self.credits_producer.close()
+            self.control_consumer.close()
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -119,14 +118,6 @@ class CreditsJoiner(AbstractAggregator):
         return top_10
 
     def handle_movies_message(self, message):
-        print("MENSAJE DE MOVIES RECIBIDO")
-        self.logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
-        if message.get("type") == "20_century_arg_total_result":
-            self.process_movie_message(message)
-        else:
-            self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
-
-    def process_movie_message(self, message):
         # TODO chequear que sea por cliente y no todo el archivo
         client_id = message.get("client_id")
         movies = [movie["id"] for movie in message.get("movies")]
@@ -190,10 +181,9 @@ class CreditsJoiner(AbstractAggregator):
                         continue
 
                     raw_json = lines[0][len("BEGIN_TRANSACTION;"):]
-                    current_payload = json.loads(raw_json)
+                    movies = json.loads(raw_json)
 
-                    self.movies[client_id] = current_payload
-                    # self.results[client_id] = {}
+                    self.movies[client_id] = movies
                     self.has_recovered_at_least_one = True
                     self.logger.info(f"Películas recuperadas para cliente {client_id}: {len(self.movies[client_id])} items.")
 

@@ -11,7 +11,7 @@ from worker.worker import Worker
 class AbstractAggregator(Worker):
     def __init__(self):
         super().__init__()
-        self.max_file_size = 100 * 1024 # 1kB masomenos
+        self.max_file_size = 100 * 1024  # 1kB masomenos
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.processed_batch_ids = set()
@@ -72,16 +72,17 @@ class AbstractAggregator(Worker):
             self.received_batches_per_client[client_id] = 0
 
         self.received_batches_per_client[client_id] += batch_size
-        self.logger.info(f"Se actualiza la cantidad recibida del cliente {client_id}: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
+        self.logger.info(
+            f"Se actualiza la cantidad recibida del cliente {client_id}: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
         if total_batches:
             self.total_batches_per_client[client_id] = total_batches
-            self.logger.info(f"Se actualiza la cantidad total de batches para el cliente {client_id}: {self.total_batches_per_client[client_id]}.")
+            self.logger.info(
+                f"Se actualiza la cantidad total de batches para el cliente {client_id}: {self.total_batches_per_client[client_id]}.")
 
         # En estos tres pasos se procesa, persiste y agrega el mensaje
         result = self.process_message(client_id, message)
         current_file_size = self.persist_result(client_id, batch_id, batch_size, total_batches, result)
-        time.sleep(1)
         self.consumer.ack(batch_id)
         self.send_batch_processed(client_id, batch_id, batch_size, total_batches)
         self.aggregate_message(client_id, result)
@@ -92,7 +93,8 @@ class AbstractAggregator(Worker):
         if self.check_if_its_completed(client_id):
             return
         elif current_file_size > self.max_file_size:
-            self.logger.info(f"El archivo de log del cliente {client_id} ha superado el tamaño máximo de {self.max_file_size} bytes.")
+            self.logger.info(
+                f"El archivo de log del cliente {client_id} ha superado el tamaño máximo de {self.max_file_size} bytes.")
             # Aca capaz agregar una condicion para no revisar siempre el tamaño del archivo
             self.compact_log_for_client(client_id)
 
@@ -101,7 +103,8 @@ class AbstractAggregator(Worker):
         pass
 
     def check_if_its_completed(self, client_id):
-        if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
+        if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= \
+                self.total_batches_per_client[client_id]:
             self.logger.info(f"Se va a enviar todo para el cliente {client_id}.")
             self.send_aggregated_result(client_id)
             self.logger.info(f"Se envio el resultado para el cliente {client_id}")
@@ -238,7 +241,7 @@ class AbstractAggregator(Worker):
                         self.logger.info(f"Archivo compactado inválido {compacted_file} eliminado.")
                         continue
 
-                if os.path.exists(log_file): # Como el compactado esta bien, borro el original
+                if os.path.exists(log_file):  # Como el compactado esta bien, borro el original
                     os.remove(log_file)
                     self.logger.info(f"Archivo original {log_file} eliminado porque hay un archivo compactado válido.")
 
@@ -259,9 +262,11 @@ class AbstractAggregator(Worker):
 
     def send_aggregated_result(self, client_id):
         result_message = self.create_final_result(client_id)
-        self.logger.info(f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}: {result_message}")
+        self.logger.info(
+            f"Enviando resultado final para el cliente {client_id} por la cola {self.producer.getname()}: {result_message}")
         if self.producer.enqueue(result_message):
-            self.logger.info(f"Resultado final enviado con {len(self.results[client_id])} películas al cliente {client_id}")
+            self.logger.info(
+                f"Resultado final enviado con {len(self.results[client_id])} películas al cliente {client_id}")
         else:
             self.logger.error(f"Error al enviar el resultado final en el cliente {client_id}")
             # TODO No estamos considerando los casos con error de conexion, deberiamos?
@@ -291,7 +296,7 @@ class AbstractAggregator(Worker):
                 for batch_id in client_batch_ids[:-1]:
                     f.write(f"ID;{batch_id}\n")
 
-                compacted_batch_id = client_batch_ids[-1] # Se usa el ultimo batch_id para el compactado
+                compacted_batch_id = client_batch_ids[-1]  # Se usa el ultimo batch_id para el compactado
                 payload = {
                     "client_id": client_id,
                     "result": aggregated_result,
@@ -301,7 +306,8 @@ class AbstractAggregator(Worker):
                     payload["total_batches"] = total_batches
                 f.write(f"BEGIN_TRANSACTION;{compacted_batch_id};{json.dumps(payload)}\n")
                 f.write(f"END_TRANSACTION;{compacted_batch_id}\n")
-                os.fsync(f.fileno()) # Flush al disco, no vaya a ser que todavia lo tengamos en ram. Hace falta si es que ya cerramos el file descriptor?
+                os.fsync(
+                    f.fileno())  # Flush al disco, no vaya a ser que todavia lo tengamos en ram. Hace falta si es que ya cerramos el file descriptor?
 
             self.logger.info(f"Archivo de log compactado exitosamente para el cliente {client_id}.")
             os.remove(log_file)
@@ -311,7 +317,6 @@ class AbstractAggregator(Worker):
         except Exception:
             self.logger.exception(
                 f"Error durante la compactación del log para el cliente {client_id}.")
-
 
     @staticmethod
     def fsync_dir():

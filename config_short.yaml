@@ -10,19 +10,19 @@ workers:
   twentieth_century:
     count: 1
     log_level: INFO
-    kill: false
+    kill: true
   main_movie:
     count: 1
     log_level: DEBUG
-    kill: false
+    kill: true
   esp_production:
     count: 1
     log_level: INFO
-    kill: false
+    kill: true
   no_colab_productions:
     count: 1
     log_level: INFO
-    kill: false
+    kill: true
   sentiment:
     count: 0
     log_level: INFO
@@ -30,9 +30,9 @@ workers:
   arg_production:
     count: 1
     log_level: INFO
-    kill: false
+    kill: true
   credits:
-    count: 2
+    count: 1
     log_level: INFO
     kill: false
   ratings:
@@ -52,7 +52,7 @@ aggregators:
   top_5_countries:
     generate: true
     log_level: INFO
-    kill: false
+    kill: true
   top_10_credits:
     generate: true
     log_level: INFO
