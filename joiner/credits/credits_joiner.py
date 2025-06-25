@@ -17,6 +17,10 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 
 class CreditsJoiner(AbstractAggregator):
     def __init__(self):
+        aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
+        aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
+        self.tcp_client = TCPClient(aggregator_host, aggregator_port)
+        self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
         super().__init__()
         self.has_recovered_at_least_once = False
         self.movies_name = "_credits_movies.json"
@@ -37,11 +41,6 @@ class CreditsJoiner(AbstractAggregator):
             self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
-
-        aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
-        aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
-        self.tcp_client = TCPClient(aggregator_host, aggregator_port)
-        self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
 
         if self.has_recovered_at_least_once:
             self.consumer.start()
@@ -270,13 +269,24 @@ class CreditsJoiner(AbstractAggregator):
         elif processing_status is False:
             super().handle_message(message)
         elif processing_status is None:
-            self.logger.warning(f"⚠️ Batch {batch_id} no fue procesado por el aggregator")
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien")
         else:
             self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
 
     def _handle_batch_processed(self, response):
         joiner_instance_id = response.get("joiner_instance_id", '-1')
         return joiner_instance_id != '-1'
+    
+    def _handle_batch_processed_for_recover(self, response):
+        joiner_instance_id = response.get("joiner_instance_id", '-1')
+        return joiner_instance_id == self.joiner_instance_id
+
+    def should_resolve_unfinished_transaction(self, batch_id):
+        response = self.tcp_client.send_with_response(batch_id, self._handle_batch_processed_for_recover)
+        if response is None:
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")
+            return False
+        return response
 
 if __name__ == '__main__':
     worker = CreditsJoiner()
