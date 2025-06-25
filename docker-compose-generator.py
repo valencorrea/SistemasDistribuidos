@@ -39,7 +39,7 @@ def generate_docker_yaml(config):
                     "test": "rabbitmq-diagnostics check_port_connectivity",
                     "interval": "5s",
                     "timeout": "1s",
-                    "retries": 20
+                    "retries": 50
                 },
                 "volumes": ["./rabbitmq/config.ini:/config.ini"]
             },
@@ -62,7 +62,7 @@ def generate_docker_yaml(config):
                     "test": 'netstat -ltn | grep -c 5000',
                     "interval": "5s",
                     "timeout": "2s",
-                    "retries": 10
+                    "retries": 50
                 }
             },
         }

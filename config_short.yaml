@@ -18,7 +18,7 @@ workers:
   twentieth_century:
     count: 1
     log_level: INFO
-    kill: true
+    kill: false
   main_movie:
     count: 1
     log_level: DEBUG
@@ -32,7 +32,7 @@ workers:
     log_level: INFO
     kill: true
   sentiment:
-    count: 1
+    count: 0
     log_level: INFO
     kill: false
   arg_production:
@@ -70,7 +70,7 @@ aggregators:
     log_level: INFO
     kill: false
   sentiment:
-    generate: true
+    generate: false
     log_level: INFO
     kill: false
 

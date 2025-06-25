@@ -39,12 +39,14 @@ class AbstractAggregator(Worker):
 
     def handle_message(self, message):
         batch_size = message.get("batch_size", None)
-        total_batches = message.get("total_batches")
+        total_batches = message.get("total_batches", None)
         client_id = message.get("client_id", None)
         batch_id = message.get("batch_id", None)
 
         batch_size = int(batch_size) if batch_size is not None else None
-        total_batches = int(total_batches) if total_batches is not None else None
+        if total_batches is not None:
+            self.logger.info(f"Mensaje de total batches recibido: {total_batches} para cliente {client_id}.")
+            total_batches = int(total_batches)
         client_id = str(client_id) if client_id is not None else None
         batch_id = str(batch_id) if batch_id is not None else None
 
@@ -57,7 +59,7 @@ class AbstractAggregator(Worker):
         #     self.consumer.ack(batch_id)
         #     return
 
-        if not client_id or not batch_size:
+        if not client_id or batch_size is None:
             self.logger.error(f"Mensaje malformado: falta client_id o batch_size en batch {batch_id}")
             self.consumer.ack(batch_id)
             return
@@ -75,7 +77,7 @@ class AbstractAggregator(Worker):
         self.logger.info(
             f"Se actualiza la cantidad recibida del cliente {client_id}: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
-        if total_batches:
+        if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(
                 f"Se actualiza la cantidad total de batches para el cliente {client_id}: {self.total_batches_per_client[client_id]}.")
@@ -107,8 +109,9 @@ class AbstractAggregator(Worker):
         pass
 
     def check_if_its_completed(self, client_id):
-        if self.total_batches_per_client[client_id] and self.received_batches_per_client[client_id] >= \
-                self.total_batches_per_client[client_id]:
+        if client_id not in self.total_batches_per_client:
+            return False
+        if self.received_batches_per_client[client_id] >= self.total_batches_per_client[client_id]:
             self.logger.info(f"Se va a enviar todo para el cliente {client_id}.")
             self.send_aggregated_result(client_id)
             self.logger.info(f"Se envio el resultado para el cliente {client_id}")

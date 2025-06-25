@@ -41,6 +41,11 @@ class Aggregator(AbstractAggregator):
     def process_message(self, client_id, message):
         ratings = message.get("ratings")
         partial_result = {}
+        if message.get("client_id", None) not in self.results.keys():
+            self.logger
+            batch_id = message["batch_id"]
+            self.consumer.ack(batch_id)
+            return
         for movie_id, data in ratings.items():
             self.logger.info(f"Procesando rating para la película {movie_id} del cliente {client_id}")
             if movie_id in partial_result:
@@ -139,7 +144,8 @@ class Aggregator(AbstractAggregator):
     def handle_control_message(self, message):
         #Adquirir el lock por cliente de los mensajes de control
         #responder si o no
-        total_batches = message.get("total_batches")
+        self.logger.info(f"Mensaje de control recibido: {message}")
+        total_batches = message.get("total_batches", None)
         batch_size = message.get("batch_size")
         joiner_id = message.get("joiner_id")
         batch_id = message.get("batch_id")
@@ -150,19 +156,22 @@ class Aggregator(AbstractAggregator):
                                                                                                            0) + batch_size
         self.batches_by_joiner[joiner_id].add(batch_id)
         self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
-        if total_batches:
+        if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(f"Se actualiza la cantidad total de batches:"
                              f"{self.total_batches_per_client[client_id]} para el cliente {client_id}.")
         self.consumer.ack(batch_id)
         #Liberar el lock
-
+        if client_id not in self.results:
+            self.results[client_id] = {}
         total = self.total_batches_per_client.get(client_id, None)
         received = self.control_received_batches_per_client.get(client_id, 0)
-        if total and 0 < total <= received:
+        if total is not None and total <= received:
             self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
             self.joiner_control_publisher.enqueue({"client_id": client_id})
-
+            control_log_filename = f"{client_id}{self.control_log_name}"
+            if os.path.exists(control_log_filename):
+                os.remove(control_log_filename)
     def start(self):
         self.logger.info("Iniciando agregador")
         # self.server.start()
