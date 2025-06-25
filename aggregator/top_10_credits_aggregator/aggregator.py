@@ -105,34 +105,38 @@ class Aggregator(AbstractAggregator):
             self.received_batches_per_client.pop(client_id)
 
 
-    def _handle_tcp_message(self, msg, addr):
+    def _handle_tcp_message(self, msg, addr, client_socket):
         try:
             self.logger.info(f"[TCP] Mensaje de control recibido: {msg}")
             data_json = json.loads(msg)
             message_type = data_json.get("type")
-            if message_type != "control":
+            if message_type == "control": #mensaje de control para guardar el batch_id y el joiner_instance_id
+                batch_id = data_json.get("batch_id")
+                joiner_instance_id = data_json.get("joiner_instance_id")
+                client_id = data_json.get("client_id")
+                joiner_instance_id_from_dic = self.batch_to_joiner.get(batch_id, None)
+                if joiner_instance_id_from_dic is None:
+                    self.batch_to_joiner[batch_id] = joiner_instance_id
+
+                # response_data = {
+                #     "type": "control_ack",
+                #     "batch_id": batch_id,
+                #     "joiner_instance_id": joiner_instance_id_from_dic,
+                #     "client_id": client_id
+                # }
+
+                # self.tcp_server.send_response(addr, response_data)
+                self.handle_control_message(data_json)
+
+            elif message_type == "batch_processed": #consulta del joiner cuando arranca para saber si ya proceso el batch
+                joiner_instance_id = self.batch_to_joiner.get(data_json.get("batch_id"), '-1')
+                client_socket.send(json.dumps({
+                    "type": "batch_processed",
+                    "joiner_instance_id": joiner_instance_id
+                }).encode('utf-8') + b'\n')
+            else:
                 self.logger.warning(f"[TCP] Tipo de mensaje desconocido: {message_type}")
-                return
-
-            batch_id = data_json.get("batch_id")
-            joiner_instance_id = data_json.get("joiner_instance_id")
-            client_id = data_json.get("client_id")
-
-            joiner_instance_id_from_dic = self.batch_to_joiner.get(batch_id, None)
-            if joiner_instance_id_from_dic is None:
-                self.batch_to_joiner[batch_id] = joiner_instance_id
-
-            response_data = {
-                "type": "control_ack",
-                "batch_id": batch_id,
-                "joiner_instance_id": joiner_instance_id_from_dic,
-                "client_id": client_id
-            }
-
-            self.tcp_server.send_response(addr, response_data)
-            self.handle_control_message(data_json)
-
-
+                
         except Exception as e:
             self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
@@ -174,7 +178,7 @@ class Aggregator(AbstractAggregator):
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(f"Se actualiza la cantidad total de batches:"
                              f"{self.total_batches_per_client[client_id]} para el cliente {client_id}.")
-        self.consumer.ack(batch_id)
+        # self.consumer.ack(batch_id)
         #Liberar el lock
 
         total = self.total_batches_per_client.get(client_id, None)

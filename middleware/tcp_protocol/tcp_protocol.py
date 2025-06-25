@@ -65,7 +65,7 @@ class TCPServer:
                     line, buffer = buffer.split(b'\n', 1)
                     msg = line.decode('utf-8').strip()
                     if msg and self.message_handler:
-                        self.message_handler(msg, addr)
+                        self.message_handler(msg, addr, client_socket)
         except (ConnectionResetError, BrokenPipeError):
             logger.warning(f"[TCP Server] Conexión perdida con {addr}")
         except Exception as e:
@@ -206,28 +206,28 @@ class TCPClient:
         except Exception as e:
             logger.error(f"[TCP Client] Error procesando respuesta: {e}")
 
-    def register_response_callback(self, response_type, callback):
-        """Registra un callback para un tipo específico de respuesta"""
-        self._response_callbacks[response_type] = callback
-        logger.info(f"[TCP Client] Callback registrado para respuesta tipo: {response_type}")
-
-    def send_with_response(self, message, response_type, callback, timeout=10):
-        """Envía mensaje y espera respuesta específica"""
+    def send_with_response(self, message, callback):
+        """Envía mensaje y espera respuesta. El callback debe ser una función que reciba un diccionario."""
         try:
-            # Registrar callback temporal
-            self.register_response_callback(response_type, callback)
-            
-            # Enviar mensaje
-            if self.send(message):
-                logger.info(f"[TCP Client] Mensaje enviado, esperando respuesta tipo: {response_type}")
-                return True
-            else:
-                logger.error("[TCP Client] No se pudo enviar mensaje")
-                return False
+            self.send(message)
+            buffer = ""
+            data = self._socket.recv(1024)
+            while True:
+                data = self._socket.recv(1024)
+                if not data:
+                    break
+                buffer += data.decode('utf-8')
+                if '\n' in buffer:
+                    message_end = buffer.find('\n')
+                    complete_message = buffer[:message_end]
+                    buffer = buffer[message_end + 1:]
+                    if complete_message.strip():
+                        return callback(json.loads(complete_message))
+            return None
                 
         except Exception as e:
             logger.error(f"[TCP Client] Error en send_with_response: {e}")
-            return False
+            return None
 
     def send(self, message):
         if not self._socket:

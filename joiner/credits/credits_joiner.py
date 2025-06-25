@@ -43,8 +43,6 @@ class CreditsJoiner(AbstractAggregator):
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
         self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
 
-        self.tcp_client.register_response_callback("control_ack", self._handle_aggregator_response)
-
         if self.has_recovered_at_least_once:
             self.consumer.start()
 
@@ -254,6 +252,31 @@ class CreditsJoiner(AbstractAggregator):
         finally:
             self.close()
 
+    def handle_message(self, message):
+        batch_id = message.get("batch_id")
+        client_id = message.get("client_id")
+        
+        control_message = {
+            "type": "batch_processed",
+            "batch_id": batch_id,
+            "client_id": client_id,
+        }
+        
+        processing_status = self.tcp_client.send_with_response(control_message, self._handle_batch_processed)
+        
+        if processing_status is True:
+            self.consumer.ack(batch_id)
+
+        elif processing_status is False:
+            super().handle_message(message)
+        elif processing_status is None:
+            self.logger.warning(f"⚠️ Batch {batch_id} no fue procesado por el aggregator")
+        else:
+            self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
+
+    def _handle_batch_processed(self, response):
+        joiner_instance_id = response.get("joiner_instance_id", '-1')
+        return joiner_instance_id != '-1'
 
 if __name__ == '__main__':
     worker = CreditsJoiner()
