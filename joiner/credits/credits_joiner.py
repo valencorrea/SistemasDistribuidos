@@ -26,10 +26,10 @@ class CreditsJoiner(AbstractAggregator):
         aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
         self.logger.info(f"TCP Client inicializado en {aggregator_host}:{aggregator_port}")
+        self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         super().__init__()
         self.has_recovered_at_least_once = False
         self.movies_name = "_credits_movies.json"
-        self.joiner_instance_id = os.environ.get("JOINER_INSTANCE_ID", "joiner_credits")
         self.movies = {}
         self.recover_movies()
         self.logger.info(f"Se finalizo la recuperacion de movies.")
