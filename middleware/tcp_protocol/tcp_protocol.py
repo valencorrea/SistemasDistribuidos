@@ -115,6 +115,7 @@ class TCPClient:
         self._response_callbacks = {}  # Para manejar respuestas asíncronas
         self._response_thread = None
         self._running = False
+        self._listener_started = False  # Flag para trackear si el listener ya fue iniciado
         self.connect()
 
     def connect(self):
@@ -133,7 +134,7 @@ class TCPClient:
                 logger.info(f"[TCP Client] Conexión establecida con {self.host}:{self.port}")
                 
                 # Iniciar thread de escucha de respuestas
-                self._start_response_listener()
+                #self._start_response_listener()
                 return True
             except socket.gaierror as e:
                 logger.error(f"[TCP Client] Error de DNS: {e}. Host: {self.host}")
@@ -209,9 +210,14 @@ class TCPClient:
     def send_with_response(self, message, callback):
         """Envía mensaje y espera respuesta. El callback debe ser una función que reciba un diccionario."""
         try:
+            # Iniciar el listener de respuestas si es la primera vez que se invoca
+            # if not self._listener_started:
+            #     self._start_response_listener()
+            #     self._listener_started = True
+            
             self.send(message)
             buffer = ""
-            data = self._socket.recv(1024)
+            #data = self._socket.recv(1024)
             while True:
                 data = self._socket.recv(1024)
                 if not data:

@@ -17,6 +17,11 @@ PENDING_MESSAGES = "/root/files/credits_pending.jsonl"
 
 class CreditsJoiner(AbstractAggregator):
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(
+            format='%(asctime)s %(levelname)-8s %(message)s',
+            level=logging.DEBUG,
+            datefmt='%H:%M:%S')
         aggregator_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         aggregator_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.tcp_client = TCPClient(aggregator_host, aggregator_port)
@@ -36,7 +41,7 @@ class CreditsJoiner(AbstractAggregator):
             queue_name="credits",
             queue_type="direct")
 
-        #self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
+        self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
         if self.has_recovered_at_least_once:
             self.credits_producer = Producer(
             queue_name="credits",
@@ -44,6 +49,7 @@ class CreditsJoiner(AbstractAggregator):
 
         if self.has_recovered_at_least_once:
             self.consumer.start()
+
 
     def create_consumer(self):
         return Consumer("credits", _message_handler=self.handle_message)
@@ -219,37 +225,56 @@ class CreditsJoiner(AbstractAggregator):
             except Exception as e:
                 self.logger.exception(f"Error al intentar recuperar películas desde archivo {filename}: {e}")
 
-    def _handle_aggregator_response(self, response):
-        try:
-            response_type = response.get("type")
-            batch_id = response.get("batch_id")
-            joiner_instance_id = response.get("joiner_instance_id")
-            client_id = response.get("client_id")
+    # def _handle_aggregator_response(self, response):
+    #     try:
+    #         response_type = response.get("type")
+    #         batch_id = response.get("batch_id")
+    #         joiner_instance_id = response.get("joiner_instance_id")
+    #         client_id = response.get("client_id")
 
-            if response_type == "control_ack":
-                self.logger.info(f"✅ Batch {batch_id} confirmado por el aggregator")
-                if joiner_instance_id:
-                    self.consumer.ack(batch_id)
-                #else:
+    #         if response_type == "control_ack":
+    #             self.logger.info(f"✅ Batch {batch_id} confirmado por el aggregator")
+    #             if joiner_instance_id:
+    #                 self.consumer.ack(batch_id)
+    #             #else:
 
-                    #result_message = self.create_final_result(client_id)
-                    #self.producer.enqueue(result_message)
-                    #self.logger.info(f"Resultado enviado {result_message}.")
-                    #self.results.pop(client_id)
-            else:
-                self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
+    #                 #result_message = self.create_final_result(client_id)
+    #                 #self.producer.enqueue(result_message)
+    #                 #self.logger.info(f"Resultado enviado {result_message}.")
+    #                 #self.results.pop(client_id)
+    #         else:
+    #             self.logger.warning(f"⚠️ Respuesta inesperada del aggregator: {response}")
 
-        except Exception as e:
-            self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
+    #     except Exception as e:
+    #         self.logger.error(f"❌ Error procesando respuesta del aggregator: {e}")
+
+
+    def handle_control_message(self, message):
+        self.logger.info(f"Mensaje de control recibido: {message}")
+        client_id = message.get("client_id")
+        if message.get("type") == "batch_processed":
+            self.logger.info(f"Batch {message.get('batch_id')} confirmado por el aggregator")
+            
+            result_message = self.create_final_result(client_id)
+            self.producer.enqueue(result_message)
+            self.logger.info(f"Resultado enviado {result_message}.")
+            self.results.pop(client_id)
 
 
     def start(self):
         self.logger.info("Iniciando joiner de credits")
         try:
             self.movies_consumer.start()
+            self.control_consumer.start()
             self.shutdown_event.wait()
         finally:
             self.close()
+
+    def format_message(self, message):
+        if isinstance(message, dict):
+            return json.dumps(message) + '\n'
+        else:
+            return str(message) + '\n'
 
     def handle_message(self, message):
         batch_id = message.get("batch_id")
@@ -261,7 +286,9 @@ class CreditsJoiner(AbstractAggregator):
             "client_id": client_id,
         }
         
-        processing_status = self.tcp_client.send_with_response(control_message, self._handle_batch_processed)
+        formatted_message = self.format_message(control_message)
+        self.logger.info(f"Enviando mensaje de batch_processed al aggregator: {control_message}")
+        processing_status = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed)
         
         if processing_status is True:
             self.consumer.ack(batch_id)
@@ -274,6 +301,7 @@ class CreditsJoiner(AbstractAggregator):
             self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
 
     def _handle_batch_processed(self, response):
+        self.logger.info(f"Respuesta recibida del aggregator: {response}")
         joiner_instance_id = response.get("joiner_instance_id", '-1')
         return joiner_instance_id != '-1'
     
@@ -282,7 +310,13 @@ class CreditsJoiner(AbstractAggregator):
         return joiner_instance_id == self.joiner_instance_id
 
     def should_resolve_unfinished_transaction(self, batch_id):
-        response = self.tcp_client.send_with_response(batch_id, self._handle_batch_processed_for_recover)
+        control_message = {
+            "type": "batch_processed",
+            "batch_id": batch_id,
+        }        
+        formatted_message = self.format_message(control_message)
+        self.logger.info(f"Enviando mensaje de should_resolve_unfinished_transaction al aggregator: {batch_id}")
+        response = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed_for_recover)
         if response is None:
             self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")
             return False

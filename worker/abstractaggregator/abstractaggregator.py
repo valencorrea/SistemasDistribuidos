@@ -215,6 +215,7 @@ class AbstractAggregator(Worker):
             # TODO No estamos considerando los casos con error de conexion, deberiamos?
 
     def resolve_unfinished_transaction(self, line, current_batch_id, current_payload):
+        self.logger.info(f"Validando si finalizar la transaccion {current_batch_id}")
         parts = line.strip().split(";", 2)
         if parts[0] == "END_TRANSACTION" and len(parts) == 2 and self.should_resolve_unfinished_transaction(parts[1]):
             batch_id = parts[1]
@@ -232,6 +233,7 @@ class AbstractAggregator(Worker):
                 self.received_batches_per_client[client_id] = 0
                 self.logger.info(f"Nuevo cliente recuperado: {client_id}")
 
+            self.logger.info(f"Procesando la transaccion {current_batch_id}")
             self.aggregate_message(client_id, result)
             self.received_batches_per_client[client_id] += batch_size
 
