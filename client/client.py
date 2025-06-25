@@ -40,7 +40,7 @@ class Client:
         with open(self.results_path, "r", encoding="utf-8") as f:
             expected = json.load(f)
             print("Parsed results as JSON:")
-            print(json.dumps(expected, indent=2, ensure_ascii=False))
+            print(json.dumps(expected, ensure_ascii=False))
 
         for result in self.sender.receive_results(expected_results=5):
             try:
@@ -60,27 +60,27 @@ class Client:
             if not self.compare_query_1(parsed, expected["1"]):
                 logger.error("Error en la comparación de la consulta 1")
             else:
-                logger.info("Resultado 1 correcto!")
+                logger.info("✅ 1️ Resultado 1 correcto!")
         elif number == 2:
             if not self.compare_query_2(parsed, expected["2"]):
                 logger.error("Error en la comparación de la consulta 2")
             else:
-                logger.info("Resultado 2 correcto!")
+                logger.info("✅ 2️ Resultado 2 correcto!")
         elif number == 3:
             if not self.compare_query_3(parsed, expected["3"]):
                 logger.error("Error en la comparación de la consulta 3")
             else:
-                logger.info("Resultado 3 correcto!")
+                logger.info("✅ 3️ Resultado 3 correcto!")
         elif number == 4:
             if not self.compare_query_4(parsed, expected["4"]):
                 logger.error("Error en la comparación de la consulta 4")
             else:
-                logger.info("Resultado 4 correcto!")
+                logger.info("✅ 4️ Resultado 4 correcto!")
         elif number == 5:
             if not self.compare_query_5(parsed, expected["5"]):
-                logger.error("Error en la comparación de la consulta 5")
+                logger.error("🧐 Error en la comparación de la consulta 5")
             else:
-                logger.info("Resultado 5 correcto!")
+                logger.info("✅ 5️ Resultado 5 correcto!")
         else:
             logger.error(f"Resultado desconocido: {number}")
 

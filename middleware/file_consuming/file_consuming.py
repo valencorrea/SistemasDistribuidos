@@ -132,9 +132,9 @@ class CSVSender:
                 if line_count % 10000 == 0:
                     progress = (bytes_sent / file_size) * 100 if file_size > 0 else 0
                     logger.debug(f"Progreso de {file_path}: {progress:.2f}% ({line_count} líneas enviadas)")
-                if line_count > 40000:
-                    logger.info(f"matando cliente en las 40000 lineas")
-                    exit(22)
+                # if line_count > 40000:
+                #     logger.info(f"matando cliente en las 40000 lineas")
+                #     exit(22)
 
 
         if not self._send_line("EOF"):
