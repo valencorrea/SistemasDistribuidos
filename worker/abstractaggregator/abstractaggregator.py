@@ -175,7 +175,8 @@ class AbstractAggregator(Worker):
 
             with open(filename, "r") as f:
                 try:
-                    for line in f:
+                    line = f.readline()
+                    while next_line := f.readline():
                         parts = line.strip().split(";", 2)
 
                         if parts[0] == "ID" and len(parts) == 2:
@@ -221,6 +222,9 @@ class AbstractAggregator(Worker):
                             current_batch_id = None
                             current_payload = None
                             # TODO si el archivo es invalido, deberiamos borrarlo
+                        line = next_line
+                    if in_transaction:
+                        self.resolve_unfinished_transaction(line, current_batch_id, current_payload)
                 except json.JSONDecodeError as e:
                     self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
                 except Exception as e:
@@ -278,6 +282,38 @@ class AbstractAggregator(Worker):
             self.logger.error(f"Error al enviar el resultado final en el cliente {client_id}")
             # TODO No estamos considerando los casos con error de conexion, deberiamos?
 
+    def resolve_unfinished_transaction(self, line, current_batch_id, current_payload):
+        self.logger.info(f"Validando si finalizar la transaccion {current_batch_id}")
+        parts = line.strip().split(";", 2)
+        if parts[0] == "END_TRANSACTION" and len(parts) == 2 and self.should_resolve_unfinished_transaction(parts[1]):
+            batch_id = parts[1]
+            if batch_id != current_batch_id:
+                self.logger.error(f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
+                return
+
+            client_id = current_payload.get("client_id")
+            result = current_payload.get("result", [])
+            batch_size = current_payload.get("batch_size", 0)
+            total_batches = current_payload.get("total_batches")
+
+            if client_id not in self.results:
+                # self.results[client_id] = {}
+                self.received_batches_per_client[client_id] = 0
+                self.logger.info(f"Nuevo cliente recuperado: {client_id}")
+
+            self.logger.info(f"Procesando la transaccion {current_batch_id}")
+            self.aggregate_message(client_id, result)
+            self.received_batches_per_client[client_id] += batch_size
+
+            if total_batches is not None:
+                self.total_batches_per_client[client_id] = total_batches
+
+            self.processed_batch_ids.add(batch_id)
+            self.logger.info(f"Transacción recuperada con id {current_batch_id}.")
+
+    def should_resolve_unfinished_transaction(self, batch_id):
+        return True
+        
     def compact_log_for_client(self, client_id):
         log_file = f"{client_id}{self.results_log_name}"
         if not os.path.exists(log_file):

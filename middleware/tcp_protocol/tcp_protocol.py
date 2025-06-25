@@ -13,6 +13,7 @@ class TCPServer:
         self.message_handler = message_handler_callback
         self._server_socket = None
         self._running = False
+        self._client_connections = {}  # addr -> client_socket para enviar respuestas
 
     def start(self):
         try:
@@ -39,6 +40,10 @@ class TCPServer:
             try:
                 client_socket, addr = self._server_socket.accept()
                 logger.info(f"[TCP Server] Conexión aceptada de {addr}")
+                
+                # Guardar la conexión para poder enviar respuestas
+                self._client_connections[addr] = client_socket
+                
                 client_thread = threading.Thread(target=self._handle_client, args=(client_socket, addr))
                 client_thread.daemon = True
                 client_thread.start()
@@ -60,16 +65,42 @@ class TCPServer:
                     line, buffer = buffer.split(b'\n', 1)
                     msg = line.decode('utf-8').strip()
                     if msg and self.message_handler:
-                        self.message_handler(msg, addr)
+                        self.message_handler(msg, addr, client_socket)
         except (ConnectionResetError, BrokenPipeError):
             logger.warning(f"[TCP Server] Conexión perdida con {addr}")
         except Exception as e:
             logger.error(f"[TCP Server] Error manejando cliente {addr}: {e}")
         finally:
+            # Remover la conexión cuando se cierra
+            if addr in self._client_connections:
+                del self._client_connections[addr]
             client_socket.close()
+
+    def send_response(self, addr, response_data):
+        try:
+            if addr in self._client_connections:
+                client_socket = self._client_connections[addr]
+                response_message = json.dumps(response_data) + '\n'
+                client_socket.sendall(response_message.encode('utf-8'))
+                logger.info(f"[TCP Server] Respuesta enviada a {addr}: {response_data}")
+                return True
+            else:
+                logger.warning(f"[TCP Server] No hay conexión activa para {addr}")
+                return False
+        except Exception as e:
+            logger.error(f"[TCP Server] Error enviando respuesta a {addr}: {e}")
+            return False
 
     def stop(self):
         self._running = False
+        # Cerrar todas las conexiones de clientes
+        for addr, client_socket in self._client_connections.items():
+            try:
+                client_socket.close()
+            except Exception:
+                pass
+        self._client_connections.clear()
+        
         if self._server_socket:
             self._server_socket.close()
         logger.info("[TCP Server] Servidor detenido.")
@@ -84,6 +115,7 @@ class TCPClient:
         self._response_callbacks = {}  # Para manejar respuestas asíncronas
         self._response_thread = None
         self._running = False
+        self._listener_started = False  # Flag para trackear si el listener ya fue iniciado
         self.connect()
 
     def connect(self):
@@ -102,7 +134,7 @@ class TCPClient:
                 logger.info(f"[TCP Client] Conexión establecida con {self.host}:{self.port}")
                 
                 # Iniciar thread de escucha de respuestas
-                self._start_response_listener()
+                #self._start_response_listener()
                 return True
             except socket.gaierror as e:
                 logger.error(f"[TCP Client] Error de DNS: {e}. Host: {self.host}")
@@ -175,28 +207,33 @@ class TCPClient:
         except Exception as e:
             logger.error(f"[TCP Client] Error procesando respuesta: {e}")
 
-    def register_response_callback(self, response_type, callback):
-        """Registra un callback para un tipo específico de respuesta"""
-        self._response_callbacks[response_type] = callback
-        logger.info(f"[TCP Client] Callback registrado para respuesta tipo: {response_type}")
-
-    def send_with_response(self, message, response_type, callback, timeout=10):
-        """Envía mensaje y espera respuesta específica"""
+    def send_with_response(self, message, callback):
+        """Envía mensaje y espera respuesta. El callback debe ser una función que reciba un diccionario."""
         try:
-            # Registrar callback temporal
-            self.register_response_callback(response_type, callback)
+            # Iniciar el listener de respuestas si es la primera vez que se invoca
+            # if not self._listener_started:
+            #     self._start_response_listener()
+            #     self._listener_started = True
             
-            # Enviar mensaje
-            if self.send(message):
-                logger.info(f"[TCP Client] Mensaje enviado, esperando respuesta tipo: {response_type}")
-                return True
-            else:
-                logger.error("[TCP Client] No se pudo enviar mensaje")
-                return False
+            self.send(message)
+            buffer = ""
+            #data = self._socket.recv(1024)
+            while True:
+                data = self._socket.recv(1024)
+                if not data:
+                    break
+                buffer += data.decode('utf-8')
+                if '\n' in buffer:
+                    message_end = buffer.find('\n')
+                    complete_message = buffer[:message_end]
+                    buffer = buffer[message_end + 1:]
+                    if complete_message.strip():
+                        return callback(json.loads(complete_message))
+            return None
                 
         except Exception as e:
             logger.error(f"[TCP Client] Error en send_with_response: {e}")
-            return False
+            return None
 
     def send(self, message):
         if not self._socket:
