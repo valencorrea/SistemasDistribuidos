@@ -6,9 +6,8 @@ from collections import Counter, defaultdict
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
-from worker.abstractaggregator.abstractaggregator import AbstractAggregator
-from worker.worker import Worker
 from middleware.tcp_protocol.tcp_protocol import TCPServer
+from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -45,7 +44,6 @@ class Aggregator(AbstractAggregator):
         self.logger.info(f"Tipo de mensaje recibido: {type_of_message}")
         if type_of_message == "query_4_top_10_actores_credits":
             if message.get("client_id", None) not in self.results.keys():
-                self.logger
                 batch_id = message["batch_id"]
                 self.consumer.ack(batch_id)
                 return

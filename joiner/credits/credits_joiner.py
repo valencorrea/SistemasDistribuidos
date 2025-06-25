@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import string
@@ -103,11 +104,8 @@ class CreditsJoiner(AbstractAggregator):
         try:
             movies_file = f"{client_id}{self.movies_name}"
             if os.path.exists(movies_file):
-            if os.path.exists(pending_file):
                 os.remove(movies_file)
-            pending_file = f"{client_id}{self.pending_file}"
             results_file = f"{client_id}{self.results_log_name}"
-                os.remove(pending_file)
             if os.path.exists(results_file):
                 os.remove(results_file)
             self.results.pop(client_id)
@@ -302,7 +300,7 @@ class CreditsJoiner(AbstractAggregator):
             result_message = self.create_final_result(client_id)
             self.producer.enqueue(result_message)
             self.logger.info(f"Resultado enviado {result_message}.")
-            self.results.pop(client_id)
+            self.clean_client()
 
 
     def start(self):

@@ -133,6 +133,8 @@ def generate_docker_yaml(config):
         if "credits_joiner" in name:
             env.append(f"JOINER_INSTANCE_ID=credits-{credits_joiner_id_counter}")
             credits_joiner_id_counter += 1
+            env.append("AGGREGATOR_HOST=top_10_credits_aggregator")
+            env.append("AGGREGATOR_PORT=60000")
         elif "ratings_joiner" in name:
             env.append(f"JOINER_INSTANCE_ID=ratings-{ratings_joiner_id_counter}")
             ratings_joiner_id_counter += 1
@@ -183,8 +185,9 @@ def generate_docker_yaml(config):
         generate = agg_conf.get("generate", False)
         if not generate:
             continue
+
         log_level = agg_conf.get("log_level", "INFO")
-        template["services"][name] = {
+        service_def = {
             "build": {
                 "context": ".",
                 "dockerfile": dockerfile
@@ -204,6 +207,11 @@ def generate_docker_yaml(config):
                 f"LOG_LEVEL={log_level}"
             ]
         }
+
+        if "credits" in name:
+            service_def["ports"] = ["60000:60000"]
+
+        template["services"][name] = service_def
         all_services.append(name)
 
     monitor_cluster_nodes = [f"monitor_{i}" for i in range(1, monitor_count + 1)]

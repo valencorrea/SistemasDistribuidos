@@ -149,11 +149,11 @@ services:
     - PYTHONUNBUFFERED=1
     - LOG_LEVEL=INFO
     - JOINER_INSTANCE_ID=credits-1
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
     - AGGREGATOR_HOST=top_10_credits_aggregator
     - AGGREGATOR_PORT=60000
-    - HEARTBEAT_INTERVAL=100
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=2000
     - SERVICE_NAME=credits_joiner_1
     image: credits_joiner:latest
     links:
@@ -501,10 +501,10 @@ services:
     links:
     - rabbitmq
   top_10_credits_aggregator:
-    container_name: top_10_credits_aggregator
     build:
       context: .
       dockerfile: aggregator/top_10_credits_aggregator/aggregator.dockerfile
+    container_name: top_10_credits_aggregator
     depends_on:
       monitor_1:
         condition: service_started
