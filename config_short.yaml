@@ -79,5 +79,5 @@ aggregators:
     kill: true
 
 test:
-  random: false
-  interval: 1
+  random: true
+  interval: 6

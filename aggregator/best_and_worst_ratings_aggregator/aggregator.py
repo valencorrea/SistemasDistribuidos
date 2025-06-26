@@ -159,9 +159,27 @@ class Aggregator(AbstractAggregator):
 
         total = self.total_batches_per_client.get(client_id, None)
         received = self.control_received_batches_per_client.get(client_id, 0)
+        if total is not None:
+            self.logger.info(f"Total de batches para el cliente {client_id}: {total}, recibidos: {received}")
+        else:
+            self.logger.info(f"No se encontró el total de batches para el cliente {client_id}, recibido: {received}")
         if total and 0 < total <= received:
             self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
             self.joiner_control_publisher.enqueue({"client_id": client_id})
+
+    def delete_client(self, client_id):
+        try:
+            self.logger.info(f" Se va a borrar el cliente {client_id} de  los clientes {self.results.keys()}")
+            if client_id in self.results:
+                self.results.pop(client_id)
+            if client_id in self.total_batches_per_client:
+                self.total_batches_per_client.pop(client_id)
+            if client_id in self.received_batches_per_client:
+                self.received_batches_per_client.pop(client_id)
+            self.delete_file(f"{client_id}{self.results_log_name}")
+            self.delete_file(f"{client_id}{self.control_log_name}")
+        except KeyError:
+            self.logger.exception(f"Error al eliminar el resultado del cliente {client_id}")
 
     def start(self):
         self.logger.info("Iniciando agregador")

@@ -5,6 +5,7 @@ import time
 from abc import abstractmethod
 from collections import defaultdict
 
+from middleware.consumer.subscriber import Subscriber
 from worker.worker import Worker
 
 
@@ -22,6 +23,17 @@ class AbstractAggregator(Worker):
         # TODO revisar el caso borde del ultimo batch si es que se vuelve de una recuperacion
         self.load_processed_batches()
         self.consumer = self.create_consumer()
+        self.clients_announcer_subscriber = Subscriber("clients_announcer", message_handler=self.clean_all_clients)
+        self.clients_announcer_subscriber.start()
+
+    def clean_all_clients(self, message):
+        try:
+            active_clients = message["active_clients"]
+            self.logger.info("Recibido mensaje de limpieza de clientes: Activos: %s", active_clients)
+            for client_id in list(self.results.keys()) not in active_clients:
+                self.delete_client(client_id)
+        except:
+            self.logger.exception("Error al procesar el mensaje de limpieza de clientes. Se ignora el mensaje.")
 
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
@@ -132,7 +144,7 @@ class AbstractAggregator(Worker):
             os.remove(log_file)
             self.logger.info(f"Archivo de log {log_file} eliminado.")
         else:
-            self.logger.warning(f"Archivo de log {log_file} no encontrado, no se puede eliminar.")
+            self.logger.warning(f"Archivo de log {log_file} no encontrado para eliminar.")
 
     def persist_result(self, client_id, batch_id, batch_size, total_batches, result) -> int:
         # TODO Cada tanto crear un acumulado de log y borrar lo viejo

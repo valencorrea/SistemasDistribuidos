@@ -75,7 +75,7 @@ class HeartbeatSenderCluster:
                     leader_id = response_data.get("leader_id")
                     
                     if leader_id is not None:
-                        logger.info(f"✅ Encontrado líder: {leader_id} en {host}:{port}")
+                        # logger.info(f"✅ Encontrado líder: {leader_id} en {host}:{port}")
                         s.close()
                         return leader_id
                 s.close()
@@ -137,7 +137,7 @@ class HeartbeatSenderCluster:
                         for host, port in self.monitor_endpoints:
                             if host.endswith(str(leader_id)) or host == f"monitor_{leader_id}":
                                 leader_host, leader_port = host, port
-                                logger.info(f"💡 Enviando heartbeats al líder {leader_host}:{leader_port}")
+                                # logger.info(f"💡 Enviando heartbeats al líder {leader_host}:{leader_port}")
                                 break
                         else:
                             logger.warning(f"No se encontró el host del líder {leader_id} en la lista de monitores")
