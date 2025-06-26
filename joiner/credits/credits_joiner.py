@@ -88,7 +88,24 @@ class CreditsJoiner(AbstractAggregator):
         result_message = self.create_final_result(client_id)
         self.producer.enqueue(result_message)
         self.logger.info(f"Resultado enviado {result_message}.")
-        self.results.pop(client_id)
+        self.clean_client(client_id)
+
+    def clean_client(self, client_id):
+        try:
+            movies_file = f"{client_id}{self.movies_name}"
+            if os.path.exists(movies_file):
+                os.remove(movies_file)
+            pending_file = f"{client_id}{self.pending_file}"
+            if os.path.exists(pending_file):
+                os.remove(pending_file)
+            results_file = f"{client_id}{self.results_log_name}"
+            if os.path.exists(results_file):
+                os.remove(results_file)
+            self.results.pop(client_id)
+            self.total_batches_per_client.pop(client_id)
+            self.received_batches_per_client.pop(client_id)
+        except Exception as e:
+            self.logger.error(f"Error al limpiar cliente {client_id}: {e}")
 
     @staticmethod
     def generate_batch_id(client_id, joiner_id):
@@ -115,8 +132,9 @@ class CreditsJoiner(AbstractAggregator):
             "batch_size": batch_size,
             "joiner_id": self.joiner_instance_id,
         }
-        if client_id in self.total_batches_per_client:
-            control_message["total_batches"] = self.total_batches_per_client[client_id]
+        if total_batches is not None:
+            self.logger.info(f"Se recibio la cantidad de batches {total_batches} para el cliente {client_id}.")
+            control_message["total_batches"] = total_batches
         # Enviar por tcp
         self.producer.enqueue(control_message)
         self.logger.info(f"Control enviado al aggregator: {control_message}")

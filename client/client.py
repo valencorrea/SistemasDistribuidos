@@ -19,8 +19,8 @@ class Client:
             port=int(os.getenv("DECODIFIER_PORT", 50000))
         )
         self.files_to_send = [
-            ("/root/files/ratings.csv", "rating"),
             ("/root/files/movies_metadata.csv", "movie"),
+            ("/root/files/ratings.csv", "rating"),
             ("/root/files/credits.csv", "credit"),
         ]
         self.client_id = os.getenv("CLIENT_ID")

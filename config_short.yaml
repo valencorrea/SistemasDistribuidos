@@ -22,7 +22,7 @@ workers:
   twentieth_century:
     count: 2
     log_level: INFO
-    kill: true
+    kill: false
   main_movie:
     count: 2
     log_level: DEBUG

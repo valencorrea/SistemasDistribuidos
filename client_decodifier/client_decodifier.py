@@ -35,9 +35,17 @@ class ClientDecodifier(Worker):
                 self.client_sockets.pop(client_id)
 
     def process_connection(self, client_socket):
-        movie_producer = Producer("movie_main_filter")
-        actor_producer = Producer("credits")
-        rating_producer = Producer("ratings")
+        metadata = None
+        total_batches = None
+        client_id = None
+
+        producers = {
+            "movie": Producer("movie_main_filter"),
+            "credit": Producer("credits"),
+            "rating": Producer("ratings"),
+        }
+        last_metadata = None
+        total_batches = 0
         try:
             self.logger.info("Iniciando procesamiento de nueva conexión")
             generated = self.csv_receiver.process_connection(client_socket)
@@ -46,21 +54,9 @@ class ClientDecodifier(Worker):
             for client_id, batch, is_last, metadata in generated:
                 self.add_client(client_id, client_socket)
 
-                if metadata.type == "movie":
-                    producer = movie_producer
-                elif metadata.type == "credit":
-                    producer = actor_producer
-                elif metadata.type == "rating":
-                    producer = rating_producer
-                else:
-                    self.logger.error(f"Metadata no reconocido")
-                    return
                 if last_metadata != metadata.type:
                     total_batches = 0
                 last_metadata = metadata.type
-                if not producer:
-                    self.logger.error(f"Tipo de archivo no válido: {metadata.type}")
-                    continue
 
                 self.logger.debug(f"Preparando mensaje para enviar batch de tipo {metadata.type} con {len(batch)} líneas")
                 
@@ -68,17 +64,21 @@ class ClientDecodifier(Worker):
                     "type": metadata.type,
                     "cola": batch,
                     "batch_size": len(batch),
-                    "total_batches": total_batches + len(batch) if is_last else 0,
+                    # "total_batches": total_batches + len(batch) if is_last else 0,
                     "client_id": client_id,
                     "batch_id": self.generate_batch_id(client_id, metadata.type, total_batches, is_last),
                 }
+                if is_last:
+                    message["total_batches"] = total_batches + len(batch)
 
                 self.logger.debug(f"Enviando {metadata.type} de {client_id} con batch_id {message['batch_id']}")
 
                 if is_last:
                     self.logger.info(f"Enviando ultimo batch de {metadata.type} de {client_id}")
 
-                if not self.send(message, producer):
+                try:
+                    producers[metadata.type].enqueue(message)
+                except Exception as e:
                     self.logger.error(f"[ERROR] Falló el envío del batch {total_batches + 1} a RabbitMQ")
                 
                 total_batches += len(batch)
@@ -87,10 +87,58 @@ class ClientDecodifier(Worker):
 
         except Exception as e:
             self.logger.error(f"Error en process_connection: {e}", exc_info=True)
-        finally:
-            movie_producer.close()
-            actor_producer.close()
-            rating_producer.close()
+            self.logger.error(
+                f"Error al procesar la conexión, limpiando cliente. Ultima metadata: {last_metadata}, batches enviados: {total_batches}")
+            self.send_poisoned_messages(producers, client_id, metadata.type, total_batches)
+
+        self.logger.info(f"Terminando thread de cliente")
+        for producer in producers.values():
+            producer.close()
+
+    def send_poisoned_messages(self, producers, client_id, metadata_type, total_batches):
+        # Este metodo es para enviar un mensaje final falso para forzar la limpieza de los recursos de un cliente
+        if not metadata_type or not client_id:
+            self.logger.info("Parece no haberse enviado nada todavia, no se enviará mensaje final")
+            return
+        if metadata_type == "movie":
+            if total_batches == 0:
+                self.logger.info(f"No se envio nada con movies, no es necesario enviar mensaje final")
+                return
+            self.logger.info(f"Enviando mensaje final a cliente para metadata {metadata_type} con {total_batches} batches")
+            final_message = {
+                "type": "movie",
+                "batch_size": 0,
+                "total_batches": total_batches,
+                "client_id": client_id,
+                "batch_id": self.generate_batch_id(client_id, "movie", total_batches, is_poison = True),
+                "is_final": True,
+            }
+            producers["movie"].enqueue(final_message)
+        if metadata_type == "credit" or metadata_type == "movie":
+            current_amount = total_batches if metadata_type is "credit" else 0
+            self.logger.info(f"Enviando mensaje final a cliente para metadata credit con {current_amount} batches")
+            final_message = {
+                "type": "credit",
+                "batch_size": 0,
+                "total_batches": current_amount,
+                "client_id": client_id,
+                "batch_id": self.generate_batch_id(client_id, "credit", current_amount, is_poison = True),
+                "is_final": True,
+            }
+            producers["credit"].enqueue(final_message)
+        if metadata_type is not None:
+            current_amount = total_batches if metadata_type is "rating" else 0
+            self.logger.info(f"Enviando mensaje final a cliente para metadata rating con {current_amount} batches")
+            final_message = {
+                "type": "rating",
+                "batch_size": 0,
+                "total_batches": current_amount,
+                "client_id": client_id,
+                "batch_id": self.generate_batch_id(client_id, "rating", current_amount, is_poison = True),
+                "is_final": True,
+            }
+            producers["rating"].enqueue(final_message)
+            self.client_sockets.pop(client_id)
 
         self.logger.info(f"Terminando thread de cliente")
         for producer in producers.values():
@@ -154,10 +202,10 @@ class ClientDecodifier(Worker):
             producers["rating"].enqueue(final_message)
 
     @staticmethod
-    def generate_batch_id(client_id, metadata_type, order_number, is_total: bool):
+    def generate_batch_id(client_id, metadata_type, order_number, is_total: bool = False, is_poison: bool = False):
         rand_str = ''.join(random.choices(string.ascii_uppercase, k=4))
         order_str = f"{order_number:04d}"
-        return f"{client_id}-{metadata_type}-{order_str}-{'Y' if is_total else 'N'}-{rand_str}"
+        return f"{client_id}-{metadata_type}-{order_str}-{'Y' if is_total else 'P' if is_poison else 'N'}-{rand_str}"
 
     def start(self):
 
@@ -233,22 +281,15 @@ class ClientDecodifier(Worker):
                     self.logger.info(f"se cierra connexion con cliente {client_id}")
                     self.close_client_socket(client_id)
             except Exception as e:
-                self.logger.error(f"Error enviando resultado a cliente {client_id}: {e}")
+                self.logger.info(f"Error enviando resultado a cliente {client_id}. Cliente desconectado. Se descartan los resultados")
         else:
-            self.logger.warning(f"No se encontró socket para client_id: {client_id}")
+            self.logger.warning(f"No se encontró socket para client_id: {client_id}. Cliente desconectado. Se descartan los resultados")
 
         #self.test_producer.enqueue(query_result)
 
     def close(self):
         self.logger.info(f"Closing all workers")
         self.result_consumer.close()
-
-    def send(self, message: dict, producer) -> bool:
-        try:
-            return producer.enqueue(message)
-        except Exception as e:
-            self.logger.error(f"[ERROR] Error al enviar mensaje: {e}")
-            return False
 
 
 if __name__ == '__main__':

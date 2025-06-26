@@ -32,27 +32,27 @@ class Filter(Worker):
             self.logger.error(f"Mensaje malformado: falta batch_id")
 
         client_id = message.get("client_id")
-        batch_size = message.get("batch_size")
+        batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches", None)
 
-        if not client_id or not batch_size:
-            self.logger.error(f"Mensaje malformado: falta client_id o batch_size en batch {batch_id}")
+        if not client_id or batch_size is None:
+            self.logger.error(f"Mensaje malformado: falta client_id o batch_size en batch {batch_id}: {message}")
             return
 
-        if total_batches:
+        if total_batches is not None:
             self.logger.info(f"Se recibio el mensaje {batch_id} con total_batches: {total_batches} del cliente {client_id}")
-        else:
-            self.logger.info(f"Se recibio {batch_id} del cliente {client_id}")
         result = self.filter(message)
 
         result = {
             self.result_name: result,
             "batch_size": message.get("batch_size", 0),
-            "total_batches": total_batches,
             "type": "batch_result",
             "client_id": client_id,
             "batch_id": batch_id
         }
+
+        if total_batches is not None:
+            result["total_batches"] = total_batches
 
         for producer in self.producers:
             producer.enqueue(result)

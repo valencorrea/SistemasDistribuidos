@@ -124,7 +124,7 @@ services:
     - SERVICE_NAME=client_decodifier
     healthcheck:
       interval: 5s
-      retries: 10
+      retries: 50
       test: netstat -ltn | grep -c 5000
       timeout: 2s
     ports:
@@ -392,7 +392,7 @@ services:
       dockerfile: rabbitmq.dockerfile
     healthcheck:
       interval: 5s
-      retries: 20
+      retries: 50
       test: rabbitmq-diagnostics check_port_connectivity
       timeout: 1s
     ports:

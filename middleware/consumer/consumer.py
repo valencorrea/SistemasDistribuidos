@@ -160,8 +160,8 @@ class Consumer(threading.Thread):
                 logger.debug(f"ACK sent for message_id {message_id}")
             except Exception as e:
                 logger.exception(f"Failed to ack message_id {message_id}: {e}")
-        else:
-            logger.warning(f"No delivery tag found for message_id {message_id}")
+        # else:
+            # logger.warning(f"No se encontro tag para {message_id}")
 
 
 def get_timestamp():

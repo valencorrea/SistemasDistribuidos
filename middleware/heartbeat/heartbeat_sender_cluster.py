@@ -151,7 +151,7 @@ class HeartbeatSenderCluster:
                 if leader_host and leader_port:
                     heartbeat = ServiceParser.create_heartbeat(self.service_name)
                     self.socket.sendto(heartbeat.encode(), (leader_host, leader_port))
-                    logger.debug(f"💓 Heartbeat UDP enviado por {self.service_name} a {leader_host}:{leader_port}")
+                    # logger.debug(f"💓 Heartbeat UDP enviado por {self.service_name} a {leader_host}:{leader_port}")
                 else:
                     logger.warning(f"No hay líder disponible para enviar heartbeat")
                 
