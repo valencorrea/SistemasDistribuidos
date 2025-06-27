@@ -34,6 +34,17 @@ class AbstractAggregator(Worker):
         self.consumer.start_consuming_2()
 
     def handle_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.logger.info(f"Recibido mensaje envenenado para cliente {client_id}, limpiando datos...")
+                self.delete_client(client_id)
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
         batch_size = message.get("batch_size", None)
         total_batches = message.get("total_batches", None) or self.total_batches_per_client.get(message.get("client_id", None), None)
         client_id = message.get("client_id", None)

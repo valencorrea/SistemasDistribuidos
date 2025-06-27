@@ -337,6 +337,32 @@ class RatingsJoiner(AbstractAggregator):
             return str(message) + '\n'
 
     def handle_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.logger.info(f"Recibido mensaje envenenado para cliente {client_id}, limpiando datos...")
+                self.clean_client(client_id)
+                
+                # Reenviar mensaje envenenado al aggregator para que también limpie
+                poisoned_control_message = {
+                    "type": "control",
+                    "client_id": client_id,
+                    "batch_id": message.get("batch_id"),
+                    "batch_size": 0,
+                    "joiner_id": self.joiner_instance_id,
+                    "is_final": True
+                }
+                if self.producer:
+                    self.producer.enqueue(poisoned_control_message)
+                    self.logger.info(f"Mensaje envenenado reenviado al aggregator para cliente {client_id}")
+                
+                # Hacer ACK del mensaje envenenado para que no se reprocese
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
         batch_id = message.get("batch_id")
         client_id = message.get("client_id")
         
