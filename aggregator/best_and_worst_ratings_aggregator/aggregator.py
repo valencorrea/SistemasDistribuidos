@@ -150,6 +150,23 @@ class Aggregator(AbstractAggregator):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_control_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.logger.info(f"Recibido mensaje envenenado para cliente {client_id}, limpiando datos...")
+                control_log_filename = f"{client_id}{self.control_log_name}"
+                if os.path.exists(control_log_filename):
+                    os.remove(control_log_filename)
+                self.results.pop(client_id, None)
+                self.total_batches_per_client.pop(client_id, None)
+                self.received_batches_per_client.pop(client_id, None)
+                self.control_received_batches_per_client.pop(client_id, None)
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
         #Adquirir el lock por cliente de los mensajes de control
         #responder si o no
         self.logger.info(f"Mensaje de control recibido: {message}")
@@ -180,6 +197,7 @@ class Aggregator(AbstractAggregator):
             control_log_filename = f"{client_id}{self.control_log_name}"
             if os.path.exists(control_log_filename):
                 os.remove(control_log_filename)
+
     def start(self):
         self.logger.info("Iniciando agregador")
         
