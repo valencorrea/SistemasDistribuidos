@@ -1,19 +1,85 @@
 output_file: docker-compose.yaml
 
+monitors:
+  count: 3
+  base_port: 50000
+  cluster_base_port: 50010
+  heartbeat_interval: 100      # 100 milisegundos
+  heartbeat_timeout: 3000      # 3 segundos
+  election_timeout: 1000       # 1 segundo
+  kill: true
+
 clients:
   - id: 1
-    files_path: ./files/short/client_1
+    files_path: ./files/long
   - id: 2
-    files_path: ./files/short/client_2
+    files_path: ./files/short
+  - id: 3
+    files_path: ./files/short
+
+client_decodifier:
+    kill: false
 
 workers:
-  twentieth_century: 1
-  main_movie: 1
-  esp_production: 0
-  no_colab_productions: 1
-  sentiment: 0
-  arg_production: 1
-  credits: 0
-  ratings: 1
+  twentieth_century:
+    count: 2
+    log_level: INFO
+    kill: true
+  main_movie:
+    count: 2
+    log_level: DEBUG
+    kill: true
+  esp_production:
+    count: 2
+    log_level: INFO
+    kill: true
+  no_colab_productions:
+    count: 2
+    log_level: INFO
+    kill: true
+  sentiment:
+    count: 0
+    log_level: INFO
+    kill: true
+  arg_production:
+    count: 2
+    log_level: INFO
+    kill: true
+  credits:
+    count: 2
+    log_level: INFO
+    kill: false
+  ratings:
+    count: 2
+    log_level: INFO
+    kill: true
 
-test: false
+aggregators:
+  twentieth_century_arg_esp:
+    generate: true
+    log_level: INFO
+    kill: false
+  twentieth_century_arg:
+    generate: true
+    log_level: INFO
+    kill: false
+  top_5_countries:
+    generate: true
+    log_level: INFO
+    kill: false
+  top_10_credits:
+    generate: true
+    log_level: INFO
+    kill: true
+  best_and_worst_ratings:
+    generate: true
+    log_level: INFO
+    kill: true
+  sentiment:
+    generate: false
+    log_level: INFO
+    kill: true
+
+test:
+  random: true
+  interval: 10

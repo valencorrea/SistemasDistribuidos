@@ -1,50 +1,21 @@
-import logging
-
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import parse_genres
-from worker.worker import Worker
+from worker.filter.filter import Filter
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
-
-
-class ArgEspProductionFilter(Worker):
+class ArgEspProductionFilter(Filter):
     def __init__(self):
-        super().__init__()
-        self.consumer = Consumer(queue_name="arg_production",  _message_handler=self.handle_message)
-        self.producer = Producer("aggregate_consulta_1")
+        super().__init__("arg_esp_production_filter", "movies")
 
-    def close(self):
-        logger.info("Cerrando conexiones del worker...")
-        try:
-            self.consumer.close()
-            self.producer.close()
-            self.shutdown_consumer.close()
-        except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+    def create_consumer(self):
+        return Consumer("arg_production", _message_handler=self.handle_message)
 
-    def handle_message(self, message):
-        filtered_movies = self.apply_filter(message.get("movies"))
-        batch_message = {
-            "movies": filtered_movies,
-            "batch_size": message.get("batch_size", 0),
-            "total_batches": message.get("total_batches", 0),
-            "type": "batch_result",
-            "client_id": message.get("client_id")
-        }
-        self.producer.enqueue(batch_message)
+    def create_producers(self):
+        return [Producer("aggregate_consulta_1")]
 
-    def start(self):
-        logger.info("Iniciando filtro de películas españolas")
-        self.consumer.start_consuming()
-
-    @staticmethod
-    def apply_filter(movies):
+    def filter(self, message):
+        movies = message.get("movies", [])
         result = []
         for movie in movies:
             if "ES" in movie.get("production_countries") and int(movie.get("release_date")) < 2010:

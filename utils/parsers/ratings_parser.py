@@ -20,7 +20,7 @@ def convert_data_for_rating_joiner(data):
     for row in reader:
         if row["movieId"] and row["rating"] and is_float(row["rating"]):
             result.append({
-                "movieId":row["movieId"],
+                "movieId": int(row["movieId"]),
                 "rating":row["rating"],
             })
     return result

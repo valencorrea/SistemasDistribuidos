@@ -1,60 +1,48 @@
-import logging
-
 from transformers import pipeline
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from utils.parsers.movie_parser import convert_data_for_fifth_filter
-from worker.worker import Worker
+from worker.filter.filter import Filter
 
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
-
-class SentimentAnalyzerFilter(Worker):
+class SentimentAnalyzerFilter(Filter):
     def __init__(self):
-        super().__init__()
+        super().__init__("sentiment_analyzer_filter", "movies")
         self.consumer = Consumer("movie_2", _message_handler=self.handle_message)
         self.producer = Producer("aggregate_consulta_5")
         self.sentiment_analyzer = pipeline("sentiment-analysis",
-                model="distilbert-base-uncased-finetuned-sst-2-english",
-                max_length=512,
-                truncation=True)
+                                           model="distilbert-base-uncased-finetuned-sst-2-english",
+                                           max_length=512,
+                                           truncation=True)
 
-    def close(self):
-        logger.info("Cerrando conexiones del worker...")
-        try:
-            self.consumer.close()
-            self.producer.close()
-            self.shutdown_consumer.close()
-        except Exception as e:
-            logger.error(f"Error al cerrar conexiones: {e}")
+    def create_consumer(self):
+        return Consumer("movie_2", _message_handler=self.handle_message)
 
-    def handle_message(self, message):
+    def create_producers(self):
+        return [Producer("aggregate_consulta_5")]
+
+    def filter(self, message):
         try:
             movies = convert_data_for_fifth_filter(message)
-            filtered_movies = self.analyze_sentiments(movies)
-
-            # Crear un mensaje con la información del batch
-            batch_message = {
-                "movies": filtered_movies,
-                "batch_size": message.get("batch_size", 0),
-                "total_batches": message.get("total_batches", 0),
-                "type": "batch_result",
-                "client_id": message.get("client_id")
-            }
-            self.producer.enqueue(batch_message)
+            return self.analyze_sentiments(movies)
         except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
+            self.logger.error(f"Error en análisis de sentimiento: {e}")
+
+    def analyze_sentiments(self, movies):
+        result = []
+        for movie in movies:
+            if movie.get("budget") is None or movie.get("budget") == 0 or movie.get("revenue") is None or movie.get("revenue") == 0:
+                self.logger.info(f"Skipped")
+                continue
+            sentiment = self.analyze_sentiment(movie.get("overview", ""))
+            result.append({"sentiment": sentiment, "budget": movie.get("budget"), "revenue": movie.get("revenue")})
+        return result
 
     def analyze_sentiment(self, text: str) -> str:
         if not text:
             return "NEUTRAL"
         try:
-            # Truncar el texto si es muy largo
             words = text.split()
             if len(words) > 500:
                 text = " ".join(words[:500])
@@ -62,21 +50,9 @@ class SentimentAnalyzerFilter(Worker):
             result = self.sentiment_analyzer(text)
             return result[0]["label"].upper()
         except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
+            self.logger.error(f"Error en análisis de sentimiento: {e}")
             return "NEUTRAL"
 
-    def start(self):
-        try:
-            self.consumer.start_consuming()
-        except Exception as e:
-            logger.error(f"Error en análisis de sentimiento: {e}")
-
-    def analyze_sentiments(self, movies):
-        result = []
-        for movie in movies:
-            sentiment = self.analyze_sentiment(movie.get("overview", ""))
-            result.append({"sentiment": sentiment, "budget": movie.get("budget"), "revenue": movie.get("revenue")})
-        return result
 
 if __name__ == '__main__':
     worker = SentimentAnalyzerFilter()

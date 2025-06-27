@@ -1,5 +1,7 @@
+import random
 import socket
 import logging
+import string
 from typing import Generator, Optional, Tuple, List
 from dataclasses import dataclass
 import time
@@ -31,26 +33,19 @@ class CSVSender:
             self.socket = None
 
     def connect(self) -> bool:
-        max_retries = 3
-        retry_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Intentando conectar a {self.host}:{self.port} (intento {attempt + 1})")
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(self.timeout)
-                self.socket.connect((self.host, self.port))
-                logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
-                return True
-            except Exception as e:
-                logger.error(f"Error conectando (intento {attempt + 1}): {e}")
-                if self.socket:
-                    self.socket.close()
-                self.socket = None
-                if attempt < max_retries - 1:
-                    logger.info(f"Reintentando en {retry_delay} segundos...")
-                    time.sleep(retry_delay)
-        return False
+        try:
+            logger.info(f"Intentando conectar a {self.host}:{self.port}")
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(self.timeout)
+            self.socket.connect((self.host, self.port))
+            logger.info(f"Conexión establecida exitosamente con {self.host}:{self.port}")
+            return True
+        except Exception as e:
+            logger.error(f"Error conectando: {e}")
+            if self.socket:
+                self.socket.close()
+            self.socket = None
+            return False
 
     def _send_all(self, data: bytes) -> bool:
         total_sent = 0
@@ -134,9 +129,10 @@ class CSVSender:
                 line_count += 1
                 bytes_sent += len(line.encode('utf-8'))
                 
-                if line_count % 1000000 == 0:
+                if line_count % 10000 == 0:
                     progress = (bytes_sent / file_size) * 100 if file_size > 0 else 0
                     logger.debug(f"Progreso de {file_path}: {progress:.2f}% ({line_count} líneas enviadas)")
+
 
         if not self._send_line("EOF"):
             logger.error(f"Error enviando EOF de {file_path}")
@@ -149,7 +145,6 @@ class CSVSender:
         if not self.socket:
             logger.error("No hay socket activo para recibir resultados")
             return
-
         try:
             logger.info("Esperando resultados del servidor...")
             buffer = b""
@@ -165,20 +160,17 @@ class CSVSender:
                     line, buffer = buffer.split(b'\n', 1)
                     try:
                         decoded_line = line.decode('utf-8')
-                        logger.info(f"Resultado recibido del servidor: {decoded_line}")
+                        yield decoded_line
                         received_count += 1
                     except UnicodeDecodeError as e:
                         logger.warning(f"Error decodificando línea: {e}")
 
                     if received_count >= expected_results:
-                        logger.info(f"Se recibieron los {expected_results} resultados esperados.")
                         return
-
         except socket.timeout:
             logger.warning("Timeout esperando resultados")
         except Exception as e:
             logger.error(f"Error recibiendo resultados: {e}")
-
 
 class CSVReceiver:
     def __init__(self, host: str = "0.0.0.0", port: int = 50000, timeout: int = 30):
@@ -210,24 +202,23 @@ class CSVReceiver:
                 logger.error("Timeout al recibir datos")
             except Exception as e:
                 logger.error(f"Error al recibir datos: {e}")
+                raise ConnectionError("Error al recibir datos")
         return bytes(data)
 
     def _recv_line(self, sock: socket.socket) -> Optional[str]:
-        try:
-            length_bytes = self._recv_all(sock, 10)
-            if not length_bytes:
-                return None
-            length = int(length_bytes.decode('utf-8'))
-            line_bytes = self._recv_all(sock, length)
-            if not line_bytes:
-                return None
-
-            return line_bytes.decode('utf-8').strip()
-        except Exception as e:
-            logger.error(f"Error recibiendo línea: {e}")
+        length_bytes = self._recv_all(sock, 10)
+        if not length_bytes:
+            return None
+        length = int(length_bytes.decode('utf-8'))
+        line_bytes = self._recv_all(sock, length)
+        if not line_bytes:
             return None
 
+        return line_bytes.decode('utf-8').strip()
+
+
     def process_connection(self, client_socket) -> (str, Generator[Tuple[List[str], bool, CSVMetadata], None, None]):
+        random_string = self.generate_client_id()
         try:
             while True:
                 logger.debug("Por leer tipo")
@@ -246,12 +237,13 @@ class CSVReceiver:
                 line_count = 0
                 last_log_time = time.time()
                 logger.debug(f"Tipo leido: {file_type}")
-
+                client_id = f'{client_id}-{random_string}'
                 while True:
                     line = self._recv_line(client_socket)
                     if not line:
-                        logger.error("Error recibiendo línea")
-                        return
+                        logger.error("Error recibiendo línea, cliente posiblemente desconectado")
+                        raise ConnectionError("Cliente desconectado inesperadamente")
+
 
                     if line == "EOF":
                         logger.info(f"Fin de archivo '{name}' recibido")
@@ -263,18 +255,22 @@ class CSVReceiver:
                     line_count += 1
                     current_batch.append(line)
 
-                    # Log cada 5 segundos o cada 1000 líneas
                     current_time = time.time()
                     if current_time - last_log_time >= 5 or line_count % 1000 == 0:
                         logger.debug(f"Progreso de {name}: {line_count} líneas recibidas")
                         last_log_time = current_time
 
-                    if len(current_batch) >= 1000:
+                    if len(current_batch) >= 10000:
                         yield client_id, current_batch, False, metadata
                         current_batch = []
 
         except Exception as e:
             logger.error(f"Error procesando conexión: {e}")
+            raise ConnectionError("Cliente desconectado inesperadamente")
+
+    @staticmethod
+    def generate_client_id():
+        return ''.join(random.choices(string.ascii_uppercase, k=4))
 
     def accept_connection(self) -> Tuple[Optional[socket.socket], Optional[str]]:
         try:
