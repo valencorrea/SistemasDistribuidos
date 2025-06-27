@@ -1,14 +1,13 @@
 output_file: docker-compose.yaml
 
-# Configuración de monitores
 monitors:
   count: 2
   base_port: 50000
   cluster_base_port: 50010
-  # Configuración de heartbeat (más rápido para testing)
-  heartbeat_interval: 3000      # 3 segundos
-  heartbeat_timeout: 10000      # 10 segundos
-  election_timeout: 8000        # 8 segundos
+
+  heartbeat_interval: 100      # 100 milisegundos
+  heartbeat_timeout: 3000      # 3 segundos
+  election_timeout: 1000       # 1 segundo
 
 clients:
   - id: 1

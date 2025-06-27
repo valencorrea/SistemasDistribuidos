@@ -119,7 +119,6 @@ class Processor:
         maxi = mean_ranking_arg_post_2000_df.iloc[mean_ranking_arg_post_2000_df['rating'].idxmax()]
         mini = mean_ranking_arg_post_2000_df.iloc[mean_ranking_arg_post_2000_df['rating'].idxmin()]
 
-        # Corregimos la conversión a diccionario
         self.result[3] = (maxi.to_dict(), mini.to_dict())
 
         # QUERY 4

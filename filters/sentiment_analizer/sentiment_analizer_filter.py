@@ -43,7 +43,6 @@ class SentimentAnalyzerFilter(Filter):
         if not text:
             return "NEUTRAL"
         try:
-            # Truncar el texto si es muy largo
             words = text.split()
             if len(words) > 500:
                 text = " ".join(words[:500])

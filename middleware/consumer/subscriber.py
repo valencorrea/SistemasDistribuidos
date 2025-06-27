@@ -28,32 +28,27 @@ class Subscriber(threading.Thread):
 
     def _on_message(self, channel, method, properties, body):
         try:
-            timestamp = get_timestamp()
-            #logger.info(f"📥 Message received. Suscriber {self.queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self.message_handler(message)
-            #logger.info(f"📥 Message acked. Queue {self.queue_name} Timestamp: {timestamp} ---------------")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON decode error on queue consumer {self.exchange_name}: {e}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         except Exception as e:
             logger.error(f"❌ Error processing message on queue consumer {self.exchange_name}: {e}. body: {body}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
     def close(self):
         try:
             if self.connection and not self.connection.is_closed:
-                # self._connection.close()
-                # TODO revisar la liberacion de recursos. El connection close cierra la cola si esta en otro thread?
-                # TODO los threads daemon se cierran solos al cerrar el worker?
-                # self.channel_thread.stop()
+                self.connection.close()
                 logger.info("Connection closed successfully")
         except Exception as e:
             logger.error(f"Error closing connection: {e}")
 
     def run(self):
         logger.info(f"🟢 Starting fanout consumer '{self.queue_name}'")
-        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self._on_message, auto_ack=True)
+        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self._on_message, auto_ack=False)
         self.channel.start_consuming()
 
 def get_timestamp():

@@ -26,7 +26,6 @@ class Worker(ABC):
         
         if not self.wait_for_rabbitmq():
             self.logger.error("Error al intentar conectar con rabbitMQ. No se va a iniciar el worker")
-            # NO detener el heartbeat sender aquí - debe continuar funcionando
             self._close_without_stopping_heartbeat()
             return
             

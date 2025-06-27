@@ -24,7 +24,7 @@ class Consumer(threading.Thread):
         self._exchange_name = f'{queue_type}_exchange'
         self._consumer_id = str(uuid.uuid4())[:8]
         self._actual_queue_name = None
-        self._delivery_tags = {}  # batchs_ids para rabbitmq
+        self._delivery_tags = {}
 
     def connect(self) -> bool:
         try:
@@ -67,12 +67,9 @@ class Consumer(threading.Thread):
 
     def _on_message(self, channel, method, properties, body):
         try:
-            timestamp = get_timestamp()
-            # logger.debug(f"📥 Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
             self._message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            # logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.exception(f"JSON decode error: {e}")
@@ -83,8 +80,6 @@ class Consumer(threading.Thread):
 
     def _on_message_explicit(self, channel, method, properties, body):
         try:
-            timestamp = get_timestamp()
-            # logger.debug(f"Message received. Queue {self._queue_name} Timestamp: {timestamp}--------------")
             message = json.loads(body)
 
             message_id = str(message.get("batch_id"))
@@ -93,7 +88,6 @@ class Consumer(threading.Thread):
 
             self._delivery_tags[message_id] = method.delivery_tag
             self._message_handler(message)
-            # logger.debug(f"📥 Message acked. Queue {self._queue_name} Timestamp: {timestamp} ---------------")
 
         except json.JSONDecodeError as e:
             logger.exception(f"JSON decode error: {e}")
@@ -117,6 +111,7 @@ class Consumer(threading.Thread):
         logger.info("🟢 Waiting for messages...")
         try:
             self._channel.start_consuming()
+            logger.info("termino consumir")
         except Exception as e:
             logger.exception(f"Error during consuming: {e}")
             self.close()
@@ -160,8 +155,6 @@ class Consumer(threading.Thread):
                 logger.debug(f"ACK sent for message_id {message_id}")
             except Exception as e:
                 logger.exception(f"Failed to ack message_id {message_id}: {e}")
-        else:
-            logger.warning(f"No delivery tag found for message_id {message_id}")
 
 
 def get_timestamp():

@@ -44,7 +44,7 @@ class MonitorCluster:
         self.expected_services = self._get_expected_services()
         self.services: Dict[str, float] = {}
         self.monitor_heartbeats: Dict[int, float] = {}
-        self.service_start_times: Dict[str, float] = {}  # Para trackear cuándo se espera el primer heartbeat de cada servicio
+        self.service_start_times: Dict[str, float] = {}
         self.lock = threading.Lock()
         self.state_lock = threading.Lock()
         self.docker_client = docker.from_env()
@@ -156,14 +156,12 @@ class MonitorCluster:
         logger.info(f"❌ Monitor {self.node_id} no encontró líder existente")
 
     def _start_service_server(self):
-        # Socket TCP
         tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_sock.bind(('0.0.0.0', self.port))
         tcp_sock.listen(20)
         logger.info(f"🔧 Monitor {self.node_id} escuchando servicios TCP en puerto {self.port}")
 
-        # Socket UDP
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         udp_sock.bind(('0.0.0.0', self.port))
@@ -298,10 +296,8 @@ class MonitorCluster:
                 
                 buffer += data.decode()
                 
-                # Procesar todos los mensajes JSON completos en el buffer
                 while True:
                     try:
-                        # Buscar el final del primer JSON válido
                         brace_count = 0
                         json_end = -1
                         
@@ -315,40 +311,31 @@ class MonitorCluster:
                                     break
                         
                         if json_end == -1:
-                            # No hay JSON completo en el buffer
                             break
                         
-                        # Extraer y procesar el primer JSON
                         json_str = buffer[:json_end]
                         buffer = buffer[json_end:]
                         
                         msg = json.loads(json_str)
                         
-                        # Manejar mensajes de control
                         if msg.get("type") == "who_is_leader":
                             response = {"type": "leader_info", "leader_id": self.current_leader}
                             client.send(json.dumps(response).encode())
-                            #logger.info(f"❓ Monitor {self.node_id} respondió who_is_leader: {self.current_leader}")
                             continue
                         
-                        # Manejar heartbeats de servicios
                         service = msg.get("service_name")
                         if service:
                             with self.lock:
-                                # Si es el primer heartbeat de este servicio, limpiar el tiempo de inicio
                                 if service not in self.services and service in self.service_start_times:
                                     del self.service_start_times[service]
                                 
                                 self.services[service] = (time.time() * 1000 )+ self.heartbeat_timeout
-                                #logger.info(f"💓 Monitor {self.node_id} recibió heartbeat de servicio {service}")
                         else:
                             logger.warning(f"⚠️ Monitor {self.node_id} recibió mensaje sin service_name: {msg}")
                             
                     except json.JSONDecodeError as e:
-                        # Si hay error en el JSON, descartar hasta el siguiente '{'
                         next_brace = buffer.find('{')
                         if next_brace == -1:
-                            # No hay más JSONs en el buffer
                             buffer = ""
                             break
                         else:
@@ -566,8 +553,7 @@ class MonitorCluster:
         with self.lock:
             for node_id in self.expected_node_ids:
                 if node_id != self.node_id and node_id not in self.monitor_heartbeats:
-                    # Dar más tiempo para que los monitores se estabilicen después del cambio de líder
-                    self.monitor_heartbeats[node_id] = now + 20000  # 30 segundos de gracia
+                    self.monitor_heartbeats[node_id] = now + 20000
                     logger.info(f"⏳ Monitor {self.node_id} esperando primer heartbeat de monitor {node_id}")
 
     def _announce_leadership(self):
@@ -626,14 +612,13 @@ class MonitorCluster:
                                     restart.append(name)
                                     del self.services[name]
                             
-                            # NUEVO: Dar más tiempo para el primer heartbeat
-                            initial_timeout = 20000  # 10 segundos para el primer heartbeat
+                            initial_timeout = 20000
                             for service_name in self.expected_services:
                                 if service_name not in self.services:
                                     start_time = self.service_start_times.get(service_name)
                                     if start_time and (now - start_time) > initial_timeout:
                                         restart.append(service_name)
-                                        del self.service_start_times[service_name]  # Evitar reinicios infinitos
+                                        del self.service_start_times[service_name]
                                         logger.warning(f"⚠️ Servicio {service_name} nunca ha reportado heartbeat después de {initial_timeout/1000}s, se intentará levantar")
                         
                         for name in restart:
@@ -676,8 +661,9 @@ class MonitorCluster:
                     logger.error(f"❌ Error reiniciando {container.name}: {e}")
             
             with self.lock:
-                self.services[name] = time.time() * 1000
-            logger.info(f"✅ Servicio {name} marcado como saludable después de intentar reiniciar")
+                now = time.time() * 1000
+                additional_delay = 60000 if "sentiment" in name.lower() else 30000
+                self.services[name] = now + additional_delay
                 
         except Exception as e:
             logger.error(f"❌ Error reiniciando {name}: {e}")
@@ -696,12 +682,10 @@ class MonitorCluster:
 
                                 last_beat = self.monitor_heartbeats.get(node_id)
                                 if last_beat is None:
-                                    # Inicializar si no existe
-                                    self.monitor_heartbeats[node_id] = now + 10000  # 10 segundos de gracia
+                                    self.monitor_heartbeats[node_id] = now + 10000
                                     logger.info(f"⏳ Monitor {self.node_id} inicializando tracking de monitor {node_id}")
                                 elif (now - last_beat) > self.heartbeat_timeout:
-                                    # Verificar que no sea un reinicio reciente
-                                    if (now - last_beat) < 60000:  # No reiniciar si fue reiniciado hace menos de 1 minuto
+                                    if (now - last_beat) < 60000:
                                         logger.warning(f"⚠️ Monitor {node_id} no responde, se intentará reiniciar.")
                                         restart.append(node_id)
                                         self.monitor_heartbeats.pop(node_id, None)
@@ -747,8 +731,7 @@ class MonitorCluster:
                     logger.error(f"❌ Error reiniciando {container.name}: {e}")
             
             with self.lock:
-                # Dar tiempo para que el monitor reiniciado se estabilice
-                self.monitor_heartbeats[node_id] = time.time() * 1000 + 15000  # 15 segundos adicionales
+                self.monitor_heartbeats[node_id] = time.time() * 1000 + 15000
             logger.info(f"✅ Monitor {node_id} marcado como saludable después de intentar reiniciar")
                 
         except Exception as e:

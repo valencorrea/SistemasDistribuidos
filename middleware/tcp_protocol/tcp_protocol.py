@@ -13,6 +13,7 @@ class TCPServer:
         self.message_handler = message_handler_callback
         self._server_socket = None
         self._running = False
+        self._client_connections = {} 
 
     def start(self):
         try:
@@ -39,6 +40,9 @@ class TCPServer:
             try:
                 client_socket, addr = self._server_socket.accept()
                 logger.info(f"[TCP Server] Conexión aceptada de {addr}")
+                
+                self._client_connections[addr] = client_socket
+                
                 client_thread = threading.Thread(target=self._handle_client, args=(client_socket, addr))
                 client_thread.daemon = True
                 client_thread.start()
@@ -60,16 +64,40 @@ class TCPServer:
                     line, buffer = buffer.split(b'\n', 1)
                     msg = line.decode('utf-8').strip()
                     if msg and self.message_handler:
-                        self.message_handler(msg, addr)
+                        self.message_handler(msg, addr, client_socket)
         except (ConnectionResetError, BrokenPipeError):
             logger.warning(f"[TCP Server] Conexión perdida con {addr}")
         except Exception as e:
             logger.error(f"[TCP Server] Error manejando cliente {addr}: {e}")
         finally:
+            if addr in self._client_connections:
+                del self._client_connections[addr]
             client_socket.close()
+
+    def send_response(self, addr, response_data):
+        try:
+            if addr in self._client_connections:
+                client_socket = self._client_connections[addr]
+                response_message = json.dumps(response_data) + '\n'
+                client_socket.sendall(response_message.encode('utf-8'))
+                logger.info(f"[TCP Server] Respuesta enviada a {addr}: {response_data}")
+                return True
+            else:
+                logger.warning(f"[TCP Server] No hay conexión activa para {addr}")
+                return False
+        except Exception as e:
+            logger.error(f"[TCP Server] Error enviando respuesta a {addr}: {e}")
+            return False
 
     def stop(self):
         self._running = False
+        for addr, client_socket in self._client_connections.items():
+            try:
+                client_socket.close()
+            except Exception:
+                pass
+        self._client_connections.clear()
+        
         if self._server_socket:
             self._server_socket.close()
         logger.info("[TCP Server] Servidor detenido.")
@@ -81,15 +109,16 @@ class TCPClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self._socket = None
-        self._response_callbacks = {}  # Para manejar respuestas asíncronas
+        self._response_callbacks = {}
         self._response_thread = None
         self._running = False
-        self.connect()
+        self._listener_started = False 
 
     def connect(self):
         if self._socket:
             try:
-                self._socket.close()
+                return True
+                #self._socket.close()
             except Exception:
                 pass
         
@@ -100,16 +129,14 @@ class TCPClient:
                 self._socket.settimeout(self.timeout)
                 self._socket.connect((self.host, self.port))
                 logger.info(f"[TCP Client] Conexión establecida con {self.host}:{self.port}")
-                
-                # Iniciar thread de escucha de respuestas
-                self._start_response_listener()
                 return True
+
             except socket.gaierror as e:
                 logger.error(f"[TCP Client] Error de DNS: {e}. Host: {self.host}")
             except Exception as e:
                 logger.error(f"[TCP Client] Error conectando: {e}")
             
-            time.sleep(2) # Esperar antes de reintentar
+            time.sleep(5 * attempt)
             
         self._socket = None
         logger.error(f"[TCP Client] No se pudo conectar tras {self.max_retries} intentos.")
@@ -163,7 +190,6 @@ class TCPClient:
             
             logger.info(f"[TCP Client] Respuesta recibida: {response_type}")
             
-            # Buscar callback registrado para este tipo de respuesta
             if response_type in self._response_callbacks:
                 callback = self._response_callbacks[response_type]
                 callback(response_data)
@@ -175,28 +201,58 @@ class TCPClient:
         except Exception as e:
             logger.error(f"[TCP Client] Error procesando respuesta: {e}")
 
-    def register_response_callback(self, response_type, callback):
-        """Registra un callback para un tipo específico de respuesta"""
-        self._response_callbacks[response_type] = callback
-        logger.info(f"[TCP Client] Callback registrado para respuesta tipo: {response_type}")
+    def send_with_response(self, message, callback):
+        while True:
+            try:
+                if not self._socket:
+                    logger.info(f"[TCP Client] Intentando conectar a {self.host}:{self.port} para enviar mensaje")
+                    if not self.connect():
+                        logger.warning(f"[TCP Client] No se pudo conectar a {self.host}:{self.port}, reintentando en 3 segundos...")
+                        time.sleep(3)
+                        continue
 
-    def send_with_response(self, message, response_type, callback, timeout=10):
-        """Envía mensaje y espera respuesta específica"""
-        try:
-            # Registrar callback temporal
-            self.register_response_callback(response_type, callback)
-            
-            # Enviar mensaje
-            if self.send(message):
-                logger.info(f"[TCP Client] Mensaje enviado, esperando respuesta tipo: {response_type}")
-                return True
-            else:
-                logger.error("[TCP Client] No se pudo enviar mensaje")
-                return False
-                
-        except Exception as e:
-            logger.error(f"[TCP Client] Error en send_with_response: {e}")
-            return False
+                if not self.send(message):
+                    logger.warning(f"[TCP Client] Error enviando mensaje, reintentando conexión...")
+                    continue
+
+                buffer = ""
+                while True:
+                    try:
+                        if not self._socket:
+                            logger.warning(f"[TCP Client] Socket perdido, reintentando conexión...")
+                            break
+
+                        data = self._socket.recv(1024)
+                        if not data:
+                            logger.warning(f"[TCP Client] Conexión cerrada por el servidor, reintentando...")
+                            self._socket = None
+                            break
+
+                        buffer += data.decode('utf-8')
+                        if '\n' in buffer:
+                            message_end = buffer.find('\n')
+                            complete_message = buffer[:message_end]
+                            buffer = buffer[message_end + 1:]
+                            if complete_message.strip():
+                                return callback(json.loads(complete_message))
+                    except socket.timeout:
+                        continue
+                    except (ConnectionResetError, BrokenPipeError):
+                        logger.warning(f"[TCP Client] Conexión perdida, reintentando...")
+                        self._socket = None
+                        break
+                    except Exception as e:
+                        logger.error(f"[TCP Client] Error recibiendo respuesta: {e}")
+                        self._socket = None
+                        break
+
+                continue
+
+            except Exception as e:
+                logger.error(f"[TCP Client] Error en send_with_response: {e}")
+                self._socket = None
+                time.sleep(3)
+                continue
 
     def send(self, message):
         if not self._socket:
@@ -204,7 +260,7 @@ class TCPClient:
             if not self.connect():
                 return False
         
-        if not self._socket: # Re-check after trying to connect
+        if not self._socket:
              return False
 
         try:

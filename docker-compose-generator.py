@@ -8,15 +8,12 @@ def generate_docker_yaml(config):
     clients = config["clients"]
     aggregators = config["aggregators"]
     
-    # Configuración de monitores desde YAML
     monitors_config = config.get("monitors", {})
     monitor_count = monitors_config.get("count", 3)
     base_port = monitors_config.get("base_port", 50000)
     cluster_base_port = monitors_config.get("cluster_base_port", 50010)
     
-    # Configuración de heartbeat desde YAML (NUEVO)
     heartbeat_interval = monitors_config.get("heartbeat_interval", 5000)
-    heartbeat_interval_for_service = int(heartbeat_interval) / 2
     heartbeat_timeout = monitors_config.get("heartbeat_timeout", 15000)
     election_timeout = monitors_config.get("election_timeout", 10000)
 
@@ -39,7 +36,7 @@ def generate_docker_yaml(config):
                     "test": "rabbitmq-diagnostics check_port_connectivity",
                     "interval": "5s",
                     "timeout": "1s",
-                    "retries": 20
+                    "retries": 50
                 },
                 "volumes": ["./rabbitmq/config.ini:/config.ini"]
             },
@@ -62,13 +59,12 @@ def generate_docker_yaml(config):
                     "test": 'netstat -ltn | grep -c 5000',
                     "interval": "5s",
                     "timeout": "2s",
-                    "retries": 10
+                    "retries": 50
                 }
             },
         }
     }
 
-    # Lista para rastrear todos los servicios que se van a generar
     all_services = ["worker", "client_decodifier"]
 
     for client in clients:
@@ -133,9 +129,13 @@ def generate_docker_yaml(config):
         if "credits_joiner" in name:
             env.append(f"JOINER_INSTANCE_ID=credits-{credits_joiner_id_counter}")
             credits_joiner_id_counter += 1
+            env.append("AGGREGATOR_HOST=top_10_credits_aggregator")
+            env.append("AGGREGATOR_PORT=60000")
         elif "ratings_joiner" in name:
             env.append(f"JOINER_INSTANCE_ID=ratings-{ratings_joiner_id_counter}")
             ratings_joiner_id_counter += 1
+            env.append("AGGREGATOR_HOST=best_and_worst_ratings_aggregator")
+            env.append("AGGREGATOR_PORT=60002")
 
         base_service = {
             "build": {
@@ -156,6 +156,17 @@ def generate_docker_yaml(config):
 
         for i in range(1, count):
             replica_name = f"{name}_{i + 1}"
+            replica_env = ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"]
+            
+            if "credits_joiner" in name:
+                replica_env.append(f"JOINER_INSTANCE_ID=credits-{credits_joiner_id_counter + i}")
+                replica_env.append("AGGREGATOR_HOST=top_10_credits_aggregator")
+                replica_env.append("AGGREGATOR_PORT=60000")
+            elif "ratings_joiner" in name:
+                replica_env.append(f"JOINER_INSTANCE_ID=ratings-{ratings_joiner_id_counter + i}")
+                replica_env.append("AGGREGATOR_HOST=best_and_worst_ratings_aggregator")
+                replica_env.append("AGGREGATOR_PORT=60002")
+            
             template["services"][replica_name] = {
                 "image": f"{name}:latest",
                 "container_name": f"{replica_name}",
@@ -164,7 +175,7 @@ def generate_docker_yaml(config):
                     "worker": {"condition": "service_started"}
                 },
                 "links": ["rabbitmq"],
-                "environment": ["PYTHONUNBUFFERED=1", f"LOG_LEVEL={log_level}"]
+                "environment": replica_env
             }
             all_services.append(replica_name)
 
@@ -183,8 +194,9 @@ def generate_docker_yaml(config):
         generate = agg_conf.get("generate", False)
         if not generate:
             continue
+
         log_level = agg_conf.get("log_level", "INFO")
-        template["services"][name] = {
+        service_def = {
             "build": {
                 "context": ".",
                 "dockerfile": dockerfile
@@ -204,12 +216,18 @@ def generate_docker_yaml(config):
                 f"LOG_LEVEL={log_level}"
             ]
         }
+
+        if "credits" in name:
+            service_def["ports"] = ["60000:60000"]
+        elif "ratings" in name:
+            service_def["ports"] = ["60002:60002"]
+
+        template["services"][name] = service_def
         all_services.append(name)
 
     monitor_cluster_nodes = [f"monitor_{i}" for i in range(1, monitor_count + 1)]
     monitor_service_ports = []
     
-    # Generar la lista de servicios esperados para los monitores
     expected_services_str = ",".join(all_services)
     
     for i in range(1, monitor_count + 1):
@@ -224,8 +242,8 @@ def generate_docker_yaml(config):
                 "dockerfile": "monitor/monitor_cluster.dockerfile"
             },
             "ports": [
-                f"{service_port}:{service_port}",  # Puerto para servicios
-                f"{cluster_port}:{cluster_port}"   # Puerto para comunicación cluster
+                f"{service_port}:{service_port}",
+                f"{cluster_port}:{cluster_port}"
             ],
             "container_name": monitor_name,
             "environment": [
@@ -242,7 +260,6 @@ def generate_docker_yaml(config):
             "volumes": ["/var/run/docker.sock:/var/run/docker.sock"]
         }
     
-    # Configurar dependencias de servicios a los monitores
     for service_name in template["services"]:
         if not service_name.startswith("monitor_") and service_name != "rabbitmq":
             if "environment" not in template["services"][service_name]:
@@ -250,12 +267,11 @@ def generate_docker_yaml(config):
             
             container_name = template["services"][service_name].get("container_name", service_name)
             
-            # Configurar múltiples monitores con sus puertos específicos
             template["services"][service_name]["environment"].extend([
                 f"MONITOR_HOSTS={','.join(monitor_cluster_nodes)}",
                 f"MONITOR_PORTS={','.join(monitor_service_ports)}",
                 f"HEARTBEAT_INTERVAL={heartbeat_interval}",
-                f"SERVICE_NAME={container_name}"  # Usar container_name en lugar de service_name
+                f"SERVICE_NAME={container_name}"
             ])
             
             if "depends_on" not in template["services"][service_name]:

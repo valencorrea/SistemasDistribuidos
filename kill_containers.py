@@ -6,60 +6,74 @@ import os
 import time
 import random
 
-def main():
-
-    os.environ['DOCKER_HOST'] = 'unix:///home/salvador/.docker/desktop/docker.sock'
-    print(docker.__path__)
-
-    with open(sys.argv[1], "r") as f:
-        config = yaml.safe_load(f)
-
-    whitelist = []
-    random_opt = config["test"].get("random", False)
-    interval = config["test"].get("interval", False)
+def build_whitelist(config):
+    whitelist = set()
 
     for name, data in config.get("workers", {}).items():
         if data.get("kill", False):
-            whitelist.append(name)
+            for i in range(1, data.get("count", 0) + 1):
+                if name == "credits" or name == "ratings":
+                    whitelist.add(f"{name}_joiner_{i}")
+                else:
+                    whitelist.add(f"{name}_filter_{i}")
 
     for name, data in config.get("aggregators", {}).items():
         if data.get("kill", False):
-            whitelist.append(name)
+            whitelist.add(f"{name}_aggregator")
 
-    print("Whitelist of containers to kill:", whitelist)
+    monitors_cfg = config.get("monitors", {})
+    count = monitors_cfg.get("count", 1)
+    kill_monitors = monitors_cfg.get("kill", False)
 
+    if kill_monitors:
+        for i in range(2, count + 1):
+            whitelist.add(f"monitor_{i}")
+
+    if config["client_decodifier"].get("kill", False):
+        whitelist.add("client_decodifier")
+
+    return whitelist
+
+def main():
+    os.environ['DOCKER_HOST'] = f'unix://{os.path.expanduser("~")}/.docker/desktop/docker.sock'
+    with open(sys.argv[1], "r") as f:
+        config = yaml.safe_load(f)
+
+    whitelist = build_whitelist(config)
+    random_opt = config["test"].get("random", False)
+    interval = config["test"].get("interval", 10)
+
+    print("Whitelist de contenedores:", whitelist)
     client = docker.from_env()
+    def get_matching_containers():
+        containers = client.containers.list(filters={"status": "running"})
+        return [c for c in containers if c.name in whitelist]
 
     if random_opt:
         print("Random mode enabled. Killing containers randomly.")
         while True:
             try:
-                containers = client.containers.list(filters={"status": "running"})
-                matching = [ c for c in containers if
-                     any(c.name.startswith(f"dist-{w}_aggregator") or c.name.startswith(f"{w}_joiner") for w in whitelist) ]
-                time.sleep(interval)
+                matching = get_matching_containers()
                 if not matching:
-                    print("No se encontraron contenedores para terminar.")
+                    print("No matching containers found.")
+                    time.sleep(interval)
                     continue
-                else:
-                    print(f"Found matching containers: {matching}")
                 container = random.choice(matching)
-                print(f"SIGKILL container: {container.name}")
+                print(f"Killing container: {container.name}")
                 container.kill(signal=signal.SIGKILL)
-                matching.remove(container)
+                time.sleep(interval)
             except Exception as e:
-                print(f"Error killing container: {e}")
+                print(f"Error: {e}")
     else:
-        containers = client.containers.list(filters={"status": "running"})
-        random.shuffle(containers)
-        matching = [ c for c in containers if
-                     any(c.name.startswith(f"dist-{w}_aggregator") or c.name.startswith(f"{w}_joiner") for w in whitelist) ]
-        print(f"Killing selected containers: {matching} every {interval} seconds.")
+        matching = get_matching_containers()
+        print(f"Killing selected containers: {[c.name for c in matching]} every {interval} seconds.")
         for container in matching:
-            time.sleep(interval)
-            print(f"SIGKILL container: {container.name}")
-            container.kill(signal=signal.SIGKILL)
-
+            try:
+                print(f"Killing container: {container.name}")
+                container.kill(signal=signal.SIGKILL)
+                time.sleep(interval)
+            except Exception as e:
+                print(f"Error killing {container.name}: {e}")
 
 if __name__ == "__main__":
     main()

@@ -1,11 +1,13 @@
 import json
 import logging
 import os
+import threading
 from collections import Counter, defaultdict
 
 from middleware.consumer.consumer import Consumer
 from middleware.producer.producer import Producer
 from middleware.producer.publisher import Publisher
+from middleware.tcp_protocol.tcp_protocol import TCPServer
 from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 logger = logging.getLogger(__name__)
@@ -20,13 +22,16 @@ class Aggregator(AbstractAggregator):
         super().__init__()
         self.control_received_batches_per_client = defaultdict(int)
         self.batches_by_joiner = defaultdict(set)
-        self.tcp_host = os.getenv("AGGREGATOR_HOST", "aggregator_top_10")
-        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60002))
-        # self.server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+        self.tcp_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
+        self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.joiner_control_publisher = Publisher("joiner_control_credits")
         self.processed_batches_map = defaultdict(set)
+        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
+        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
         self.control_log_name = "_credits_control.log"
         self.recover_control_messages()
+        self.batch_to_joiner = {}
+        self.credit_batch_processed = Consumer("credit_batch_processed", self.handle_credit_batch_processed)
 
     def create_consumer(self):
         return Consumer("top_10_actors_from_batch",
@@ -34,15 +39,26 @@ class Aggregator(AbstractAggregator):
 
     def create_producer(self):
         return Producer("result")
+    
+    def handle_credit_batch_processed(self, message):
+        batch_id = message.get("batch_id")
+        joiner_instance_id = message.get("joiner_instance_id")
+        joiner_instance_id_from_dic = self.batch_to_joiner.get(batch_id, None)
+        if joiner_instance_id_from_dic is None:
+            self.batch_to_joiner[batch_id] = joiner_instance_id
+        self.handle_control_message(message)
+        self.credit_batch_processed.ack(batch_id)
 
     def handle_message_joiner_aggregator(self, message):
         self.logger.info(f"Mensaje recibido en desde top_10_actors_from_batch")
         type_of_message = message.get("type")
         self.logger.info(f"Tipo de mensaje recibido: {type_of_message}")
         if type_of_message == "query_4_top_10_actores_credits":
+            if message.get("client_id", None) not in self.results.keys():
+                batch_id = message["batch_id"]
+                self.consumer.ack(batch_id)
+                return
             self.handle_message(message)
-        elif type_of_message == "control":
-            self.handle_control_message(message)
         else:
             self.logger.error(f"Tipo de mensaje desconocido: {type_of_message}. Mensaje: {message}")
 
@@ -53,7 +69,6 @@ class Aggregator(AbstractAggregator):
 
     def aggregate_message(self, client_id, actors):
         for _, count in actors:
-            self.logger.info(f"Se va a aumentar la cantidad de registros de un actor: {count}: {type(count)}.")
             if client_id not in self.results:
                 self.results[client_id] = Counter()
             self.results[client_id][count["name"]] += count["count"]
@@ -67,26 +82,72 @@ class Aggregator(AbstractAggregator):
             "client_id": client_id
         }
 
-    def _handle_tcp_message(self, msg, addr):
+    def handle_result_message(self, message):
+        self.logger.info(f"Mensaje de top 10 parcial recibido {message}")
+        client_id = message.get("client_id")
+        batch_id = message.get("batch_id")
+        batch_size = message.get("batch_size")
+        actors = message.get("actors")
+        self.logger.info(f"Se obtuvieron {len(actors)}: {actors} actores.")
+
+        if batch_size:
+            self.received_batches_per_client[client_id] = self.received_batches_per_client.get(client_id, 0) + batch_size
+            self.logger.info(f"Se actualiza la cantidad total de batches: {self.received_batches_per_client[client_id]} para el cliente {client_id}.")
+
+        for _, count in actors:
+            self.results[client_id][count["name"]] += count["count"]
+
+        total = self.total_batches_per_client.get(client_id, None)
+        received = self.received_batches_per_client.get(client_id, 0)
+        self.logger.info(f"Control de batches para el cliente {client_id}: total: {total}, received: {received}")
+        if total and 0 < total <= received:
+            self.logger.info(f"Se va a enviar el resultado final para el cliente {client_id}.")
+            # Top 10 final encontrado
+            final_top_10 = self.results[client_id].most_common(10)
+            self.producer.enqueue({
+                "result_number": 4,
+                "type": "top_10_actors",
+                "actors": final_top_10,
+                "client_id": client_id,
+                "batch_id": batch_id
+            })
+            self.logger.info("Top 10 actores agregados y enviados.")
+            self.results.pop(client_id)
+            self.control_received_batches_per_client.pop(client_id)
+            self.total_batches_per_client.pop(client_id)
+            self.received_batches_per_client.pop(client_id)
+
+
+    def _handle_tcp_message(self, msg, addr, client_socket):
         try:
-            self.logger.info(f"[TCP] Mensaje recibido de {addr}: {msg}")
+            self.logger.info(f"[TCP] Mensaje de control recibido: {msg}")
             data_json = json.loads(msg)
-            if data_json.get("type") != "batch_id":
-                return
-            batch_id = data_json.get("batch_id")
-            joiner_instance_id = data_json.get("joiner_instance_id")
-            if batch_id is None or joiner_instance_id is None:
-                self.logger.warning(f"[TCP] batch_id o joiner_instance_id faltante en mensaje: {msg}")
-                return
-            self.batches_by_joiner[joiner_instance_id].add(str(batch_id))
+            message_type = data_json.get("type")
+            if message_type == "control": #mensaje de control para guardar el batch_id y el joiner_instance_id
+                batch_id = data_json.get("batch_id")
+                joiner_instance_id = data_json.get("joiner_instance_id")
+                client_id = data_json.get("client_id")
+                joiner_instance_id_from_dic = self.batch_to_joiner.get(batch_id, None)
+                if joiner_instance_id_from_dic is None:
+                    self.batch_to_joiner[batch_id] = joiner_instance_id
+                self.handle_control_message(data_json)
+
+            elif message_type == "batch_processed": #consulta del joiner cuando arranca para saber si ya proceso el batch
+                joiner_instance_id = self.batch_to_joiner.get(data_json.get("batch_id"), '-1')
+                client_socket.send(json.dumps({
+                    "type": "batch_processed",
+                    "joiner_instance_id": joiner_instance_id
+                }).encode('utf-8') + b'\n')
+            else:
+                self.logger.warning(f"[TCP] Tipo de mensaje desconocido: {message_type}")
+                
         except Exception as e:
             self.logger.error(f"[TCP] Error procesando mensaje recibido: {e}")
 
     def close(self):
-        # TODO revisar close de estos aggregators
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            # self.server.stop()
+            self.tcp_server.stop()
             self.consumer.close()
             self.producer.close()
             self.shutdown_consumer.close()
@@ -94,11 +155,10 @@ class Aggregator(AbstractAggregator):
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
     def handle_control_message(self, message):
-        #Adquirir el lock por cliente de los mensajes de control
-        #responder si o no
-        total_batches = message.get("total_batches")
+        self.logger.info(f"Mensaje de control recibido: {message}")
+        total_batches = message.get("total_batches", None)
         batch_size = message.get("batch_size")
-        joiner_id = message.get("joiner_id")
+        joiner_id = message.get("joiner_instance_id")
         batch_id = message.get("batch_id")
         client_id = message.get("client_id")
 
@@ -106,23 +166,41 @@ class Aggregator(AbstractAggregator):
         self.control_received_batches_per_client[client_id] = self.control_received_batches_per_client.get(client_id,
                                                                                                            0) + batch_size
         self.batches_by_joiner[joiner_id].add(batch_id)
+
+        if batch_id and joiner_id:
+            self.batch_to_joiner[batch_id] = joiner_id
+            self.logger.info(f"[Guardado en batch_to_joiner: {batch_id} -> {joiner_id}")
+
         self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
-        if total_batches:
+        if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(f"Se actualiza la cantidad total de batches:"
                              f"{self.total_batches_per_client[client_id]} para el cliente {client_id}.")
         self.consumer.ack(batch_id)
-        #Liberar el lock
-
+        if client_id not in self.results:
+            self.results[client_id] = Counter()
         total = self.total_batches_per_client.get(client_id, None)
         received = self.control_received_batches_per_client.get(client_id, 0)
-        if total and 0 < total <= received:
+
+        self.logger.info(f"Total: {total}, Received: {received}")
+        if total is not None and total <= received:
             self.logger.info(f"Se proceso el cliente {client_id}: ({received}/{total}), enviando request de resultados parciales.")
-            self.joiner_control_publisher.enqueue({"client_id": client_id})
+            message = {
+                "type": "batch_processed",
+                "client_id": client_id
+            }
+            self.joiner_control_publisher.enqueue(message)
+            control_log_filename = f"{client_id}{self.control_log_name}"
+            if os.path.exists(control_log_filename):
+                os.remove(control_log_filename)
 
     def start(self):
         self.logger.info("Iniciando agregador")
-        # self.server.start()
+        
+        tcp_thread = threading.Thread(target=self.tcp_server.start, daemon=True)
+        tcp_thread.start()
+        self.credit_batch_processed.start()
+        self.logger.info("TCP Server iniciado en thread separado")
         super().start()
 
     def persist_control_message(self, client_id, batch_id, joiner_id, batch_size, total_batches):
@@ -176,7 +254,6 @@ class Aggregator(AbstractAggregator):
                             in_transaction = False
                             current_batch_id = None
                             current_payload = None
-                            # TODO si el archivo es invalido, deberiamos borrarlo
             except json.JSONDecodeError as e:
                 self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
             except Exception as e:
