@@ -262,6 +262,7 @@ class Aggregator(AbstractAggregator):
                             batch_size = current_payload.get("batch_size", 0)
                             total_batches = current_payload.get("total_batches", None)
                             self.batches_by_joiner[joiner_id].add(batch_id)
+                            self.batch_to_joiner[batch_id] = joiner_id
                             self.logger.info(f"Se recuperó el control batch_id {batch_id} para el joiner {joiner_id}.")
                             self.control_received_batches_per_client[
                                 client_id] = self.control_received_batches_per_client.get(client_id, 0) + batch_size
