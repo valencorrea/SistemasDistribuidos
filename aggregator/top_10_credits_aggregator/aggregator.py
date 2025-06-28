@@ -19,18 +19,23 @@ logging.basicConfig(
 
 class Aggregator(AbstractAggregator):
     def __init__(self):
-        super().__init__()
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(
+            format='%(asctime)s %(levelname)-8s %(message)s',
+            level=logging.DEBUG,
+            datefmt='%H:%M:%S')
         self.control_received_batches_per_client = defaultdict(int)
         self.batches_by_joiner = defaultdict(set)
         self.tcp_host = os.getenv("AGGREGATOR_HOST", "top_10_credits_aggregator")
         self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60000))
         self.joiner_control_publisher = Publisher("joiner_control_credits")
         self.processed_batches_map = defaultdict(set)
-        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
-        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
         self.control_log_name = "_credits_control.log"
-        self.recover_control_messages()
         self.batch_to_joiner = {}
+        self.recover_control_messages()
+        super().__init__()
+        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
         self.credit_batch_processed = Consumer("credit_batch_processed", self.handle_credit_batch_processed)
 
     def create_consumer(self):

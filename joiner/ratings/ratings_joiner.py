@@ -340,20 +340,74 @@ class RatingsJoiner(AbstractAggregator):
         else:
             return str(message) + '\n'
 
-    def _is_batch_for_client(self, batch_id, client_id):
-        log_file = f"{client_id}{self.results_log_name}"
-        if os.path.exists(log_file):
-            with open(log_file, "r") as f:
-                for line in f:
-                    if batch_id in line and "client_id" in line:
-                        try:
-                            parts = line.strip().split(";", 2)
-                            if len(parts) == 3:
-                                payload = json.loads(parts[2])
-                                return payload.get("client_id") == client_id
-                        except:
-                            continue
-        return False
+    def handle_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.clean_client(client_id)
+                
+                # Reenviar mensaje envenenado al aggregator para que también limpie
+                poisoned_control_message = {
+                    "type": "control",
+                    "client_id": client_id,
+                    "batch_id": message.get("batch_id"),
+                    "batch_size": 0,
+                    "joiner_id": self.joiner_instance_id,
+                    "is_final": True
+                }
+                if self.producer:
+                    self.producer.enqueue(poisoned_control_message)
+                    self.logger.info(f"Mensaje envenenado reenviado al aggregator para cliente {client_id}")
+                
+                # Hacer ACK del mensaje envenenado para que no se reprocese
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
+        batch_id = message.get("batch_id")
+        client_id = message.get("client_id")
+        
+        control_message = {
+            "type": "batch_processed",
+            "batch_id": batch_id,
+            "client_id": client_id,
+        }
+        
+        formatted_message = self.format_message(control_message)
+        processing_status = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed)
+        
+        if processing_status is True:
+            self.logger.info(f"Batch {batch_id} ya procesado por otro joiner, se hace ACK")
+            if self.consumer:
+                self.consumer.ack(batch_id)
+        elif processing_status is False:
+            super().handle_message(message)
+        elif processing_status is None:
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien. Procesando de todas formas.")
+
+    def _handle_batch_processed(self, response):
+        joiner_instance_id = response.get("joiner_instance_id", '-1')
+        return joiner_instance_id != '-1'
+    
+    def _handle_batch_processed_for_recover(self, response):
+        joiner_instance_id = response.get("joiner_instance_id", 'no encontrado')
+        self.logger.info(f"Respuesta recibida del aggregator para recover: {response} para joiner {self.joiner_instance_id} con {joiner_instance_id}")
+        return joiner_instance_id == self.joiner_instance_id
+
+    def should_resolve_unfinished_transaction(self, batch_id, client_id):
+        control_message = {
+            "type": "batch_processed",
+            "batch_id": batch_id,
+            "client_id": client_id,
+        }        
+        formatted_message = self.format_message(control_message)
+        response = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed_for_recover)
+        if response is None:
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")
+            return False
+        return response
 
 
 if __name__ == '__main__':

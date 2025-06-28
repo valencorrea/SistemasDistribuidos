@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 import os
 import json
 import threading
@@ -11,18 +12,23 @@ from worker.abstractaggregator.abstractaggregator import AbstractAggregator
 
 class Aggregator(AbstractAggregator):
     def __init__(self):
-        super().__init__()
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(
+            format='%(asctime)s %(levelname)-8s %(message)s',
+            level=logging.DEBUG,
+            datefmt='%H:%M:%S')
         self.control_received_batches_per_client = defaultdict(int)
         self.batches_by_joiner = defaultdict(set)
         self.tcp_host = os.getenv("AGGREGATOR_HOST", "best_and_worst_ratings_aggregator")
         self.tcp_port = int(os.getenv("AGGREGATOR_PORT", 60002))
         self.joiner_control_publisher = Publisher("joiner_control_ratings")
         self.processed_batches_map = defaultdict(set)
-        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
-        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
         self.control_log_name = "_ratings_control.log"
-        self.recover_control_messages()
         self.batch_to_joiner = {}
+        self.recover_control_messages()
+        super().__init__()
+        self.tcp_server = TCPServer(self.tcp_host, self.tcp_port, self._handle_tcp_message)
+        self.logger.info(f"TCP Server inicializado en {self.tcp_host}:{self.tcp_port}")
 
     def create_consumer(self):
         return Consumer("best_and_worst_ratings_partial_result",
@@ -127,6 +133,7 @@ class Aggregator(AbstractAggregator):
                 self.handle_control_message(data_json)
 
             elif message_type == "batch_processed": #consulta del joiner cuando arranca para saber si ya proceso el batch
+                self.logger.info(f"Respuesta recibida del joiner para batch {data_json.get('batch_id')}: {self.batch_to_joiner.get(data_json.get('batch_id'), '-1')}")
                 joiner_instance_id = self.batch_to_joiner.get(data_json.get("batch_id"), '-1')
                 client_socket.send(json.dumps({
                     "type": "batch_processed",
@@ -176,6 +183,11 @@ class Aggregator(AbstractAggregator):
         self.control_received_batches_per_client[client_id] = self.control_received_batches_per_client.get(client_id,
                                                                                                            0) + batch_size
         self.batches_by_joiner[joiner_id].add(batch_id)
+
+        if batch_id and joiner_id:
+            self.batch_to_joiner[batch_id] = joiner_id
+            self.logger.info(f"[Guardado en batch_to_joiner: {batch_id} -> {joiner_id}")
+    
         if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(f"Se actualiza la cantidad total de batches:"
@@ -240,6 +252,7 @@ class Aggregator(AbstractAggregator):
                             batch_size = current_payload.get("batch_size", 0)
                             total_batches = current_payload.get("total_batches", None)
                             self.batches_by_joiner[joiner_id].add(batch_id)
+                            self.batch_to_joiner[batch_id] = joiner_id
                             self.logger.info(f"Se recuperó el control batch_id {batch_id} para el joiner {joiner_id}.")
                             self.control_received_batches_per_client[
                                 client_id] = self.control_received_batches_per_client.get(client_id, 0) + batch_size

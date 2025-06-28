@@ -355,10 +355,11 @@ class CreditsJoiner(AbstractAggregator):
         self.logger.info(f"Respuesta recibida del aggregator para recover: {joiner_instance_id}")
         return joiner_instance_id == self.joiner_instance_id
 
-    def should_resolve_unfinished_transaction(self, batch_id):
+    def should_resolve_unfinished_transaction(self, batch_id, client_id):
         control_message = {
             "type": "batch_processed",
             "batch_id": batch_id,
+            "client_id": client_id,
         }        
         formatted_message = self.format_message(control_message)
         self.logger.info(f"Enviando mensaje de should_resolve_unfinished_transaction al aggregator: {batch_id}")

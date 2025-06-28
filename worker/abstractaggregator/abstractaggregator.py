@@ -5,10 +5,9 @@ from abc import abstractmethod
 from collections import defaultdict
 
 from worker.worker import Worker
-
-
 class AbstractAggregator(Worker):
     def __init__(self, results=None):
+
         super().__init__()
         self.max_file_size = 1024 * 1024
         self.total_batches_per_client = defaultdict(int)
@@ -274,7 +273,9 @@ class AbstractAggregator(Worker):
     def resolve_unfinished_transaction(self, line, current_batch_id, current_payload):
         self.logger.info(f"Validando si finalizar la transaccion {current_batch_id}")
         parts = line.strip().split(";", 2)
-        if parts[0] == "END_TRANSACTION" and len(parts) == 2 and self.should_resolve_unfinished_transaction(parts[1]):
+        should_resolve = self.should_resolve_unfinished_transaction(current_batch_id, current_payload.get("client_id"))
+        self.logger.info(f"Should resolve: {should_resolve}")
+        if parts[0] == "END_TRANSACTION" and len(parts) == 2 and should_resolve:
             batch_id = parts[1]
             if batch_id != current_batch_id:
                 self.logger.error(f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")

@@ -283,7 +283,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50001:50001
     - 50011:50011
@@ -303,7 +303,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50002:50002
     - 50012:50012
@@ -323,7 +323,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50003:50003
     - 50013:50013
@@ -472,32 +472,6 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=sentiment_aggregator
-    links:
-    - rabbitmq
-  sentiment_filter:
-    build:
-      context: .
-      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
-    container_name: sentiment_filter_1
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=INFO
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=sentiment_filter_1
-    image: sentiment_filter:latest
     links:
     - rabbitmq
   top_10_credits_aggregator:
