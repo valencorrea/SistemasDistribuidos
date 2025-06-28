@@ -43,9 +43,12 @@ class RatingsJoiner(AbstractAggregator):
         super().__init__(self.results)
     
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                          message_handler=self.handle_movies_message)
+                                          message_handler=self.handle_movies_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_movies_ratings")
         self.ratings_producer = Producer(queue_name="ratings", queue_type="direct")
-        self.control_consumer = Subscriber("joiner_control_ratings", message_handler=self.handle_control_message)
+        self.control_consumer = Subscriber("joiner_control_ratings", 
+                                          message_handler=self.handle_control_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_control_ratings")
 
         if self.has_recovered_at_least_once and self.consumer:
             self.consumer.start()
@@ -145,14 +148,14 @@ class RatingsJoiner(AbstractAggregator):
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            self.movies_consumer.close()
+            self.movies_consumer.stop()
             if self.consumer:
                 self.consumer.close()
             if self.producer:
                 self.producer.close()
             if self.shutdown_consumer:
                 self.shutdown_consumer.close()
-            self.control_consumer.close()
+            self.control_consumer.stop()
             self.ratings_producer.close()
             if self.tcp_client:
                 self.tcp_client.close()

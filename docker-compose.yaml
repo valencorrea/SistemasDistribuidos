@@ -25,29 +25,6 @@ services:
     image: arg_production_filter:latest
     links:
     - rabbitmq
-  arg_production_filter_2:
-    container_name: arg_production_filter_2
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=INFO
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=arg_production_filter_2
-    image: arg_production_filter:latest
-    links:
-    - rabbitmq
   best_and_worst_ratings_aggregator:
     build:
       context: .
@@ -127,38 +104,10 @@ services:
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=client_2
     volumes:
-    - ./files/short/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/short/credits.csv:/root/files/credits.csv
-    - ./files/short/ratings.csv:/root/files/ratings.csv
-    - ./results/short/results.json:/root/results/results.json
-  client_3:
-    build:
-      context: .
-      dockerfile: client/client.dockerfile
-    container_name: client_3
-    depends_on:
-      client_decodifier:
-        condition: service_healthy
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - DECODIFIER_HOST=client_decodifier
-    - DECODIFIER_PORT=50000
-    - CLIENT_ID=3
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=client_3
-    volumes:
-    - ./files/short/movies_metadata.csv:/root/files/movies_metadata.csv
-    - ./files/short/credits.csv:/root/files/credits.csv
-    - ./files/short/ratings.csv:/root/files/ratings.csv
-    - ./results/short/results.json:/root/results/results.json
+    - ./files/long/movies_metadata.csv:/root/files/movies_metadata.csv
+    - ./files/long/credits.csv:/root/files/credits.csv
+    - ./files/long/ratings.csv:/root/files/ratings.csv
+    - ./results/long/results.json:/root/results/results.json
   client_decodifier:
     build:
       context: .
@@ -242,6 +191,32 @@ services:
     image: credits_joiner:latest
     links:
     - rabbitmq
+  credits_joiner_3:
+    container_name: credits_joiner_3
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - JOINER_INSTANCE_ID=credits-4
+    - AGGREGATOR_HOST=top_10_credits_aggregator
+    - AGGREGATOR_PORT=60000
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=100
+    - SERVICE_NAME=credits_joiner_3
+    image: credits_joiner:latest
+    links:
+    - rabbitmq
   esp_production_filter:
     build:
       context: .
@@ -268,29 +243,6 @@ services:
     image: esp_production_filter:latest
     links:
     - rabbitmq
-  esp_production_filter_2:
-    container_name: esp_production_filter_2
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=INFO
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=esp_production_filter_2
-    image: esp_production_filter:latest
-    links:
-    - rabbitmq
   main_movie_filter:
     build:
       context: .
@@ -309,34 +261,11 @@ services:
         condition: service_started
     environment:
     - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=DEBUG
+    - LOG_LEVEL=INFO
     - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=main_movie_filter_1
-    image: main_movie_filter:latest
-    links:
-    - rabbitmq
-  main_movie_filter_2:
-    container_name: main_movie_filter_2
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=DEBUG
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=main_movie_filter_2
     image: main_movie_filter:latest
     links:
     - rabbitmq
@@ -354,7 +283,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=1
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,client_3,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,arg_production_filter_2,credits_joiner_1,credits_joiner_2,ratings_joiner_1,ratings_joiner_2,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,no_colab_productions_filter_2,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50001:50001
     - 50011:50011
@@ -374,7 +303,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=2
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,client_3,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,arg_production_filter_2,credits_joiner_1,credits_joiner_2,ratings_joiner_1,ratings_joiner_2,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,no_colab_productions_filter_2,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50002:50002
     - 50012:50012
@@ -394,7 +323,7 @@ services:
     - ELECTION_TIMEOUT=1000
     - MONITOR_NODE_ID=3
     - MONITOR_CLUSTER_NODES=monitor_1,monitor_2,monitor_3
-    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,client_3,twentieth_century_filter_1,twentieth_century_filter_2,arg_production_filter_1,arg_production_filter_2,credits_joiner_1,credits_joiner_2,ratings_joiner_1,ratings_joiner_2,main_movie_filter_1,main_movie_filter_2,esp_production_filter_1,esp_production_filter_2,no_colab_productions_filter_1,no_colab_productions_filter_2,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator
+    - EXPECTED_SERVICES=worker,client_decodifier,client_1,client_2,twentieth_century_filter_1,arg_production_filter_1,credits_joiner_1,credits_joiner_2,credits_joiner_3,ratings_joiner_1,ratings_joiner_2,ratings_joiner_3,main_movie_filter_1,esp_production_filter_1,no_colab_productions_filter_1,sentiment_filter_1,twentieth_century_arg_esp_aggregator,twentieth_century_arg_aggregator,top_5_countries_aggregator,top_10_credits_aggregator,best_and_worst_ratings_aggregator,sentiment_aggregator
     ports:
     - 50003:50003
     - 50013:50013
@@ -423,29 +352,6 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=no_colab_productions_filter_1
-    image: no_colab_productions_filter:latest
-    links:
-    - rabbitmq
-  no_colab_productions_filter_2:
-    container_name: no_colab_productions_filter_2
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=INFO
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=no_colab_productions_filter_2
     image: no_colab_productions_filter:latest
     links:
     - rabbitmq
@@ -515,6 +421,83 @@ services:
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=ratings_joiner_2
     image: ratings_joiner:latest
+    links:
+    - rabbitmq
+  ratings_joiner_3:
+    container_name: ratings_joiner_3
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - JOINER_INSTANCE_ID=ratings-4
+    - AGGREGATOR_HOST=best_and_worst_ratings_aggregator
+    - AGGREGATOR_PORT=60002
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=100
+    - SERVICE_NAME=ratings_joiner_3
+    image: ratings_joiner:latest
+    links:
+    - rabbitmq
+  sentiment_aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/sentiment_aggregator/aggregator.dockerfile
+    container_name: sentiment_aggregator
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=100
+    - SERVICE_NAME=sentiment_aggregator
+    links:
+    - rabbitmq
+  sentiment_filter:
+    build:
+      context: .
+      dockerfile: filters/sentiment_analizer/sentiment_analizer.dockerfile
+    container_name: sentiment_filter_1
+    depends_on:
+      monitor_1:
+        condition: service_started
+      monitor_2:
+        condition: service_started
+      monitor_3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+    - PYTHONUNBUFFERED=1
+    - LOG_LEVEL=INFO
+    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
+    - MONITOR_PORTS=50001,50002,50003
+    - HEARTBEAT_INTERVAL=100
+    - SERVICE_NAME=sentiment_filter_1
+    image: sentiment_filter:latest
     links:
     - rabbitmq
   top_10_credits_aggregator:
@@ -642,29 +625,6 @@ services:
     - MONITOR_PORTS=50001,50002,50003
     - HEARTBEAT_INTERVAL=100
     - SERVICE_NAME=twentieth_century_filter_1
-    image: twentieth_century_filter:latest
-    links:
-    - rabbitmq
-  twentieth_century_filter_2:
-    container_name: twentieth_century_filter_2
-    depends_on:
-      monitor_1:
-        condition: service_started
-      monitor_2:
-        condition: service_started
-      monitor_3:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-      worker:
-        condition: service_started
-    environment:
-    - PYTHONUNBUFFERED=1
-    - LOG_LEVEL=INFO
-    - MONITOR_HOSTS=monitor_1,monitor_2,monitor_3
-    - MONITOR_PORTS=50001,50002,50003
-    - HEARTBEAT_INTERVAL=100
-    - SERVICE_NAME=twentieth_century_filter_2
     image: twentieth_century_filter:latest
     links:
     - rabbitmq
