@@ -114,7 +114,6 @@ class Aggregator(AbstractAggregator):
 
     def _handle_tcp_message(self, msg, addr, client_socket):
         try:
-            self.logger.info(f"[TCP] Mensaje de control recibido: {msg}")
             data_json = json.loads(msg)
             message_type = data_json.get("type")
             if message_type == "control": #mensaje de control para guardar el batch_id y el joiner_instance_id
@@ -167,9 +166,6 @@ class Aggregator(AbstractAggregator):
                 self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
             return
 
-        #Adquirir el lock por cliente de los mensajes de control
-        #responder si o no
-        self.logger.info(f"Mensaje de control recibido: {message}")
         total_batches = message.get("total_batches", None)
         batch_size = message.get("batch_size")
         joiner_id = message.get("joiner_id")
@@ -180,7 +176,6 @@ class Aggregator(AbstractAggregator):
         self.control_received_batches_per_client[client_id] = self.control_received_batches_per_client.get(client_id,
                                                                                                            0) + batch_size
         self.batches_by_joiner[joiner_id].add(batch_id)
-        self.logger.info(f"Se recibio un mensaje de control para el cliente {client_id} con batch_id {batch_id}.")
         if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
             self.logger.info(f"Se actualiza la cantidad total de batches:"

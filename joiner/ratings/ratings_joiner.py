@@ -88,16 +88,9 @@ class RatingsJoiner(AbstractAggregator):
         if client_id not in self.results:
             self.results[client_id] = result
         else:
-
             for movie_id, data in result.items():
-                if movie_id not in self.results[client_id]:
-                    self.results[client_id][movie_id] = {
-                        "rating_sum": data["rating_sum"],
-                        "votes": data["votes"]
-                    }
-                else:
-                    self.results[client_id][movie_id]["rating_sum"] += data["rating_sum"]
-                    self.results[client_id][movie_id]["votes"] += data["votes"]
+                self.results[client_id][int(movie_id)]["rating_sum"] += data["rating_sum"]
+                self.results[client_id][int(movie_id)]["votes"] += data["votes"]
 
     def check_if_its_completed(self, client_id):
         pass
@@ -129,9 +122,9 @@ class RatingsJoiner(AbstractAggregator):
             results_file = f"{client_id}{self.results_log_name}"
             if os.path.exists(results_file):
                 os.remove(results_file)
-            self.results.pop(client_id)
-            self.total_batches_per_client.pop(client_id)
-            self.received_batches_per_client.pop(client_id)
+            self.results.pop(client_id, None)
+            self.total_batches_per_client.pop(client_id, None)
+            self.received_batches_per_client.pop(client_id, None)
         except Exception as e:
             self.logger.error(f"Error al limpiar cliente {client_id}: {e}")
 
@@ -179,7 +172,6 @@ class RatingsJoiner(AbstractAggregator):
         return movies_with_ratings
 
     def handle_movies_message(self, message):
-
         if message.get("type") != "20_century_arg_total_result":
             self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
             return
@@ -200,61 +192,78 @@ class RatingsJoiner(AbstractAggregator):
             self.persist_movies(client_id, movies)
             self.set_movies_for_client(client_id, movies)
 
-            for filename in os.listdir():
-                if not filename.endswith(self.pending_file):
-                    self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
-                    continue
-                client_id = filename.replace("%s" % self.pending_file, "")
-                self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
-                in_transaction = False
-                current_batch_id = None
-                current_payload = None
-
-                with open(filename, "r") as f:
-                    try:
-                        for line in f:
-                            parts = line.strip().split(";", 2)
-
-                            if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
-                                in_transaction = True
-                                current_batch_id = parts[1]
-                                current_payload = json.loads(parts[2])
-                                self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
-
-                            elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
-                                batch_id = parts[1]
-                                if batch_id != current_batch_id:
-                                    self.logger.error(
-                                        f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
-                                    continue
-                                if batch_id in self.processed_batch_ids:
-                                    self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
-                                    continue
-
-                                self.ratings_producer.enqueue(current_payload)
-                                in_transaction = False
-                                current_batch_id = None
-                                current_payload = None
-                    except json.JSONDecodeError as e:
-                        self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
-                    except Exception as e:
-                        self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
-                        exit(1)
-                os.remove(filename)
-
+            self._process_pending_messages(client_id)
             self.recheck_if_some_client_is_completed_after_restart()
             self.logger.info(f"{len(self.results[client_id])} películas guardadas para {client_id}")
+
             if self.consumer and not self.consumer.is_alive():
-                self.consumer.start()
-                self.logger.info("Thread de consumo de ratings empezado")
+                try:
+                    self.consumer.start()
+                except Exception as e:
+                    self.logger.error(f"Error al iniciar consumer: {e}")
             else:
                 self.logger.info("Thread de consumo de ratings no empezado, ya existe uno")
 
-            self.recheck_if_some_client_is_completed_after_restart()
 
         except Exception as e:
             self.logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
             self.close()
+
+    def _process_pending_messages(self, client_id):
+        """Procesa mensajes pendientes para un cliente específico"""
+        for filename in os.listdir():
+            if not filename.endswith(self.pending_file):
+                self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
+                continue
+                
+            file_client_id = filename.replace("%s" % self.pending_file, "")
+            if file_client_id != client_id:
+                continue
+                
+            self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
+            in_transaction = False
+            current_batch_id = None
+            current_payload = None
+
+            with open(filename, "r") as f:
+                try:
+                    for line in f:
+                        parts = line.strip().split(";", 2)
+
+                        if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
+                            in_transaction = True
+                            current_batch_id = parts[1]
+                            current_payload = json.loads(parts[2])
+                            self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
+
+                        elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
+                            batch_id = parts[1]
+                            if batch_id != current_batch_id:
+                                self.logger.error(
+                                    f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
+                                continue
+                            if batch_id in self.processed_batch_ids:
+                                self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
+                                continue
+
+                            # Reenviar mensaje a la cola
+                            self.ratings_producer.enqueue(current_payload)
+                            
+                            in_transaction = False
+                            current_batch_id = None
+                            current_payload = None
+                except json.JSONDecodeError as e:
+                    self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
+                except Exception as e:
+                    self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
+                    raise
+                    
+            # Eliminar archivo de pendientes después de procesarlo
+            try:
+                os.remove(filename)
+                self.logger.info(f"Archivo de pendientes {filename} eliminado después del procesamiento")
+            except Exception as e:
+                self.logger.warning(f"No se pudo eliminar archivo de pendientes {filename}: {e}")
 
     def set_movies_for_client(self, client_id, movies):
         self.results[client_id] = {}
@@ -331,75 +340,20 @@ class RatingsJoiner(AbstractAggregator):
         else:
             return str(message) + '\n'
 
-    def handle_message(self, message):
-        if message.get("is_final", False):
-            client_id = message.get("client_id")
-            if client_id:
-                self.clean_client(client_id)
-                
-                # Reenviar mensaje envenenado al aggregator para que también limpie
-                poisoned_control_message = {
-                    "type": "control",
-                    "client_id": client_id,
-                    "batch_id": message.get("batch_id"),
-                    "batch_size": 0,
-                    "joiner_id": self.joiner_instance_id,
-                    "is_final": True
-                }
-                if self.producer:
-                    self.producer.enqueue(poisoned_control_message)
-                    self.logger.info(f"Mensaje envenenado reenviado al aggregator para cliente {client_id}")
-                
-                # Hacer ACK del mensaje envenenado para que no se reprocese
-                batch_id = message.get("batch_id")
-                if batch_id and self.consumer:
-                    self.consumer.ack(batch_id)
-                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
-            return
-
-        batch_id = message.get("batch_id")
-        client_id = message.get("client_id")
-        
-        control_message = {
-            "type": "batch_processed",
-            "batch_id": batch_id,
-            "client_id": client_id,
-        }
-        
-        formatted_message = self.format_message(control_message)
-        processing_status = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed)
-        
-        if processing_status is True:
-            if self.consumer:
-                self.consumer.ack(batch_id)
-        elif processing_status is False:
-            super().handle_message(message)
-        elif processing_status is None:
-            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien. Procesando de todas formas.")
-            super().handle_message(message)
-        else:
-            self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
-            super().handle_message(message)
-
-    def _handle_batch_processed(self, response):
-        joiner_instance_id = response.get("joiner_instance_id", '-1')
-        return joiner_instance_id != '-1'
-    
-    def _handle_batch_processed_for_recover(self, response):
-        joiner_instance_id = response.get("joiner_instance_id", '-1')
-        return joiner_instance_id == self.joiner_instance_id
-
-    def should_resolve_unfinished_transaction(self, batch_id):
-        control_message = {
-            "type": "batch_processed",
-            "batch_id": batch_id,
-        }        
-        formatted_message = self.format_message(control_message)
-        response = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed_for_recover)
-        if response is None:
-            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")
-            return False
-        return response
+    def _is_batch_for_client(self, batch_id, client_id):
+        log_file = f"{client_id}{self.results_log_name}"
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                for line in f:
+                    if batch_id in line and "client_id" in line:
+                        try:
+                            parts = line.strip().split(";", 2)
+                            if len(parts) == 3:
+                                payload = json.loads(parts[2])
+                                return payload.get("client_id") == client_id
+                        except:
+                            continue
+        return False
 
 
 if __name__ == '__main__':
