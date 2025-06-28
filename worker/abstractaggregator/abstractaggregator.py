@@ -5,12 +5,11 @@ from abc import abstractmethod
 from collections import defaultdict
 
 from worker.worker import Worker
-
-
 class AbstractAggregator(Worker):
     def __init__(self, results=None):
+
         super().__init__()
-        self.max_file_size = 100 * 1024
+        self.max_file_size = 1024 * 1024
         self.total_batches_per_client = defaultdict(int)
         self.received_batches_per_client = defaultdict(int)
         self.processed_batch_ids = set()
@@ -31,7 +30,7 @@ class AbstractAggregator(Worker):
 
     def start(self):
         self.logger.info("Iniciando agregador")
-        self.consumer.start_consuming_2()
+        self.consumer.start_consuming()
 
     def handle_message(self, message):
         if message.get("is_final", False):
@@ -71,13 +70,11 @@ class AbstractAggregator(Worker):
             self.consumer.ack(batch_id)
             return
 
-        if client_id not in self.results:
+        if client_id not in self.received_batches_per_client:
             self.logger.info(f"Se recibio un nuevo cliente con id {client_id}.")
             self.received_batches_per_client[client_id] = 0
 
         self.received_batches_per_client[client_id] += batch_size
-        self.logger.info(
-            f"Se actualiza la cantidad recibida del cliente {client_id}: {batch_size}, actual: {self.received_batches_per_client[client_id]}.")
 
         if total_batches is not None:
             self.total_batches_per_client[client_id] = total_batches
@@ -91,19 +88,17 @@ class AbstractAggregator(Worker):
             self.consumer.ack(batch_id)
             return
         current_file_size = self.persist_result(client_id, batch_id, batch_size, total_batches, result)
+        if current_file_size > self.max_file_size:
+            self.logger.info(
+                f"El archivo de log del cliente {client_id} ha superado el tamaño máximo de {self.max_file_size} bytes.")
+            self.compact_log_for_client(client_id)
         self.send_batch_processed(client_id, batch_id, batch_size, total_batches)
         self.consumer.ack(batch_id)
         self.aggregate_message(client_id, result)
         self.processed_batch_ids.add(batch_id)
 
-        self.logger.info(f"Fue procesado el mensaje {batch_id} del cliente {client_id}")
-        self.logger.info(f"Tamaño actual del archivo de log: {current_file_size} bytes")
         if self.check_if_its_completed(client_id):
             return
-        elif current_file_size > self.max_file_size:
-            self.logger.info(
-                f"El archivo de log del cliente {client_id} ha superado el tamaño máximo de {self.max_file_size} bytes.")
-            self.compact_log_for_client(client_id)
 
     def send_batch_processed(self, client_id, batch_id, batch_size, total_batches):
         pass
@@ -278,7 +273,9 @@ class AbstractAggregator(Worker):
     def resolve_unfinished_transaction(self, line, current_batch_id, current_payload):
         self.logger.info(f"Validando si finalizar la transaccion {current_batch_id}")
         parts = line.strip().split(";", 2)
-        if parts[0] == "END_TRANSACTION" and len(parts) == 2 and self.should_resolve_unfinished_transaction(parts[1]):
+        should_resolve = self.should_resolve_unfinished_transaction(current_batch_id, current_payload.get("client_id"))
+        self.logger.info(f"Should resolve: {should_resolve}")
+        if parts[0] == "END_TRANSACTION" and len(parts) == 2 and should_resolve:
             batch_id = parts[1]
             if batch_id != current_batch_id:
                 self.logger.error(f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")

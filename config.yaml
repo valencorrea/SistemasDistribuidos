@@ -16,15 +16,15 @@ clients:
 
 workers:
   twentieth_century:
-    count: 2
+    count: 1
     log_level: INFO
     kill: true
   main_movie:
-    count: 2
+    count: 1
     log_level: INFO
     kill: true
   esp_production:
-    count: 2
+    count: 1
     log_level: INFO
     kill: true
   no_colab_productions:
@@ -32,7 +32,7 @@ workers:
     log_level: INFO
     kill: true
   sentiment:
-    count: 3
+    count: 0
     log_level: INFO
     kill: true
   arg_production:
@@ -40,11 +40,11 @@ workers:
     log_level: INFO
     kill: true
   credits:
-    count: 2
+    count: 3
     log_level: INFO
     kill: true
   ratings:
-    count: 2
+    count: 3
     log_level: INFO
     kill: true
 client_decodifier:
