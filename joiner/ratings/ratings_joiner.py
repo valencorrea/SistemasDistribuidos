@@ -58,9 +58,7 @@ class RatingsJoiner(AbstractAggregator):
             self.add_to_pending(client_id, message)
             return None
         ratings = convert_data_for_rating_joiner(message)
-        self.logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
         partial_result = defaultdict(dict)
-        self.logger.info(f"Partial result convertidos. Total recibido: {len(self.results[client_id].keys())}")
         for rating in ratings:
             if not isinstance(rating, dict):
                 self.logger.error(f"Rating no es un diccionario: {rating}")
@@ -87,7 +85,6 @@ class RatingsJoiner(AbstractAggregator):
             os.fsync(f.fileno())
 
     def aggregate_message(self, client_id, result):
-        self.logger.info(f"Agregando resultados para el cliente {client_id}. Resultados: {result}")
         if client_id not in self.results:
             self.results[client_id] = result
         else:
@@ -115,12 +112,10 @@ class RatingsJoiner(AbstractAggregator):
         }
 
     def handle_control_message(self, message):
-        self.logger.info(f"Mensaje de control recibido: {message}")
         client_id = message["client_id"]
         result_message = self.create_final_result(client_id)
         if self.producer:
             self.producer.enqueue(result_message)
-        self.logger.info(f"Resultado enviado {result_message}.")
         self.clean_client(client_id)
 
     def clean_client(self, client_id):
@@ -146,7 +141,6 @@ class RatingsJoiner(AbstractAggregator):
         return f"credits-{client_id}-{joiner_id}-{rand_str}"
 
     def close(self):
-        self.logger.info("Cerrando conexiones del worker...")
         try:
             self.movies_consumer.stop()
             if self.consumer:
@@ -175,7 +169,6 @@ class RatingsJoiner(AbstractAggregator):
 
         if self.producer:
             self.producer.enqueue(control_message)
-        self.logger.info(f"Control enviado al aggregator: {control_message}")
 
     def get_result(self, client_id):
         movies_with_ratings = {}
@@ -186,7 +179,6 @@ class RatingsJoiner(AbstractAggregator):
         return movies_with_ratings
 
     def handle_movies_message(self, message):
-        self.logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
 
         if message.get("type") != "20_century_arg_total_result":
             self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
@@ -343,7 +335,6 @@ class RatingsJoiner(AbstractAggregator):
         if message.get("is_final", False):
             client_id = message.get("client_id")
             if client_id:
-                self.logger.info(f"Recibido mensaje envenenado para cliente {client_id}, limpiando datos...")
                 self.clean_client(client_id)
                 
                 # Reenviar mensaje envenenado al aggregator para que también limpie
@@ -376,7 +367,6 @@ class RatingsJoiner(AbstractAggregator):
         }
         
         formatted_message = self.format_message(control_message)
-        self.logger.info(f"Enviando mensaje de batch_processed al aggregator: {control_message}")
         processing_status = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed)
         
         if processing_status is True:
@@ -385,12 +375,13 @@ class RatingsJoiner(AbstractAggregator):
         elif processing_status is False:
             super().handle_message(message)
         elif processing_status is None:
-            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien")
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien. Procesando de todas formas.")
+            super().handle_message(message)
         else:
             self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
+            super().handle_message(message)
 
     def _handle_batch_processed(self, response):
-        self.logger.info(f"Respuesta recibida del aggregator: {response}")
         joiner_instance_id = response.get("joiner_instance_id", '-1')
         return joiner_instance_id != '-1'
     
@@ -404,7 +395,6 @@ class RatingsJoiner(AbstractAggregator):
             "batch_id": batch_id,
         }        
         formatted_message = self.format_message(control_message)
-        self.logger.info(f"Enviando mensaje de should_resolve_unfinished_transaction al aggregator: {batch_id}")
         response = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed_for_recover)
         if response is None:
             self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")

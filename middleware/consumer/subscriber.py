@@ -37,12 +37,12 @@ class Subscriber(threading.Thread):
             try:
                 self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
                 self.channel = self.connection.channel()
-                self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='fanout')
-                result = self.channel.queue_declare(queue='', exclusive=True)
+                self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='fanout', durable=True)
+                result = self.channel.queue_declare(queue=f"queue_{self.subscriber_name}", exclusive=True)
                 self.queue_name = result.method.queue
                 self.channel.queue_bind(exchange=self.exchange_name, queue=self.queue_name)
                 
-                logger.info(f"✅ {self.subscriber_name} conectado al exchange fanout: {self.exchange_name}")
+                logger.info(f"✅ {self.subscriber_name} conectado al exchange fanout: {self.subscriber_name}")
                 return
                 
             except Exception as e:
@@ -74,10 +74,10 @@ class Subscriber(threading.Thread):
                 self.message_handler(message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except json.JSONDecodeError as e:
-            logger.error(f"❌ JSON decode error on queue consumer {self.exchange_name}: {e}")
+            logger.error(f"❌ JSON decode error on queue consumer {self.subscriber_name}: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         except Exception as e:
-            logger.error(f"❌ Error processing message on queue consumer {self.exchange_name}: {e}. body: {body}")
+            logger.error(f"❌ Error processing message on queue consumer {self.subscriber_name}: {e}. body: {body}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
     def close(self):
