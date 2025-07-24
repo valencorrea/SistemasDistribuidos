@@ -103,7 +103,7 @@ class TCPServer:
         logger.info("[TCP Server] Servidor detenido.")
 
 class TCPClient:
-    def __init__(self, host, port, timeout=5, max_retries=5):
+    def __init__(self, host, port, timeout=500, max_retries=5):
         self.host = host
         self.port = port
         self.timeout = timeout
@@ -236,6 +236,7 @@ class TCPClient:
                             if complete_message.strip():
                                 return callback(json.loads(complete_message))
                     except socket.timeout:
+                        logger.warning(f"[TCP Client] Timeout recibiendo respuesta, reintentando...")
                         continue
                     except (ConnectionResetError, BrokenPipeError):
                         logger.warning(f"[TCP Client] Conexión perdida, reintentando...")

@@ -43,9 +43,12 @@ class RatingsJoiner(AbstractAggregator):
         super().__init__(self.results)
     
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                          message_handler=self.handle_movies_message)
+                                          message_handler=self.handle_movies_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_movies_ratings")
         self.ratings_producer = Producer(queue_name="ratings", queue_type="direct")
-        self.control_consumer = Subscriber("joiner_control_ratings", message_handler=self.handle_control_message)
+        self.control_consumer = Subscriber("joiner_control_ratings", 
+                                          message_handler=self.handle_control_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_control_ratings")
 
         if self.has_recovered_at_least_once and self.consumer:
             self.consumer.start()
@@ -55,9 +58,7 @@ class RatingsJoiner(AbstractAggregator):
             self.add_to_pending(client_id, message)
             return None
         ratings = convert_data_for_rating_joiner(message)
-        self.logger.info(f"Ratings convertidos. Total recibido: {len(ratings)}")
         partial_result = defaultdict(dict)
-        self.logger.info(f"Partial result convertidos. Total recibido: {len(self.results[client_id].keys())}")
         for rating in ratings:
             if not isinstance(rating, dict):
                 self.logger.error(f"Rating no es un diccionario: {rating}")
@@ -84,20 +85,12 @@ class RatingsJoiner(AbstractAggregator):
             os.fsync(f.fileno())
 
     def aggregate_message(self, client_id, result):
-        self.logger.info(f"Agregando resultados para el cliente {client_id}. Resultados: {result}")
         if client_id not in self.results:
             self.results[client_id] = result
         else:
-
             for movie_id, data in result.items():
-                if movie_id not in self.results[client_id]:
-                    self.results[client_id][movie_id] = {
-                        "rating_sum": data["rating_sum"],
-                        "votes": data["votes"]
-                    }
-                else:
-                    self.results[client_id][movie_id]["rating_sum"] += data["rating_sum"]
-                    self.results[client_id][movie_id]["votes"] += data["votes"]
+                self.results[client_id][int(movie_id)]["rating_sum"] += data["rating_sum"]
+                self.results[client_id][int(movie_id)]["votes"] += data["votes"]
 
     def check_if_its_completed(self, client_id):
         pass
@@ -112,12 +105,10 @@ class RatingsJoiner(AbstractAggregator):
         }
 
     def handle_control_message(self, message):
-        self.logger.info(f"Mensaje de control recibido: {message}")
         client_id = message["client_id"]
         result_message = self.create_final_result(client_id)
         if self.producer:
             self.producer.enqueue(result_message)
-        self.logger.info(f"Resultado enviado {result_message}.")
         self.clean_client(client_id)
 
     def clean_client(self, client_id):
@@ -131,9 +122,9 @@ class RatingsJoiner(AbstractAggregator):
             results_file = f"{client_id}{self.results_log_name}"
             if os.path.exists(results_file):
                 os.remove(results_file)
-            self.results.pop(client_id)
-            self.total_batches_per_client.pop(client_id)
-            self.received_batches_per_client.pop(client_id)
+            self.results.pop(client_id, None)
+            self.total_batches_per_client.pop(client_id, None)
+            self.received_batches_per_client.pop(client_id, None)
         except Exception as e:
             self.logger.error(f"Error al limpiar cliente {client_id}: {e}")
 
@@ -143,16 +134,15 @@ class RatingsJoiner(AbstractAggregator):
         return f"credits-{client_id}-{joiner_id}-{rand_str}"
 
     def close(self):
-        self.logger.info("Cerrando conexiones del worker...")
         try:
-            self.movies_consumer.close()
+            self.movies_consumer.stop()
             if self.consumer:
                 self.consumer.close()
             if self.producer:
                 self.producer.close()
             if self.shutdown_consumer:
                 self.shutdown_consumer.close()
-            self.control_consumer.close()
+            self.control_consumer.stop()
             self.ratings_producer.close()
             if self.tcp_client:
                 self.tcp_client.close()
@@ -172,7 +162,6 @@ class RatingsJoiner(AbstractAggregator):
 
         if self.producer:
             self.producer.enqueue(control_message)
-        self.logger.info(f"Control enviado al aggregator: {control_message}")
 
     def get_result(self, client_id):
         movies_with_ratings = {}
@@ -183,8 +172,6 @@ class RatingsJoiner(AbstractAggregator):
         return movies_with_ratings
 
     def handle_movies_message(self, message):
-        self.logger.info(f"Mensaje de movies recibido - cliente: " + str(message.get("client_id")))
-
         if message.get("type") != "20_century_arg_total_result":
             self.logger.error(f"Tipo de mensaje no esperado. Tipo recibido: {message.get('type')}")
             return
@@ -205,61 +192,78 @@ class RatingsJoiner(AbstractAggregator):
             self.persist_movies(client_id, movies)
             self.set_movies_for_client(client_id, movies)
 
-            for filename in os.listdir():
-                if not filename.endswith(self.pending_file):
-                    self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
-                    continue
-                client_id = filename.replace("%s" % self.pending_file, "")
-                self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
-                in_transaction = False
-                current_batch_id = None
-                current_payload = None
-
-                with open(filename, "r") as f:
-                    try:
-                        for line in f:
-                            parts = line.strip().split(";", 2)
-
-                            if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
-                                in_transaction = True
-                                current_batch_id = parts[1]
-                                current_payload = json.loads(parts[2])
-                                self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
-
-                            elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
-                                batch_id = parts[1]
-                                if batch_id != current_batch_id:
-                                    self.logger.error(
-                                        f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
-                                    continue
-                                if batch_id in self.processed_batch_ids:
-                                    self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
-                                    continue
-
-                                self.ratings_producer.enqueue(current_payload)
-                                in_transaction = False
-                                current_batch_id = None
-                                current_payload = None
-                    except json.JSONDecodeError as e:
-                        self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
-                    except Exception as e:
-                        self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
-                        exit(1)
-                os.remove(filename)
-
+            self._process_pending_messages(client_id)
             self.recheck_if_some_client_is_completed_after_restart()
             self.logger.info(f"{len(self.results[client_id])} películas guardadas para {client_id}")
+
             if self.consumer and not self.consumer.is_alive():
-                self.consumer.start()
-                self.logger.info("Thread de consumo de ratings empezado")
+                try:
+                    self.consumer.start()
+                except Exception as e:
+                    self.logger.error(f"Error al iniciar consumer: {e}")
             else:
                 self.logger.info("Thread de consumo de ratings no empezado, ya existe uno")
 
-            self.recheck_if_some_client_is_completed_after_restart()
 
         except Exception as e:
             self.logger.error(f"Error al procesar mensaje de películas: {e}", exc_info=True)
             self.close()
+
+    def _process_pending_messages(self, client_id):
+        """Procesa mensajes pendientes para un cliente específico"""
+        for filename in os.listdir():
+            if not filename.endswith(self.pending_file):
+                self.logger.info(f"Archivo {filename} no es un archivo de mensajes pendientes, se omite.")
+                continue
+                
+            file_client_id = filename.replace("%s" % self.pending_file, "")
+            if file_client_id != client_id:
+                continue
+                
+            self.logger.info(f"Recuperando mensajes pendientes para cliente {client_id} desde {filename}")
+            in_transaction = False
+            current_batch_id = None
+            current_payload = None
+
+            with open(filename, "r") as f:
+                try:
+                    for line in f:
+                        parts = line.strip().split(";", 2)
+
+                        if parts[0] == "BEGIN_TRANSACTION" and len(parts) == 3:
+                            in_transaction = True
+                            current_batch_id = parts[1]
+                            current_payload = json.loads(parts[2])
+                            self.logger.info(f"Se encontró una transacción para el id {current_batch_id}.")
+
+                        elif parts[0] == "END_TRANSACTION" and len(parts) == 2 and in_transaction:
+                            batch_id = parts[1]
+                            if batch_id != current_batch_id:
+                                self.logger.error(
+                                    f"Mismatch de batch_id en transacción: {batch_id} != {current_batch_id}")
+                                continue
+                            if batch_id in self.processed_batch_ids:
+                                self.logger.info(f"Batch {batch_id} ya procesado, se omite.")
+                                continue
+
+                            # Reenviar mensaje a la cola
+                            self.ratings_producer.enqueue(current_payload)
+                            
+                            in_transaction = False
+                            current_batch_id = None
+                            current_payload = None
+                except json.JSONDecodeError as e:
+                    self.logger.exception(f"Error decodificando JSON de batch {current_batch_id}: {e}")
+                except Exception as e:
+                    self.logger.exception(f"Error al intentar recuperar el archivo de log {current_batch_id}: {e}")
+                    raise
+                    
+            # Eliminar archivo de pendientes después de procesarlo
+            try:
+                os.remove(filename)
+                self.logger.info(f"Archivo de pendientes {filename} eliminado después del procesamiento")
+            except Exception as e:
+                self.logger.warning(f"No se pudo eliminar archivo de pendientes {filename}: {e}")
 
     def set_movies_for_client(self, client_id, movies):
         self.results[client_id] = {}
@@ -337,6 +341,31 @@ class RatingsJoiner(AbstractAggregator):
             return str(message) + '\n'
 
     def handle_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.clean_client(client_id)
+                
+                # Reenviar mensaje envenenado al aggregator para que también limpie
+                poisoned_control_message = {
+                    "type": "control",
+                    "client_id": client_id,
+                    "batch_id": message.get("batch_id"),
+                    "batch_size": 0,
+                    "joiner_id": self.joiner_instance_id,
+                    "is_final": True
+                }
+                if self.producer:
+                    self.producer.enqueue(poisoned_control_message)
+                    self.logger.info(f"Mensaje envenenado reenviado al aggregator para cliente {client_id}")
+                
+                # Hacer ACK del mensaje envenenado para que no se reprocese
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
         batch_id = message.get("batch_id")
         client_id = message.get("client_id")
         
@@ -347,35 +376,33 @@ class RatingsJoiner(AbstractAggregator):
         }
         
         formatted_message = self.format_message(control_message)
-        self.logger.info(f"Enviando mensaje de batch_processed al aggregator: {control_message}")
         processing_status = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed)
         
         if processing_status is True:
+            self.logger.info(f"Batch {batch_id} ya procesado por otro joiner, se hace ACK")
             if self.consumer:
                 self.consumer.ack(batch_id)
         elif processing_status is False:
             super().handle_message(message)
         elif processing_status is None:
-            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien")
-        else:
-            self.logger.error(f"❌ Estado de procesamiento inesperado: {processing_status}")
+            self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo proceso alguien. Procesando de todas formas.")
 
     def _handle_batch_processed(self, response):
-        self.logger.info(f"Respuesta recibida del aggregator: {response}")
         joiner_instance_id = response.get("joiner_instance_id", '-1')
         return joiner_instance_id != '-1'
     
     def _handle_batch_processed_for_recover(self, response):
-        joiner_instance_id = response.get("joiner_instance_id", '-1')
+        joiner_instance_id = response.get("joiner_instance_id", 'no encontrado')
+        self.logger.info(f"Respuesta recibida del aggregator para recover: {response} para joiner {self.joiner_instance_id} con {joiner_instance_id}")
         return joiner_instance_id == self.joiner_instance_id
 
-    def should_resolve_unfinished_transaction(self, batch_id):
+    def should_resolve_unfinished_transaction(self, batch_id, client_id):
         control_message = {
             "type": "batch_processed",
             "batch_id": batch_id,
+            "client_id": client_id,
         }        
         formatted_message = self.format_message(control_message)
-        self.logger.info(f"Enviando mensaje de should_resolve_unfinished_transaction al aggregator: {batch_id}")
         response = self.tcp_client.send_with_response(formatted_message, self._handle_batch_processed_for_recover)
         if response is None:
             self.logger.warning(f"⚠️ Batch {batch_id} fallo al preguntar al aggregator si ya lo procese yo")

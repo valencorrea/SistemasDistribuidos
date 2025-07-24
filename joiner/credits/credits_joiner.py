@@ -43,12 +43,15 @@ class CreditsJoiner(AbstractAggregator):
 
         self.recover_movies()
         self.movies_consumer = Subscriber("20_century_arg_result",
-                                          message_handler=self.handle_movies_message)
+                                          message_handler=self.handle_movies_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_movies_credits")
         self.credits_producer = Producer(
             queue_name="credits",
             queue_type="direct")
 
-        self.control_consumer = Subscriber("joiner_control_credits", message_handler=self.handle_control_message)
+        self.control_consumer = Subscriber("joiner_control_credits", 
+                                          message_handler=self.handle_control_message,
+                                          subscriber_name=f"{self.joiner_instance_id}_control_credits")
 
         if self.has_recovered_at_least_once and self.consumer:
             self.logger.info("se recupero mensajes de movies, se inicia el consumo de credits")
@@ -128,7 +131,7 @@ class CreditsJoiner(AbstractAggregator):
     def close(self):
         self.logger.info("Cerrando conexiones del worker...")
         try:
-            self.movies_consumer.close()
+            self.movies_consumer.stop()
             if self.consumer:
                 self.consumer.close()
             if self.producer:
@@ -137,7 +140,7 @@ class CreditsJoiner(AbstractAggregator):
             if self.tcp_client:
                 self.tcp_client.close()
 
-            self.control_consumer.close()
+            self.control_consumer.stop()
         except Exception as e:
             self.logger.error(f"Error al cerrar conexiones: {e}")
 
@@ -294,6 +297,30 @@ class CreditsJoiner(AbstractAggregator):
             return str(message) + '\n'
 
     def handle_message(self, message):
+        if message.get("is_final", False):
+            client_id = message.get("client_id")
+            if client_id:
+                self.logger.info(f"Recibido mensaje envenenado para cliente {client_id}, limpiando datos...")
+                self.clean_client(client_id)
+                
+                poisoned_control_message = {
+                    "type": "control",
+                    "client_id": client_id,
+                    "batch_id": message.get("batch_id"),
+                    "batch_size": 0,
+                    "joiner_instance_id": self.joiner_instance_id,
+                    "is_final": True
+                }
+                if self.producer:
+                    self.producer.enqueue(poisoned_control_message)
+                    self.logger.info(f"Mensaje envenenado reenviado al aggregator para cliente {client_id}")
+                
+                batch_id = message.get("batch_id")
+                if batch_id and self.consumer:
+                    self.consumer.ack(batch_id)
+                self.logger.info(f"Datos del cliente {client_id} limpiados, mensaje envenenado confirmado")
+            return
+
         batch_id = message.get("batch_id")
         client_id = message.get("client_id")
         
@@ -328,10 +355,11 @@ class CreditsJoiner(AbstractAggregator):
         self.logger.info(f"Respuesta recibida del aggregator para recover: {joiner_instance_id}")
         return joiner_instance_id == self.joiner_instance_id
 
-    def should_resolve_unfinished_transaction(self, batch_id):
+    def should_resolve_unfinished_transaction(self, batch_id, client_id):
         control_message = {
             "type": "batch_processed",
             "batch_id": batch_id,
+            "client_id": client_id,
         }        
         formatted_message = self.format_message(control_message)
         self.logger.info(f"Enviando mensaje de should_resolve_unfinished_transaction al aggregator: {batch_id}")
