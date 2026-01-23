@@ -30,6 +30,20 @@ escalar los volúmenes de información a procesar
 comunicación basada en grupos.
 - Se debe soportar una única ejecución del procesamiento y proveer
 graceful quit frente a señales SIGTERM.
+- El sistema debe estar optimizado para entornos multicomputadoras
+- Se debe soportar el incremento de los elementos de cómputo para
+escalar los volúmenes de información a procesar
+- Se requiere del desarrollo de un Middleware para abstraer la
+comunicación entre grupos, basándose en las interfaces provistas.
+- Soporte para varias ejecuciones de las consultas para un cliente, sin reinicio del servidor.
+- Ejecución con varios clientes concurrentemente.
+- Correcta limpieza de los recursos luego de cada ejecución.
+- El sistema debe ser tolerante a fallos por caídas de procesos.
+- En caso de usar un algoritmo de consenso, el mismo tiene que ser implementado
+por los alumnos.
+- Está permitido utilizar docker-in-docker para levantar procesos caídos
+- No está permitido utilizar docker para verificar si un nodo está disponible.
+- Documento de arquitectura: 4+1 views o C4.
 
 ### Datasets, notebook patrón y librerías
 - [Dataset](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset)
